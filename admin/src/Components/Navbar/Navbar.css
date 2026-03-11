@@ -1,0 +1,199 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ── Design tokens (mirrors full design system) ── */
+:root {
+  --bg: #f5f4f0;
+  --surface: #ffffff;
+  --border: #e8e4dc;
+  --text-primary: #1a1a1a;
+  --text-muted: #8a8680;
+  --accent: #c8572a;
+  --accent-light: #fdf1ec;
+  --accent-mid: #e8935a;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .06);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, .08);
+  --transition: .22s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* ── Navbar shell ── */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 68px;
+  padding: 0 36px;
+  background-color: white;
+  font-family: 'Poppins';
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-sizing: border-box;
+
+
+}
+
+/* Entrance animation */
+.navbar {
+  animation: navDrop .35s cubic-bezier(.4, 0, .2, 1) both;
+}
+
+@keyframes navDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Left side ── */
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Logo image */
+.nav-left .logo {
+  height: 38px;
+  width: 38px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--accent-light);
+  padding: 6px;
+  border: 1px solid var(--border);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.nav-left .logo:hover {
+  transform: rotate(-6deg) scale(1.08);
+  box-shadow: 0 4px 14px rgba(200, 87, 42, .2);
+}
+
+/* Brand text block */
+.nav-left div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-left h2 {
+  margin: 0;
+  font-family: 'Poppins';
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  color: var(--text-primary);
+  line-height: 1;
+
+  /* Warm gradient on brand name */
+  background: linear-gradient(90deg,
+      var(--accent) 0%,
+      var(--accent-mid) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-left p {
+  margin: 0;
+  font-family: 'Poppins';
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .14em;
+
+  color: black;
+  line-height: 1;
+}
+
+/* ── Right side ── */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 10px 6px 6px;
+  border-radius: 40px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  transition:
+    background var(--transition),
+    box-shadow var(--transition),
+    border-color var(--transition);
+}
+
+.nav-right:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-mid);
+  box-shadow: 0 2px 12px rgba(200, 87, 42, .12);
+}
+
+/* Profile avatar */
+.nav-right .profile {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  transition: border-color var(--transition), transform var(--transition);
+}
+
+.nav-right:hover .profile {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+/* Dropdown arrow */
+.nav-right .arrow {
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform var(--transition), color var(--transition);
+  line-height: 1;
+  user-select: none;
+}
+
+.nav-right:hover .arrow {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .navbar {
+    padding: 0 18px;
+    height: 60px;
+  }
+
+  .nav-left h2 {
+    font-size: 15px;
+  }
+
+  .nav-left p {
+    display: none;
+  }
+
+  .nav-left .logo {
+    height: 32px;
+    width: 32px;
+  }
+
+  .nav-right .profile {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-left gap {
+    gap: 10px;
+  }
+
+  .nav-left h2 {
+    font-size: 14px;
+    letter-spacing: .08em;
+  }
+}

@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+    --accent-soft: #fff0f3;
+    --gold: #c9a84c;
+    --surface: #ffffff;
+    --surface-2: #f8f8fc;
+    --border: #ebebf5;
+    --text-main: #1a1a2e;
+    --text-muted: #8888aa;
+    --shadow-sm: 0 2px 8px rgba(26,26,46,0.06);
+    --shadow-md: 0 8px 32px rgba(26,26,46,0.10);
+    --shadow-lg: 0 16px 48px rgba(26,26,46,0.14);
+    --radius: 14px;
+    --radius-sm: 8px;
+}
+
+/* ── Container ── */
+.list-product {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 75%;
+    max-height: 820px;
+    padding: 32px 36px;
+    margin: 30px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border);
+     font-family:'Poppins';
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle top accent bar */
+.list-product::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* ── Header row ── */
+.listproduct-format-main {
+    display: grid;
+    grid-template-columns: 0.4fr 2.8fr 0.9fr 1fr 1fr 0.6fr;
+    gap: 12px;
+    width: 100%;
+    padding: 0 16px 14px;
+   color: rgb(35, 33, 33);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+   
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 4px;
+    align-items: center;
+}
+
+/* ── Title spacing ── */
+.listproduct-format-main > *:nth-child(2),
+.listproduct-format > *:nth-child(2) {
+    padding-left: 18px;
+    padding-right: 18px;
+}
+
+/* ── Each product row ── */
+.listproduct-format {
+    display: grid;
+    grid-template-columns: 0.4fr 2.8fr 0.9fr 1fr 1fr 0.6fr;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+    cursor: default;
+}
+
+.listproduct-format:last-child {
+    border-bottom: none;
+}
+
+
+/* ── Product image ── */
+.listproduct-product-icon {
+    height: 72px;
+    width: 72px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.listproduct-format:hover .listproduct-product-icon {
+    transform: scale(1.06);
+    box-shadow: var(--shadow-md);
+}
+
+/* ── Product name ── */
+.listproduct-format p:nth-child(2) {
+    font-family:'Poppins';
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-main);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Category badge ── */
+.listproduct-format p:nth-child(3) {
+    display: inline-block;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+}
+
+/* ── Prices ── */
+.listproduct-format p:nth-child(4) {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+}
+
+.listproduct-format p:nth-child(5) {
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    
+}
+
+/* ── Remove icon ── */
+.listproduct-remove-icon {
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    margin: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    transition: background 0.18s ease, transform 0.15s ease;
+    padding: 6px;
+    box-sizing: border-box;
+}
+
+.listproduct-remove-icon:hover {
+   
+    transform: scale(1.15);
+   
+}
+
+/* ── Scrollable list area ── */
+.listproduct-allproducts {
+    overflow-y: auto;
+    flex: 1;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.listproduct-allproducts::-webkit-scrollbar {
+    width: 5px;
+}
+
+.listproduct-allproducts::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.listproduct-allproducts::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+/* ── Delete confirmation overlay ── */
+.delete-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(26, 26, 46, 0.45);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.delete-card {
+    background: var(--surface);
+    padding: 36px 32px 28px;
+    border-radius: var(--radius);
+    text-align: center;
+    width: 320px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    animation: slideUp 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.delete-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.delete-card h3 {
+   
+    font-family: 'Poppins';
+    font-size: 20px;
+    color: var(--text-main);
+    margin: 0 0 10px;
+}
+
+.delete-card p {
+    font-size: 14px;
+    font-family: 'Poppins';
+    margin: 0 0 4px;
+    line-height: 1.6;
+}
+
+.delete-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.confirm-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 11px 24px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-family:'Poppins';
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+    box-shadow: 0 4px 14px rgba(233, 69, 96, 0.3);
+}
+
+.confirm-btn:hover {
+    background: #d63150;
+    transform: translateY(-0.5px);
+    box-shadow: 0 3px 12px rgba(233, 69, 96, 0.4);
+}
+
+.cancel-btn {
+    background: var(--surface-2);
+    color: var(--text-main);
+    border: 1.5px solid var(--border);
+    padding: 11px 24px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+     font-family:'Poppins';
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+}
+
+.cancel-btn:hover {
+    background: var(--border);
+    border-color: #d0d0e8;
+    transform: translateY(-1px);
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .list-product {
+        margin: 20px auto;
+        padding: 24px 18px;
+        width: 95%;
+        max-height: 100%;
+    }
+
+    .listproduct-format-main,
+    .listproduct-format {
+        grid-template-columns: 0.5fr 2fr 0.8fr 0.9fr 0.9fr 0.5fr;
+        font-size: 12px;
+        padding: 12px 10px;
+        gap: 8px;
+    }
+
+    .listproduct-product-icon {
+        height: 56px;
+        width: 56px;
+    }
+}
+
+@media (max-width: 600px) {
+    .listproduct-format-main,
+    .listproduct-format {
+        grid-template-columns: 56px 1fr 1fr 28px;
+        font-size: 12px;
+    }
+
+    /* Hide category & old price on very small screens */
+    .listproduct-format-main > *:nth-child(3),
+    .listproduct-format-main > *:nth-child(5),
+    .listproduct-format > *:nth-child(3),
+    .listproduct-format > *:nth-child(5) {
+        display: none;
+    }
+
+    .delete-card {
+        width: 90%;
+        padding: 28px 20px 22px;
+    }
+}

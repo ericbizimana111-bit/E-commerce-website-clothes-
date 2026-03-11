@@ -1,0 +1,291 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* ── Design tokens ── */
+:root {
+  --bg:           #f5f4f0;
+  --surface:      #ffffff;
+  --border:       #e8e4dc;
+  --text-primary: #1a1a1a;
+  --text-muted:   #8a8680;
+  --accent:       #c8572a;
+  --accent-light: #fdf1ec;
+  --accent-mid:   #e8935a;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:    0 4px 20px rgba(0,0,0,.08);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.12);
+  --radius:       12px;
+  --transition:   .22s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Page wrapper — fills remaining space beside sidebar ── */
+.add-product {
+  flex: 1;
+  min-height: calc(100vh - 68px); /* subtract navbar height */
+  padding: 40px 44px;
+  background: var(--bg);
+  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+  animation: pageFade .3s ease both;
+}
+
+@keyframes pageFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card container ── */
+.add-product-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  padding: 36px 40px 40px;
+  max-width: 680px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent top bar */
+.add-product-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-mid) 50%, #f0c49a 100%);
+}
+
+/* ── Page heading ── */
+.add-product h2 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 28px 0;
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.add-product h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Field wrapper ── */
+.addproduct-itemfield {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+/* ── Labels ── */
+.addproduct-itemfield label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.addproduct-itemfield:focus-within label {
+  color: var(--accent);
+}
+
+/* ── Inputs ── */
+.addproduct-itemfield input[type="text"],
+.addproduct-itemfield input[type="number"] {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  outline: none;
+  transition:
+    border-color var(--transition),
+    background   var(--transition),
+    box-shadow   var(--transition);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.addproduct-itemfield input[type="text"]::placeholder,
+.addproduct-itemfield input[type="number"]::placeholder {
+  color: #c4bfb8;
+  font-weight: 300;
+}
+
+.addproduct-itemfield input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(200,87,42,.1);
+}
+
+.addproduct-itemfield input:hover:not(:focus) {
+  border-color: var(--accent-mid);
+}
+
+/* ── Price row ── */
+.addproduct-price {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ── Select / Category ── */
+.add-product-selector {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-primary);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+
+  /* custom chevron */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a8680' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+
+  transition:
+    border-color var(--transition),
+    background-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.add-product-selector:focus {
+  border-color: var(--accent);
+  background-color: var(--surface);
+  box-shadow: 0 0 0 3px rgba(200,87,42,.1);
+}
+
+.add-product-selector:hover:not(:focus) {
+  border-color: var(--accent-mid);
+}
+
+/* ── Image upload area ── */
+.addproduct-itemfield label[for="file-input"],
+.addproduct-itemfield label[htmlfor="file-input"] {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.addproduct-thumbnail-img {
+  width: 110px !important;
+  height: 110px !important;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px dashed var(--border);
+  background: var(--bg);
+  padding: 4px;
+  transition:
+    border-color var(--transition),
+    transform    var(--transition),
+    box-shadow   var(--transition);
+  display: block;
+}
+
+.addproduct-thumbnail-img:hover {
+  border-color: var(--accent);
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px rgba(200,87,42,.18);
+}
+
+/* Upload helper text */
+.addproduct-itemfield .upload-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+/* ── Submit button ── */
+.addproduct-btn {
+  font-family: 'Poppins', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 13px 36px;
+  cursor: pointer;
+  margin-top: 6px;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform    var(--transition),
+    box-shadow   var(--transition),
+    filter       var(--transition);
+  box-shadow: 0 3px 14px rgba(200,87,42,.35);
+}
+
+/* Shimmer sweep on hover */
+.addproduct-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255,255,255,.28) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: left .55s ease;
+}
+
+.addproduct-btn:hover::after {
+  left: 130%;
+}
+
+.addproduct-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(200,87,42,.45);
+  filter: brightness(1.05);
+}
+
+.addproduct-btn:active {
+  transform: translateY(0px) scale(.98);
+  box-shadow: 0 2px 8px rgba(200,87,42,.3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .add-product {
+    padding: 24px 18px;
+  }
+
+  .add-product-card {
+    padding: 24px 20px 28px;
+  }
+
+  .addproduct-price {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .addproduct-btn {
+    width: 100%;
+    padding: 14px;
+  }
+}

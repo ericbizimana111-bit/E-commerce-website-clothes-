@@ -1,0 +1,240 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ── Design tokens (mirrors ListProduct.css) ── */
+:root {
+  --bg:           #f5f4f0;
+  --surface:      #ffffff;
+  --border:       #e8e4dc;
+  --text-primary: #1a1a1a;
+  --text-muted:   #8a8680;
+  --accent:       #c8572a;
+  --accent-light: #fdf1ec;
+  --accent-mid:   #e8935a;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:    0 4px 20px rgba(0,0,0,.08);
+  --radius:       12px;
+  --transition:   .22s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Sidebar shell ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 200px;
+  min-height: 100vh;
+  padding: 32px 16px 24px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-family: 'DM Sans', sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Warm gradient bar on the left edge */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+
+  background: linear-gradient(
+    180deg,
+    var(--accent)     0%,
+    var(--accent-mid) 50%,
+    #f0c49a           100%
+  );
+}
+
+/* Brand label at the top */
+.sidebar::after {
+  
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  font-family: 'Poppins';
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: var(--text-muted);
+}
+
+/* ── Nav items ── */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition:
+    background   var(--transition),
+    box-shadow   var(--transition),
+    transform    var(--transition);
+  margin-top: 4px;
+}
+
+/* Hover ripple fill */
+.sidebar-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-light);
+  border-radius: inherit;
+  opacity: 0;
+  transform: scaleX(.6);
+  transform-origin: left;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.sidebar-item:hover::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.sidebar-item:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateX(4px);
+}
+
+/* Active state via NavLink .active class */
+.sidebar-item.active,
+a.active .sidebar-item {
+  background: var(--accent-light);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+a.active .sidebar-item::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── Icons ── */
+.sidebar-item img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: transform var(--transition), filter var(--transition);
+  filter: opacity(.55);
+}
+
+.sidebar-item:hover img,
+a.active .sidebar-item img {
+  transform: scale(1.12) rotate(-4deg);
+  filter: opacity(1) sepia(.4) saturate(3) hue-rotate(-10deg);
+}
+
+/* ── Labels ── */
+.sidebar-item p {
+  margin: 0;
+  font-family: 'Poppins';
+  font-size: 13.5px;
+  font-weight: 600;
+  color: black;
+  letter-spacing: .02em;
+  position: relative;
+  z-index: 1;
+  transition: color var(--transition);
+}
+
+.sidebar-item:hover p,
+a.active .sidebar-item p {
+  color: var(--accent);
+}
+
+/* ── Divider between items (optional helper class) ── */
+.sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 8px;
+}
+
+/* ── Staggered entrance animation ── */
+.sidebar-item {
+  animation: slideIn .3s ease both;
+}
+
+.sidebar-item:nth-child(1) { animation-delay: .05s; }
+.sidebar-item:nth-child(2) { animation-delay: .12s; }
+.sidebar-item:nth-child(3) { animation-delay: .19s; }
+.sidebar-item:nth-child(4) { animation-delay: .26s; }
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Responsive — collapse to icon-only rail ── */
+@media (max-width: 800px) {
+  .sidebar {
+    width: 68px;
+    padding: 28px 10px 20px;
+    align-items: center;
+  }
+
+  .sidebar::after {
+    display: none;
+  }
+
+  .sidebar-item {
+    justify-content: center;
+    padding: 12px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .sidebar-item p {
+    display: none;
+  }
+
+  .sidebar-item img {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Tooltip on hover for icon-only mode */
+  .sidebar-item {
+    position: relative;
+  }
+
+  .sidebar-item::after {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--text-primary);
+    color: rgb(224, 19, 210);
+     font-family: 'Poppins';
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition);
+    z-index: 100;
+  }
+
+  .sidebar-item:hover::after {
+    opacity: 1;
+  }
+}
