@@ -7,7 +7,6 @@ import navProfile from "../../assets/men (12).jpg";
 
 const Navbar = () => {
   return (
-   
     <div className="navbar">
       <div className="nav-left">
         <img src={navlogo} alt="logo" className="logo" />

@@ -16,7 +16,7 @@ const App = () => {
             element={
               <div
                 style={{
-
+                 
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
@@ -28,11 +28,11 @@ const App = () => {
                   color: "black",
                   border: "2px solid violet",
                   boxShadow: "0px 4px 10px violet",
-                  background: "linear-gradient(90deg, var(--accent) 0%, var(--accent-mid) 100%)",
+                    background: "linear-gradient(90deg, var(--accent) 0%, var(--accent-mid) 100%)",
                 }}>
                 <div
                   style={{
-
+                  
                     display: "flex",
                     justifyContent: "center",
                     alignItems: "center",
@@ -62,8 +62,8 @@ const App = () => {
                       margin: '100px auto',
                       marginTop: "70px",
                       padding: "50px",
-
-                      color: "white"
+                    
+                      color:"white"
                     }}>
                     <h2>Welcome To Admin Panel</h2>
                   </div>

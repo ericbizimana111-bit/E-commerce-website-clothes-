@@ -2,18 +2,18 @@
 
 /* ── Design tokens (mirrors ListProduct.css) ── */
 :root {
-  --bg: #f5f4f0;
-  --surface: #ffffff;
-  --border: #e8e4dc;
+  --bg:           #f5f4f0;
+  --surface:      #ffffff;
+  --border:       #e8e4dc;
   --text-primary: #1a1a1a;
-  --text-muted: #8a8680;
-  --accent: #4ade80;
-  --accent-light: #ecfdf5;
-  --accent-mid: #22c55e;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .06);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, .08);
-  --radius: 12px;
-  --transition: .22s cubic-bezier(.4, 0, .2, 1);
+  --text-muted:   #8a8680;
+  --accent:       #c8572a;
+  --accent-light: #fdf1ec;
+  --accent-mid:   #e8935a;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.06);
+  --shadow-md:    0 4px 20px rgba(0,0,0,.08);
+  --radius:       12px;
+  --transition:   .22s cubic-bezier(.4,0,.2,1);
 }
 
 /* ── Sidebar shell ── */
@@ -35,19 +35,19 @@
 .sidebar::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
+  top: 0; left: 0; bottom: 0;
 
-  background: linear-gradient(180deg,
-      var(--accent) 0%,
-      var(--accent-mid) 50%,
-      #dcfce7 100%);
+  background: linear-gradient(
+    180deg,
+    var(--accent)     0%,
+    var(--accent-mid) 50%,
+    #f0c49a           100%
+  );
 }
 
 /* Brand label at the top */
 .sidebar::after {
-
+  
   position: absolute;
   top: 20px;
   left: 24px;
@@ -69,9 +69,9 @@
   position: relative;
   overflow: hidden;
   transition:
-    background var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition);
+    background   var(--transition),
+    box-shadow   var(--transition),
+    transform    var(--transition);
   margin-top: 4px;
 }
 
@@ -165,28 +165,16 @@ a.active .sidebar-item p {
   animation: slideIn .3s ease both;
 }
 
-.sidebar-item:nth-child(1) {
-  animation-delay: .05s;
-}
-
-.sidebar-item:nth-child(2) {
-  animation-delay: .12s;
-}
-
-.sidebar-item:nth-child(3) {
-  animation-delay: .19s;
-}
-
-.sidebar-item:nth-child(4) {
-  animation-delay: .26s;
-}
+.sidebar-item:nth-child(1) { animation-delay: .05s; }
+.sidebar-item:nth-child(2) { animation-delay: .12s; }
+.sidebar-item:nth-child(3) { animation-delay: .19s; }
+.sidebar-item:nth-child(4) { animation-delay: .26s; }
 
 @keyframes slideIn {
   from {
     opacity: 0;
     transform: translateX(-18px);
   }
-
   to {
     opacity: 1;
     transform: translateX(0);
@@ -233,8 +221,8 @@ a.active .sidebar-item p {
     top: 50%;
     transform: translateY(-50%);
     background: var(--text-primary);
-    color: rgb(74, 222, 128);
-    font-family: 'Poppins';
+    color: rgb(224, 19, 210);
+     font-family: 'Poppins';
     font-size: 12px;
     font-weight: 500;
     padding: 5px 10px;
