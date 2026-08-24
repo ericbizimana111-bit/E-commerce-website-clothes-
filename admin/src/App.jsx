@@ -5,73 +5,42 @@ import Navbar from './Components/Navbar/Navbar';
 import AddProduct from './Components/AddProduct/AddProduct';
 import ListProduct from './Components/ListProduct/ListProduct';
 
+const WelcomeCard = () => (
+  <div style={{
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '60vh',
+    margin: '30px',
+  }}>
+    <div style={{
+      textAlign: 'center',
+      padding: '60px 40px',
+      borderRadius: '20px',
+      background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%)',
+      color: 'white',
+      boxShadow: '0 8px 32px rgba(200, 87, 42, 0.3)',
+      maxWidth: '500px',
+      width: '100%',
+    }}>
+      <h2 style={{ fontSize: '28px', marginBottom: '12px', fontWeight: 700 }}>
+        Welcome to Shopper Admin
+      </h2>
+      <p style={{ fontSize: '15px', opacity: 0.9, lineHeight: 1.6 }}>
+        Manage your products, track inventory, and grow your store from here.
+      </p>
+    </div>
+  </div>
+);
+
 const App = () => {
   return (
     <div className='app'>
       <Navbar />
       <Routes>
         <Route path="/" element={<Admin />}>
-          <Route
-            path=""
-            element={
-              <div
-                style={{
-                 
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  height: "50vh",
-                  borderRadius: '30px',
-                  margin: '100px auto',
-                  marginTop: "70px",
-                  padding: "50px",
-                  color: "black",
-                  border: "2px solid violet",
-                  boxShadow: "0px 4px 10px violet",
-                    background: "linear-gradient(90deg, var(--accent) 0%, var(--accent-mid) 100%)",
-                }}>
-                <div
-                  style={{
-                  
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "50vh",
-                    borderRadius: '30px',
-                    margin: '100px auto',
-                    marginTop: "70px",
-                    padding: "50px",
-                    color: "black",
-                    border: "2px solid violet",
-                    boxShadow: "0px 4px 10px violet",
-                    background: "linear-gradient(90deg, var(--accent) 0%, var(--accent-mid) 100%)",
-
-
-                  }}
-
-                >
-                  <div
-
-                    style={{
-
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      height: "50vh",
-                      borderRadius: '30px',
-                      margin: '100px auto',
-                      marginTop: "70px",
-                      padding: "50px",
-                    
-                      color:"white"
-                    }}>
-                    <h2>Welcome To Admin Panel</h2>
-                  </div>
-                </div>
-
-              </div>
-            }
-          />
+          <Route path="" element={<WelcomeCard />} />
           <Route path="addproduct" element={<AddProduct />} />
           <Route path="listproduct" element={<ListProduct />} />
         </Route>
@@ -81,5 +50,3 @@ const App = () => {
 };
 
 export default App;
-
-
