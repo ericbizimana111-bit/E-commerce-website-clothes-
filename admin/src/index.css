@@ -3,7 +3,7 @@
 body {
   margin: 0;
   font-family: 'Poppins', sans-serif;
-  background-color: #f5f4f0;
+  background-color: #F8FAFC;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -26,10 +26,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d0d0d0;
+  background: #64748B;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b0b0b0;
+  background: #1E293B;
 }

@@ -2,14 +2,14 @@
 
 /* ── Design tokens ── */
 :root {
-  --bg:           #f5f4f0;
-  --surface:      #ffffff;
-  --border:       #e8e4dc;
-  --text-primary: #1a1a1a;
-  --text-muted:   #8a8680;
-  --accent:       #c8572a;
-  --accent-light: #fdf1ec;
-  --accent-mid:   #e8935a;
+  --bg:           #F8FAFC;
+  --surface:      #FFFFFF;
+  --border:       #E2E8F0;
+  --text-primary: #1E293B;
+  --text-muted:   #64748B;
+  --accent:       #16A34A;
+  --accent-light: #f0fdf4;
+  --accent-mid:   #15803D;
   --shadow-sm:    0 1px 3px rgba(0,0,0,.06);
   --shadow-md:    0 4px 20px rgba(0,0,0,.08);
   --shadow-lg:    0 8px 32px rgba(0,0,0,.12);
@@ -126,7 +126,7 @@
 .addproduct-itemfield input:focus {
   border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(200,87,42,.1);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.1);
 }
 
 .addproduct-itemfield input:hover:not(:focus) {
@@ -172,7 +172,7 @@
 .add-product-selector:focus {
   border-color: var(--accent);
   background-color: var(--surface);
-  box-shadow: 0 0 0 3px rgba(200,87,42,.1);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.1);
 }
 
 .add-product-selector:hover:not(:focus) {
@@ -204,7 +204,7 @@
 .addproduct-thumbnail-img:hover {
   border-color: var(--accent);
   transform: scale(1.04);
-  box-shadow: 0 4px 16px rgba(200,87,42,.18);
+  box-shadow: 0 4px 16px rgba(22,163,74,.18);
 }
 
 /* Upload helper text */
@@ -234,7 +234,7 @@
     transform    var(--transition),
     box-shadow   var(--transition),
     filter       var(--transition);
-  box-shadow: 0 3px 14px rgba(200,87,42,.35);
+  box-shadow: 0 3px 14px rgba(22,163,74,.35);
 }
 
 /* Shimmer sweep on hover */
@@ -260,13 +260,13 @@
 
 .addproduct-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 22px rgba(200,87,42,.45);
+  box-shadow: 0 6px 22px rgba(22,163,74,.45);
   filter: brightness(1.05);
 }
 
 .addproduct-btn:active {
   transform: translateY(0px) scale(.98);
-  box-shadow: 0 2px 8px rgba(200,87,42,.3);
+  box-shadow: 0 2px 8px rgba(22,163,74,.3);
 }
 
 /* ── Responsive ── */

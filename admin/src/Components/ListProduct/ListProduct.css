@@ -1,15 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
 :root {
-    --primary: #1a1a2e;
-    --accent: #e94560;
-    --accent-soft: #fff0f3;
-    --gold: #c9a84c;
-    --surface: #ffffff;
-    --surface-2: #f8f8fc;
-    --border: #ebebf5;
-    --text-main: #1a1a2e;
-    --text-muted: #8888aa;
+    --primary: #0F172A;
+    --accent: #16A34A;
+    --accent-soft: #f0fdf4;
+    --gold: #F59E0B;
+    --surface: #FFFFFF;
+    --surface-2: #F8FAFC;
+    --border: #E2E8F0;
+    --text-main: #1E293B;
+    --text-muted: #64748B;
     --shadow-sm: 0 2px 8px rgba(26,26,46,0.06);
     --shadow-md: 0 8px 32px rgba(26,26,46,0.10);
     --shadow-lg: 0 16px 48px rgba(26,26,46,0.14);
@@ -270,13 +270,13 @@
     font-weight: 600;
     letter-spacing: 0.02em;
     transition: background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
-    box-shadow: 0 4px 14px rgba(233, 69, 96, 0.3);
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
 }
 
 .confirm-btn:hover {
-    background: #d63150;
+    background: var(--primary);
     transform: translateY(-0.5px);
-    box-shadow: 0 3px 12px rgba(233, 69, 96, 0.4);
+    box-shadow: 0 3px 12px rgba(22, 163, 74, 0.4);
 }
 
 .cancel-btn {
