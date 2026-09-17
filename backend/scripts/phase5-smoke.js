@@ -130,6 +130,19 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
   const stockFinal = await api('GET', `/api/products/slug/${product.slug}`);
   check('stock restored exactly once', stockFinal.json.data.availability.stockQuantity === stockBefore - 2);
 
+  console.log('— 21. Duplicate-order retry protection —');
+  const retryAdd = await api('POST', '/api/cart/items', { token, body: { productId: product.id, quantity: 1 } });
+  check('retry scenario cart add 201', retryAdd.status === 201);
+  const firstAttempt = await api('POST', '/api/orders', { token, body: { fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 } });
+  check('first attempt creates order (201)', firstAttempt.status === 201 && !!firstAttempt.json?.data?.order);
+  const retryOrder = firstAttempt.json?.data?.order || {};
+  const countBeforeRetry = await prisma.order.count({ where: { userId } });
+  const dupRetry = await api('POST', '/api/orders', { token, body: { fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 } });
+  check('immediate retry rejected (400, cart already consumed)', dupRetry.status === 400);
+  const countAfterRetry = await prisma.order.count({ where: { userId } });
+  check('retry created no duplicate order', countBeforeRetry === countAfterRetry);
+  check('server-generated order number (client cannot set it)', /^FB-\d{8}-\d{6}$/.test(retryOrder.orderNumber || ''));
+
   console.log('— 19. Customer token on admin route —');
   const custOnAdmin = await api('GET', '/api/admin/orders', { token });
   check('customer token rejected by admin orders (401)', custOnAdmin.status === 401);
@@ -163,6 +176,17 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
 
   // cleanup smoke data
   const smokeOrders = await prisma.order.findMany({ where: { userId } });
+  const smokeOrderIds = smokeOrders.map((o) => o.id);
+  // Snapshot stock still held by smoke orders BEFORE deleting inventory rows:
+  // held per product = SALE deductions not yet compensated by RETURN (exact
+  // regardless of quantities/statuses in this script).
+  const invRows = await prisma.inventoryTransaction.findMany({
+    where: { referenceId: { in: smokeOrderIds }, type: { in: ['SALE', 'RETURN'] } },
+  });
+  const heldByProduct = {};
+  for (const t of invRows) {
+    heldByProduct[t.productId] = (heldByProduct[t.productId] || 0) - t.quantityChange;
+  }
   for (const o of smokeOrders) {
     await prisma.orderStatusHistory.deleteMany({ where: { orderId: o.id } });
     await prisma.payment.deleteMany({ where: { orderId: o.id } });
@@ -170,10 +194,13 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
     await prisma.orderItem.deleteMany({ where: { orderId: o.id } });
     await prisma.order.delete({ where: { id: o.id } });
   }
-  // restore stock consumed by smoke orders (cancel only restored one)
-  const consumed = smokeOrders.filter((o) => o.status !== 'CANCELLED').length;
-  if (consumed > 0) {
-    await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: { increment: 2 * consumed } } });
+  // restore exactly the stock still held by smoke orders (SALE minus RETURN)
+  let restored = 0;
+  for (const [pid, held] of Object.entries(heldByProduct)) {
+    if (held > 0) {
+      await prisma.product.update({ where: { id: Number(pid) }, data: { stockQuantity: { increment: held } } });
+      restored += held;
+    }
   }
   await prisma.cartItem.deleteMany({ where: { cart: { userId } } });
   await prisma.cart.deleteMany({ where: { userId } });
@@ -184,7 +211,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
     await prisma.cart.deleteMany({ where: { userId: user2.id } });
     await prisma.user.delete({ where: { id: user2.id } });
   }
-  console.log(`  🧹 cleaned ${smokeOrders.length} smoke orders, 2 smoke customers, restored ${2 * consumed} stock`);
+  console.log(`  🧹 cleaned ${smokeOrders.length} smoke orders, 2 smoke customers, restored ${restored} stock`);
 
   await prisma.$disconnect();
   console.log(`\nRESULT: ${passed} passed, ${failed} failed`);
