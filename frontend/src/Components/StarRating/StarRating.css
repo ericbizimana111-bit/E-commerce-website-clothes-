@@ -1,0 +1,29 @@
+.star-rating {
+  display: inline-flex;
+  font-size: 20px;
+}
+
+.star-rating span {
+  margin-right: 2px;
+  transition: color 0.2s ease;
+}
+
+.star-rating span.filled {
+  color: #f59e0b;
+}
+
+.star-rating span.empty {
+  color: #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .star-rating {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .star-rating {
+    font-size: 14px;
+  }
+}

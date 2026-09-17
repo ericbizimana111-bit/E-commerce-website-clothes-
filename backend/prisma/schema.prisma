@@ -1,0 +1,482 @@
+// Uganda Food Marketplace - Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  DISPATCHER
+}
+
+enum DeliveryType {
+  HOME_DELIVERY
+  PICKUP_STATION
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  COMMITMENT_PAID
+  CONFIRMED
+  PREPARING
+  READY_FOR_DELIVERY
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  PICKED_UP
+  BALANCE_PAID
+  COMPLETED
+  CANCELLED
+  PAYMENT_FAILED
+  DELIVERY_FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  COMMITMENT_ONLINE
+  REMAINING_CASH
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+}
+
+enum PaymentProvider {
+  MOCK
+  FLUTTERWAVE
+  MTN_MOMO
+  AIRTEL_MONEY
+  CASH
+}
+
+enum RuleType {
+  PERCENTAGE
+  FLAT
+  TIERED
+}
+
+enum ActorType {
+  SYSTEM
+  ADMIN
+  CUSTOMER
+}
+
+enum Language {
+  EN
+  LG
+  FR
+  SW
+}
+
+enum InventoryTransactionType {
+  INITIAL_STOCK
+  RESTOCK
+  ADJUSTMENT
+  SALE
+  RESERVATION
+  RELEASE
+  RETURN
+  CORRECTION
+}
+
+model User {
+  id           String         @id @default(uuid()) @db.Uuid
+  fullName     String         @map("full_name") @db.VarChar(150)
+  email        String?        @unique @db.VarChar(255)
+  phone        String         @unique @db.VarChar(30)
+  passwordHash String         @map("password_hash") @db.VarChar(255)
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  addresses     Address[]
+  cart          Cart?
+  orders        Order[]
+  notifications Notification[]
+  wishlists     Wishlist[]
+
+  @@map("users")
+}
+
+model Admin {
+  id           String     @id @default(uuid()) @db.Uuid
+  fullName     String     @map("full_name") @db.VarChar(150)
+  email        String     @unique @db.VarChar(255)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         Role       @default(ADMIN)
+  isActive     Boolean    @default(true) @map("is_active")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  auditLogs             AuditLog[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("admins")
+}
+
+model Address {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  title         String   @default("Home") @db.VarChar(50)
+  district      String   @db.VarChar(100)
+  division      String?  @db.VarChar(100)
+  streetAddress String   @map("street_address") @db.Text
+  latitude      Decimal? @db.Decimal(10, 7)
+  longitude     Decimal? @db.Decimal(10, 7)
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model PickupStation {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(150)
+  district       String   @db.VarChar(100)
+  addressText    String   @map("address_text") @db.Text
+  contactPhone   String   @map("contact_phone") @db.VarChar(30)
+  operatingHours String   @map("operating_hours") @db.VarChar(100)
+  pickupFeeUgx   Int      @default(0) @map("pickup_fee_ugx")
+  latitude       Decimal? @db.Decimal(10, 7)
+  longitude      Decimal? @db.Decimal(10, 7)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("pickup_stations")
+}
+
+model Category {
+  id           Int       @id @default(autoincrement())
+  slug         String    @unique @db.VarChar(100)
+  nameEn       String?   @map("name_en") @db.VarChar(100)
+  nameLg       String?   @map("name_lg") @db.VarChar(100)
+  imageUrl     String?   @map("image_url") @db.Text
+  displayOrder Int       @default(0) @map("display_order")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  products     Product[]
+  translations CategoryTranslation[]
+
+  @@index([isActive])
+  @@index([displayOrder])
+  @@map("categories")
+}
+
+model CategoryTranslation {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int      @map("category_id")
+  language    Language
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, language])
+  @@index([language])
+  @@map("category_translations")
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  categoryId    Int      @map("category_id")
+  slug          String   @unique @db.VarChar(200)
+  sku           String?  @unique @db.VarChar(50)
+  priceUgx      Int      @map("price_ugx")
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  unit          String   @default("piece") @db.VarChar(50)
+  imageUrl      String?  @map("image_url") @db.Text
+  isActive      Boolean  @default(true) @map("is_active")
+  nameEn        String?  @map("name_en") @db.VarChar(200)
+  nameLg        String?  @map("name_lg") @db.VarChar(200)
+  descriptionEn String?  @map("description_en") @db.Text
+  descriptionLg String?  @map("description_lg") @db.Text
+  stock         Decimal? @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  category              Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  cartItems             CartItem[]
+  orderItems            OrderItem[]
+  wishlists             Wishlist[]
+  translations          ProductTranslation[]
+  images                ProductImage[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([stockQuantity])
+  @@index([priceUgx])
+  @@map("products")
+}
+
+model ProductTranslation {
+  id          Int      @id @default(autoincrement())
+  productId   Int      @map("product_id")
+  language    Language
+  name        String   @db.VarChar(200)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, language])
+  @@index([language])
+  @@index([name])
+  @@map("product_translations")
+}
+
+model ProductImage {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  imageUrl  String   @map("image_url") @db.Text
+  altText   String?  @map("alt_text") @db.VarChar(255)
+  sortOrder Int      @default(0) @map("sort_order")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model InventoryTransaction {
+  id               Int                      @id @default(autoincrement())
+  productId        Int                      @map("product_id")
+  quantityChange   Int                      @map("quantity_change")
+  previousQuantity Int                      @map("previous_quantity")
+  newQuantity      Int                      @map("new_quantity")
+  type             InventoryTransactionType
+  reason           String?                  @db.VarChar(255)
+  referenceId      String?                  @map("reference_id") @db.VarChar(100)
+  createdBy        String?                  @map("created_by") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  admin   Admin?  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([createdAt])
+  @@map("inventory_transactions")
+}
+
+model Cart {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  cartId      String   @map("cart_id") @db.Uuid
+  productId   Int      @map("product_id")
+  quantity    Decimal  @default(1) @db.Decimal(10, 2)
+  unitPriceUgx Int?    @map("unit_price_ugx")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id                String       @id @default(uuid()) @db.Uuid
+  orderNumber       String       @unique @map("order_number") @db.VarChar(30)
+  userId            String       @map("user_id") @db.Uuid
+  deliveryType      DeliveryType @map("delivery_type")
+  deliveryAddressId String?      @map("delivery_address_id") @db.Uuid
+  pickupStationId   Int?         @map("pickup_station_id")
+  status            OrderStatus  @default(PENDING_PAYMENT)
+  itemsSubtotal     Int          @map("items_subtotal")
+  deliveryFee       Int          @default(0) @map("delivery_fee")
+  totalAmount       Int          @map("total_amount")
+  commitmentAmount  Int          @map("commitment_amount")
+  remainingBalance  Int          @map("remaining_balance")
+  notes             String?      @db.Text
+  currency          String       @default("UGX") @db.VarChar(10)
+  addressSnapshot   Json?        @map("address_snapshot")
+  stationSnapshot   Json?        @map("station_snapshot")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deliveryAddress Address?             @relation(fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  pickupStation   PickupStation?       @relation(fields: [pickupStationId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  statusHistory   OrderStatusHistory[]
+  payments        Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  orderId      String  @map("order_id") @db.Uuid
+  productId    Int     @map("product_id")
+  productName  String  @map("product_name") @db.VarChar(200)
+  unit         String  @db.VarChar(50)
+  unitPriceUgx Int     @map("unit_price_ugx")
+  quantity     Decimal @db.Decimal(10, 2)
+  totalUgx     Int     @map("total_ugx")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id            Int         @id @default(autoincrement())
+  orderId       String      @map("order_id") @db.Uuid
+  statusFrom    OrderStatus? @map("status_from")
+  statusTo      OrderStatus @map("status_to")
+  changedByType ActorType   @map("changed_by_type")
+  changedById   String?     @map("changed_by_id") @db.VarChar(100)
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+model Payment {
+  id             String          @id @default(uuid()) @db.Uuid
+  orderId        String          @map("order_id") @db.Uuid
+  paymentType    PaymentType     @map("payment_type")
+  provider       PaymentProvider
+  transactionRef String          @unique @map("transaction_ref") @db.VarChar(150)
+  providerRef    String?         @map("provider_ref") @db.VarChar(150)
+  amountUgx      Int             @map("amount_ugx")
+  currency       String          @default("UGX") @db.VarChar(10)
+  status         PaymentStatus   @default(INITIATED)
+  payload        Json?
+  verifiedAt     DateTime?       @map("verified_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([transactionRef])
+  @@map("payments")
+}
+
+model DeliveryPricingConfig {
+  id            Int      @id @default(autoincrement())
+  warehouseLat  Decimal  @map("warehouse_lat") @db.Decimal(10, 7)
+  warehouseLng  Decimal  @map("warehouse_lng") @db.Decimal(10, 7)
+  baseFeeUgx    Int      @default(3000) @map("base_fee_ugx")
+  freeRadiusKm  Decimal  @default(3.0) @map("free_radius_km") @db.Decimal(6, 2)
+  perKmRateUgx  Int      @default(1200) @map("per_km_rate_ugx")
+  minimumFeeUgx Int      @default(3000) @map("minimum_fee_ugx")
+  isActive      Boolean  @default(true) @map("is_active")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_pricing_config")
+}
+
+model CommitmentRuleConfig {
+  id              Int      @id @default(autoincrement())
+  ruleType        RuleType @default(PERCENTAGE) @map("rule_type")
+  percentageValue Decimal  @default(30.0) @map("percentage_value") @db.Decimal(5, 2)
+  flatValueUgx    Int      @default(10000) @map("flat_value_ugx")
+  minCommitment   Int      @default(5000) @map("min_commitment")
+  isActive        Boolean  @default(true) @map("is_active")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("commitment_rule_config")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String   @db.VarChar(150)
+  message   String   @db.Text
+  type      String   @default("ORDER_UPDATE") @db.VarChar(50)
+  isRead    Boolean  @default(false) @map("is_read")
+  linkUrl   String?  @map("link_url") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  adminId    String?  @map("admin_id") @db.Uuid
+  action     String   @db.VarChar(100)
+  entityName String   @map("entity_name") @db.VarChar(50)
+  entityId   String   @map("entity_id") @db.VarChar(100)
+  details    Json?
+  ipAddress  String?  @map("ip_address") @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
+  @@index([entityName, entityId])
+  @@map("audit_logs")
+}
+
+model Wishlist {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId Int      @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("wishlists")
+}
+
+model OtpCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String   @db.VarChar(30)
+  codeHash  String   @map("code_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@map("otp_codes")
+}

@@ -1,0 +1,239 @@
+.offers {
+    width: 85%;
+    max-width: 1200px;
+    height: auto;
+    min-height: 450px;
+    display: flex;
+    margin: 80px auto;
+    padding: 0 60px;
+    background: linear-gradient(180deg, #f0fdf4 0%, rgba(22, 163, 74, 0.08) 100%);
+    border-radius: 15px;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* Left Section */
+.offers-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.offers-left h1 {
+    color: var(--text);
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0;
+}
+
+.offers-left p {
+    font-size: clamp(0.95rem, 2vw, 1.125rem);
+    color: var(--muted);
+    margin-bottom: 40px;
+    font-family: 'Poppins', Verdana, Geneva, Tahoma, sans-serif;
+}
+
+/* Button Styling */
+.offers-left button {
+    width: clamp(150px, 80vw, 180px);
+    height: clamp(40px, 10vw, 50px);
+    border-radius: 6px;
+    background: var(--primary);
+    border: none;
+    color: var(--white);
+    font-size: clamp(0.85rem, 2vw, 1rem);
+    font-weight: 600;
+    margin-top: 20px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.offers-left button:hover {
+    background: var(--dark);
+}
+
+/* Right Section - Professional Visual */
+.offers-right {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.offers-visual {
+    position: relative;
+    width: 280px;
+    height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Main discount badge */
+.offers-badge-large {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: var(--primary, #16A34A);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    position: relative;
+}
+
+.offers-badge-percent {
+    font-family: 'Poppins', sans-serif;
+    font-size: 48px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+}
+
+.offers-badge-off {
+    font-family: 'Poppins', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 4px;
+    margin-top: -2px;
+}
+
+@keyframes offers-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+
+/* Floating tags */
+.offers-badge-small {
+    position: absolute;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    z-index: 3;
+}
+
+.offers-badge-1 {
+    top: 10px;
+    right: 10px;
+    background: var(--danger, #EF4444);
+    color: #fff;
+}
+
+.offers-badge-2 {
+    bottom: 30px;
+    left: 10px;
+    background: var(--accent, #F59E0B);
+    color: #fff;
+}
+
+/* Decorative rings */
+.offers-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid rgba(22, 163, 74, 0.15);
+    z-index: 1;
+}
+
+.offers-ring-1 {
+    width: 220px;
+    height: 220px;
+}
+
+.offers-ring-2 {
+    width: 260px;
+    height: 260px;
+    border-style: dashed;
+    border-color: rgba(245, 158, 11, 0.12);
+}
+
+.offers-ring-3 {
+    width: 300px;
+    height: 300px;
+    border-color: rgba(22, 163, 74, 0.08);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .offers {
+        width: 90%;
+        padding: 0 40px;
+        min-height: auto;
+    }
+
+    .offers-visual {
+        width: 240px;
+        height: 240px;
+    }
+    .offers-badge-large {
+        width: 150px;
+        height: 150px;
+    }
+    .offers-badge-percent { font-size: 38px; }
+    .offers-badge-off { font-size: 16px; }
+}
+
+@media (max-width: 768px) {
+    .offers {
+        flex-direction: column;
+        text-align: center;
+        padding: clamp(30px, 5vw, 60px);
+        margin: 50px auto;
+        min-height: auto;
+    }
+
+    .offers-left {
+        align-items: center;
+        margin-bottom: 30px;
+    }
+
+    .offers-right {
+        justify-content: center;
+        align-self: auto;
+    }
+
+    .offers-visual {
+        width: 220px;
+        height: 220px;
+    }
+    .offers-badge-large {
+        width: 130px;
+        height: 130px;
+    }
+    .offers-badge-percent { font-size: 32px; }
+    .offers-badge-off { font-size: 14px; letter-spacing: 3px; }
+    .offers-badge-small { font-size: 9px; padding: 4px 12px; }
+}
+
+@media (max-width: 480px) {
+    .offers {
+        padding: 20px;
+        margin: 30px auto;
+    }
+
+    .offers-left {
+        margin-bottom: 20px;
+    }
+
+    .offers-left button {
+        width: 100%;
+        margin-top: 15px;
+    }
+
+    .offers-visual {
+        width: 200px;
+        height: 200px;
+    }
+    .offers-badge-large {
+        width: 120px;
+        height: 120px;
+    }
+    .offers-badge-percent { font-size: 28px; }
+    .offers-badge-off { font-size: 12px; letter-spacing: 2px; }
+}
