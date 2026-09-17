@@ -6,7 +6,12 @@ const {
 } = require('../constants');
 const { resolveTranslation, normalizeLanguage } = require('../utils/translation');
 const { calculateCommitment } = require('../utils/currency');
-const { resolveDeliveryFee } = require('./delivery.service');
+const {
+  resolveDeliveryFee,
+  createDeliveryForOrder,
+  cancelDeliveryForOrder,
+  syncDeliveryForOrderTransition,
+} = require('./delivery.service');
 const { logAudit } = require('./audit.service');
 
 const MAX_QTY_PER_LINE = 1000;
@@ -365,6 +370,12 @@ async function createOrderFromCart(userId, { fulfillmentMethod, addressId, picku
     // 10. Clear THIS customer's cart (cart record retained: one cart per user)
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
+    // 11. Phase 7: create the fulfillment record (exactly one per order —
+    // deliveries.order_id is UNIQUE at the DB level). Snapshots come from the
+    // order's permanent Phase 5 snapshots. DB-level uniqueness makes retries
+    // safe even across processes.
+    await createDeliveryForOrder(tx, order);
+
     return order;
   });
 }
@@ -487,6 +498,11 @@ async function cancelCustomerOrder(userId, orderId, reason = null) {
       },
       include: { items: true, statusHistory: { orderBy: { createdAt: 'asc' } } },
     });
+
+    // Phase 7: operationally deactivate the fulfillment (DELIVERED/PICKED_UP
+    // already-terminal deliveries are left untouched — money/history intact;
+    // Phase 5 cancellation rules themselves gate which orders can be cancelled).
+    await cancelDeliveryForOrder(tx, orderId, reason);
 
     return cancelled;
   });
@@ -627,6 +643,16 @@ async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null,
       changedByType: 'ADMIN',
       changedById: admin.id,
       notes: reason ? String(reason).slice(0, 500) : `Changed by ${admin.role}`,
+    });
+
+    // Phase 7: keep the fulfillment record consistent with the order move
+    // (READY/OUT/DELIVERED/PICKED_UP/FAILED/CANCELLED sync; no-op for purely
+    // financial states). Uses the same central delivery transition.
+    await syncDeliveryForOrderTransition(tx, {
+      orderId,
+      toStatus,
+      changedById: admin.id,
+      failureMessage: reason ? String(reason).slice(0, 500) : null,
     });
 
     // Cancellation via admin transition must also restore stock exactly once

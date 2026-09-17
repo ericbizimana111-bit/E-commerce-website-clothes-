@@ -16,6 +16,11 @@ const {
   paymentParamsSchema,
 } = require('../validators/payment.validator');
 const paymentController = require('../controllers/payment.controller');
+const deliveryController = require('../controllers/delivery.controller');
+const { deliveryForOrderParamsSchema } = require('../validators/delivery.validator');
+
+// Phase 7: customer delivery visibility for THEIR order (IDOR-safe:
+// ownership resolved from the authenticated customer, never from the body)
 
 // All customer order routes require a customer JWT
 router.use(authenticateCustomer);
@@ -29,5 +34,8 @@ router.post('/:id/cancel', validateRequest(cancelOrderSchema), orderController.c
 // only signed provider webhooks can complete verification)
 router.post('/:id/payment', validateRequest(initiatePaymentSchema), paymentController.initiatePayment);
 router.get('/:id/payment', validateRequest(paymentParamsSchema), paymentController.getOrderPayment);
+
+// Phase 7: read-only fulfillment info for the customer's own order
+router.get('/:id/delivery', validateRequest(deliveryForOrderParamsSchema), deliveryController.getMyOrderDelivery);
 
 module.exports = router;

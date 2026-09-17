@@ -191,6 +191,8 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') }
     await prisma.orderStatusHistory.deleteMany({ where: { orderId: o.id } });
     await prisma.payment.deleteMany({ where: { orderId: o.id } });
     await prisma.inventoryTransaction.deleteMany({ where: { referenceId: o.id } });
+    // Phase 7: deliveries.order_id FK restricts order deletion
+    await prisma.delivery.deleteMany({ where: { orderId: o.id } });
     await prisma.orderItem.deleteMany({ where: { orderId: o.id } });
     await prisma.order.delete({ where: { id: o.id } });
   }

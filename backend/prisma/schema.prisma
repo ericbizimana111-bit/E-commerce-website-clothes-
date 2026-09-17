@@ -95,6 +95,25 @@ enum Language {
   SW
 }
 
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  PICKED_UP
+  FAILED
+  CANCELLED
+}
+
+enum DeliveryFailureReason {
+  CUSTOMER_UNAVAILABLE
+  INVALID_ADDRESS
+  DRIVER_UNABLE_TO_COMPLETE
+  PICKUP_STATION_ISSUE
+  OTHER
+}
+
 enum InventoryTransactionType {
   INITIAL_STOCK
   RESTOCK
@@ -137,6 +156,7 @@ model Admin {
 
   auditLogs             AuditLog[]
   inventoryTransactions InventoryTransaction[]
+  assignedDeliveries    Delivery[] @relation("DeliveryAssignee")
 
   @@map("admins")
 }
@@ -355,6 +375,7 @@ model Order {
   items           OrderItem[]
   statusHistory   OrderStatusHistory[]
   payments        Payment[]
+  delivery        Delivery?
 
   @@index([userId])
   @@index([status])
@@ -421,6 +442,39 @@ model Payment {
   @@index([status])
   @@unique([provider, providerRef])
   @@map("payments")
+}
+
+// Phase 7: fulfillment record. Exactly ONE delivery per order (unique order_id,
+// DB-enforced). Order.addressSnapshot / Order.stationSnapshot (Phase 5) remain
+// the customer-facing immutable snapshots; the delivery row carries its own
+// operational copy plus distance/fee/assignment lifecycle data.
+model Delivery {
+  id              String                @id @default(uuid()) @db.Uuid
+  orderId         String                @unique @map("order_id") @db.Uuid
+  fulfillmentType DeliveryType @map("fulfillment_type")
+  status          DeliveryStatus        @default(PENDING)
+  deliveryFeeUgx  Int                   @default(0) @map("delivery_fee_ugx")
+  distanceKm      Decimal?              @map("distance_km") @db.Decimal(8, 3)
+  assignedAdminId String?               @map("assigned_admin_id") @db.Uuid
+  addressSnapshot Json?                 @map("address_snapshot")
+  stationSnapshot Json?                 @map("station_snapshot")
+  scheduledAt     DateTime?             @map("scheduled_at")
+  startedAt       DateTime?             @map("started_at")
+  completedAt     DateTime?             @map("completed_at")
+  failureReason   DeliveryFailureReason? @map("failure_reason")
+  failureMessage  String?               @map("failure_message") @db.VarChar(500)
+  notes           String?               @db.VarChar(500)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  order         Order  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  assignedAdmin Admin? @relation("DeliveryAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([fulfillmentType])
+  @@index([assignedAdminId])
+  @@index([createdAt])
+  @@map("deliveries")
 }
 
 model DeliveryPricingConfig {

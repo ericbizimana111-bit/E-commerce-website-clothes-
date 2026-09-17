@@ -132,6 +132,8 @@ describe('Phase 5 Final Audit (five areas)', () => {
       await prisma.orderStatusHistory.deleteMany({ where: { orderId: oid } });
       await prisma.payment.deleteMany({ where: { orderId: oid } });
       await prisma.inventoryTransaction.deleteMany({ where: { referenceId: oid } });
+      // Phase 7: deliveries.order_id FK restricts order deletion
+      await prisma.delivery.deleteMany({ where: { orderId: oid } });
       await prisma.orderItem.deleteMany({ where: { orderId: oid } });
       await prisma.order.deleteMany({ where: { id: oid } });
     }
@@ -154,6 +156,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
         await prisma.orderStatusHistory.deleteMany({ where: { orderId: o.id } });
         await prisma.payment.deleteMany({ where: { orderId: o.id } });
         await prisma.inventoryTransaction.deleteMany({ where: { referenceId: o.id } });
+        await prisma.delivery.deleteMany({ where: { orderId: o.id } });
         await prisma.orderItem.deleteMany({ where: { orderId: o.id } });
         await prisma.order.deleteMany({ where: { id: o.id } });
       }

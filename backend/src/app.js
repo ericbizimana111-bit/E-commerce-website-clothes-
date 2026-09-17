@@ -20,6 +20,7 @@ const checkoutRoutes = require('./routes/checkout.routes');
 const orderRoutes = require('./routes/order.routes');
 const adminOrderRoutes = require('./routes/adminOrder.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const adminDeliveryRoutes = require('./routes/adminDelivery.routes');
 
 const app = express();
 
@@ -95,6 +96,10 @@ app.use('/api/admin/orders', adminOrderRoutes);
 // 10c. Payment routes: provider webhook (signature-verified, no JWT) +
 // customer payment operations (customer JWT)
 app.use('/api/payments', paymentRoutes);
+
+// 10d. Phase 7: Admin Delivery & Fulfillment operations (admin JWT + RBAC;
+// DISPATCHER included as the operational fulfillment role)
+app.use('/api/admin/deliveries', adminDeliveryRoutes);
 
 // 11. 404 Handler for undefined routes
 app.use((req, res, next) => {

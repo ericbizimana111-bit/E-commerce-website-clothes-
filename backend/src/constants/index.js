@@ -52,6 +52,98 @@ const FOOD_UNITS = [
 ];
 
 /**
+ * Delivery/fulfillment status values (Phase 7).
+ * Internal delivery lifecycle, distinct from the order lifecycle.
+ */
+const DELIVERY_STATUSES = {
+  PENDING: 'PENDING',
+  ASSIGNED: 'ASSIGNED',
+  READY: 'READY',
+  OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+  DELIVERED: 'DELIVERED',
+  PICKED_UP: 'PICKED_UP',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
+};
+
+/**
+ * Centralized, server-controlled delivery status transition map.
+ * HOME_DELIVERY and PICKUP_STATION branches are guarded separately
+ * (see DELIVERY_TYPE_ALLOWED_STATUSES) — e.g. pickup never enters
+ * ASSIGNED/OUT_FOR_DELIVERY, home delivery never reaches PICKED_UP.
+ * Terminal states (DELIVERED, PICKED_UP, CANCELLED) have no exits.
+ */
+const DELIVERY_STATUS_TRANSITIONS = {
+  PENDING: ['ASSIGNED', 'READY', 'CANCELLED'],
+  ASSIGNED: ['READY', 'CANCELLED'],
+  // READY -> FAILED: PICKUP only (station issue); home deliveries must
+  // dispatch first — enforced in applyDeliveryStatusTransition.
+  READY: ['OUT_FOR_DELIVERY', 'PICKED_UP', 'FAILED', 'CANCELLED'],
+  OUT_FOR_DELIVERY: ['DELIVERED', 'FAILED'],
+  // FAILED -> OUT_FOR_DELIVERY mirrors the Phase 5 order map's
+  // DELIVERY_FAILED -> OUT_FOR_DELIVERY re-dispatch path.
+  FAILED: ['OUT_FOR_DELIVERY'],
+  DELIVERED: [],
+  PICKED_UP: [],
+  CANCELLED: [],
+};
+
+/**
+ * Which delivery statuses each fulfillment type may use.
+ */
+const DELIVERY_TYPE_ALLOWED_STATUSES = {
+  HOME_DELIVERY: [
+    'PENDING',
+    'ASSIGNED',
+    'READY',
+    'OUT_FOR_DELIVERY',
+    'DELIVERED',
+    'FAILED',
+    'CANCELLED',
+  ],
+  PICKUP_STATION: ['PENDING', 'READY', 'PICKED_UP', 'CANCELLED'],
+};
+
+/**
+ * Controlled failure reasons for FAILED deliveries.
+ */
+const DELIVERY_FAILURE_REASONS = [
+  'CUSTOMER_UNAVAILABLE',
+  'INVALID_ADDRESS',
+  'DRIVER_UNABLE_TO_COMPLETE',
+  'PICKUP_STATION_ISSUE',
+  'OTHER',
+];
+
+/**
+ * Order status -> required/expected delivery status sync map (Phase 7).
+ * When an order transition happens, the delivery row is kept consistent.
+ * Value = the delivery status the delivery MUST have after the order move.
+ * null = the delivery is cancelled/terminal-inactive for that order state.
+ */
+const ORDER_TO_DELIVERY_SYNC = {
+  CONFIRMED: 'PENDING',
+  PREPARING: 'PENDING',
+  READY_FOR_DELIVERY: 'READY',
+  READY_FOR_PICKUP: 'READY',
+  OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
+  DELIVERED: 'DELIVERED',
+  PICKED_UP: 'PICKED_UP',
+};
+
+/**
+ * Delivery statuses that are operationally terminal — no reassignment, no
+ * further transitions. FAILED is deliberately NOT terminal: it supports the
+ * Phase 5 re-dispatch path (FAILED -> OUT_FOR_DELIVERY).
+ */
+const DELIVERY_TERMINAL_STATUSES = ['DELIVERED', 'PICKED_UP', 'CANCELLED'];
+
+/**
+ * Delivery statuses from which an order cancellation may still cancel the delivery.
+ */
+const DELIVERY_CANCELLABLE_STATUSES = ['PENDING', 'ASSIGNED', 'READY'];
+
+/**
  * Centralized, server-controlled order status transition map.
  * Clients (customers AND admins) may never set statuses arbitrarily:
  * every transition must appear as a value in this map.
@@ -103,6 +195,13 @@ module.exports = {
   ORDER_STATUSES,
   ROLES,
   DELIVERY_TYPES,
+  DELIVERY_STATUSES,
+  DELIVERY_STATUS_TRANSITIONS,
+  DELIVERY_TYPE_ALLOWED_STATUSES,
+  DELIVERY_FAILURE_REASONS,
+  ORDER_TO_DELIVERY_SYNC,
+  DELIVERY_TERMINAL_STATUSES,
+  DELIVERY_CANCELLABLE_STATUSES,
   PAYMENT_TYPES,
   PAYMENT_PROVIDERS,
   FOOD_UNITS,

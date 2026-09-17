@@ -119,6 +119,8 @@ describe('Phase 6 Payment API', () => {
       await prisma.orderStatusHistory.deleteMany({ where: { orderId: oid } });
       await prisma.payment.deleteMany({ where: { orderId: oid } });
       await prisma.inventoryTransaction.deleteMany({ where: { referenceId: oid } });
+      // Phase 7: deliveries.order_id FK restricts order deletion
+      await prisma.delivery.deleteMany({ where: { orderId: oid } });
       await prisma.orderItem.deleteMany({ where: { orderId: oid } });
       await prisma.order.deleteMany({ where: { id: oid } });
     }
