@@ -44,9 +44,28 @@ enum PaymentType {
 }
 
 enum PaymentStatus {
-  INITIATED
+  PENDING
+  PROCESSING
   SUCCESS
   FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentPurpose {
+  COMMITMENT
+  BALANCE
+}
+
+enum PaymentResultCode {
+  NONE
+  SUCCESS
+  INSUFFICIENT_FUNDS
+  TIMEOUT
+  DECLINED
+  CANCELLED_BY_USER
+  INVALID_REFERENCE
+  PROVIDER_ERROR
 }
 
 enum PaymentProvider {
@@ -376,24 +395,31 @@ model OrderStatusHistory {
 }
 
 model Payment {
-  id             String          @id @default(uuid()) @db.Uuid
-  orderId        String          @map("order_id") @db.Uuid
-  paymentType    PaymentType     @map("payment_type")
+  id             String            @id @default(uuid()) @db.Uuid
+  orderId        String            @map("order_id") @db.Uuid
+  purpose        PaymentPurpose    @default(COMMITMENT)
+  paymentType    PaymentType       @map("payment_type")
   provider       PaymentProvider
-  transactionRef String          @unique @map("transaction_ref") @db.VarChar(150)
-  providerRef    String?         @map("provider_ref") @db.VarChar(150)
-  amountUgx      Int             @map("amount_ugx")
-  currency       String          @default("UGX") @db.VarChar(10)
-  status         PaymentStatus   @default(INITIATED)
+  transactionRef String            @unique @map("transaction_ref") @db.VarChar(150)
+  providerRef    String?           @map("provider_ref") @db.VarChar(150)
+  amountUgx      Int               @map("amount_ugx")
+  currency       String            @default("UGX") @db.VarChar(10)
+  status         PaymentStatus     @default(PENDING)
+  resultCode     PaymentResultCode @default(NONE) @map("result_code")
+  failureMessage String?           @map("failure_message") @db.VarChar(500)
+  expiresAt      DateTime?         @map("expires_at")
+  verifiedAt     DateTime?         @map("verified_at")
   payload        Json?
-  verifiedAt     DateTime?       @map("verified_at")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([transactionRef])
+  @@index([providerRef])
+  @@index([status])
+  @@unique([provider, providerRef])
   @@map("payments")
 }
 

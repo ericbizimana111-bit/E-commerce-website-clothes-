@@ -30,6 +30,7 @@ const envSchema = z.object({
   // Payment
   PAYMENT_PROVIDER: z.enum(['MOCK', 'FLUTTERWAVE', 'MTN_MOMO', 'AIRTEL_MONEY']).default('MOCK'),
   PAYMENT_WEBHOOK_SECRET: z.string().default('ufm_mock_webhook_secret_2026'),
+  PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
 
   // Delivery Pricing
   DELIVERY_BASE_FEE: z.coerce.number().default(3000),

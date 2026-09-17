@@ -19,6 +19,7 @@ const cartRoutes = require('./routes/cart.routes');
 const checkoutRoutes = require('./routes/checkout.routes');
 const orderRoutes = require('./routes/order.routes');
 const adminOrderRoutes = require('./routes/adminOrder.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 const app = express();
 
@@ -39,8 +40,13 @@ if (env.NODE_ENV !== 'test') {
 }
 
 // 5. Body Parsing
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+// `verify` captures the EXACT raw body bytes (req.rawBody) before parsing so
+// webhook HMAC signatures can be verified over what the provider actually sent.
+const captureRawBody = (req, _res, buf) => {
+  req.rawBody = buf;
+};
+app.use(express.json({ limit: '5mb', verify: captureRawBody }));
+app.use(express.urlencoded({ extended: true, limit: '5mb', verify: captureRawBody }));
 
 // 6. Static Upload Directory
 const uploadsDir = path.resolve(__dirname, '../uploads/images');
@@ -85,6 +91,10 @@ app.use('/api/checkout', checkoutRoutes);
 // 10b. Customer Orders (customer JWT) & Admin Order Management (admin JWT + RBAC)
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
+
+// 10c. Payment routes: provider webhook (signature-verified, no JWT) +
+// customer payment operations (customer JWT)
+app.use('/api/payments', paymentRoutes);
 
 // 11. 404 Handler for undefined routes
 app.use((req, res, next) => {

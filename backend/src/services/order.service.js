@@ -570,25 +570,64 @@ async function getAdminOrder(orderId) {
 }
 
 // ============================================================
+// CENTRAL ORDER STATUS TRANSITION (single source of transition truth)
+// Used by BOTH the admin status endpoint and the Phase 6 payment service.
+// Locks the order row, validates against ORDER_STATUS_TRANSITIONS, writes the
+// status + exactly one history entry. Callers own side effects (stock
+// restoration, audit) and the enclosing transaction.
+// Returns { previousStatus, orderNumber, updatedOrder }.
+// ============================================================
+async function applyOrderStatusTransition(tx, { orderId, toStatus, changedByType = 'ADMIN', changedById = null, notes = null }) {
+  const rows = await tx.$queryRaw`
+    SELECT id, status, "order_number" AS "orderNumber"
+    FROM orders
+    WHERE id = ${orderId}::uuid
+    FOR UPDATE
+  `;
+  const order = rows[0];
+  if (!order) {
+    throw new AppError('Order not found', 404);
+  }
+
+  const allowed = ORDER_STATUS_TRANSITIONS[order.status] || [];
+  if (!allowed.includes(toStatus)) {
+    throw new AppError(`Invalid status transition: ${order.status} → ${toStatus}`, 409);
+  }
+
+  const updatedOrder = await tx.order.update({
+    where: { id: orderId },
+    data: {
+      status: toStatus,
+      statusHistory: {
+        create: [
+          {
+            statusFrom: order.status,
+            statusTo: toStatus,
+            changedByType,
+            changedById: changedById || null,
+            notes: notes ? String(notes).slice(0, 500) : null,
+          },
+        ],
+      },
+    },
+    include: { items: true, statusHistory: { orderBy: { createdAt: 'asc' } } },
+  });
+
+  return { previousStatus: order.status, orderNumber: order.orderNumber, updatedOrder };
+}
+
+// ============================================================
 // ADMIN: status transition (map-validated, audited, restores stock on cancel)
 // ============================================================
 async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null, ipAddress = null }) {
   return prisma.$transaction(async (tx) => {
-    const rows = await tx.$queryRaw`
-      SELECT id, status, "order_number" AS "orderNumber"
-      FROM orders
-      WHERE id = ${orderId}::uuid
-      FOR UPDATE
-    `;
-    const order = rows[0];
-    if (!order) {
-      throw new AppError('Order not found', 404);
-    }
-
-    const allowed = ORDER_STATUS_TRANSITIONS[order.status] || [];
-    if (!allowed.includes(toStatus)) {
-      throw new AppError(`Invalid status transition: ${order.status} → ${toStatus}`, 409);
-    }
+    const { previousStatus, orderNumber, updatedOrder } = await applyOrderStatusTransition(tx, {
+      orderId,
+      toStatus,
+      changedByType: 'ADMIN',
+      changedById: admin.id,
+      notes: reason ? String(reason).slice(0, 500) : `Changed by ${admin.role}`,
+    });
 
     // Cancellation via admin transition must also restore stock exactly once
     if (toStatus === 'CANCELLED') {
@@ -607,7 +646,7 @@ async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null,
             previousQuantity: updated.stockQuantity - qty,
             newQuantity: updated.stockQuantity,
             type: 'RETURN',
-            reason: `Order ${order.orderNumber} cancelled by admin`,
+            reason: `Order ${orderNumber} cancelled by admin`,
             referenceId: orderId,
             createdBy: admin.id,
           },
@@ -615,31 +654,12 @@ async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null,
       }
     }
 
-    const updatedOrder = await tx.order.update({
-      where: { id: orderId },
-      data: {
-        status: toStatus,
-        statusHistory: {
-          create: [
-            {
-              statusFrom: order.status,
-              statusTo: toStatus,
-              changedByType: 'ADMIN',
-              changedById: admin.id,
-              notes: reason ? String(reason).slice(0, 500) : `Changed by ${admin.role}`,
-            },
-          ],
-        },
-      },
-      include: { items: true, statusHistory: { orderBy: { createdAt: 'asc' } } },
-    });
-
     await logAudit({
       adminId: admin.id,
       action: `ORDER_STATUS_${toStatus}`,
       entityName: 'Order',
       entityId: orderId,
-      details: { orderNumber: order.orderNumber, fromStatus: order.status, toStatus, reason },
+      details: { orderNumber, fromStatus: previousStatus, toStatus, reason },
       ipAddress,
     });
 
@@ -657,5 +677,6 @@ module.exports = {
   listAdminOrders,
   getAdminOrder,
   adminUpdateOrderStatus,
+  applyOrderStatusTransition,
   formatOrder,
 };
