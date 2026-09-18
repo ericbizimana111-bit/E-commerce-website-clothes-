@@ -111,7 +111,7 @@ module.exports = {
       return { ok: false, reason: 'MALFORMED_PAYLOAD' };
     }
 
-    const { providerRef, orderNumber, amountUgx, currency, outcome } = parsed;
+    const { providerRef, orderNumber, amountUgx, currency, outcome, purpose } = parsed;
     if (!providerRef || typeof providerRef !== 'string') {
       return { ok: false, reason: 'MALFORMED_PAYLOAD' };
     }
@@ -127,6 +127,9 @@ module.exports = {
     if (outcome !== 'SUCCESS' && outcome !== 'FAILED') {
       return { ok: false, reason: 'MALFORMED_PAYLOAD' };
     }
+    if (purpose !== undefined && purpose !== 'COMMITMENT' && purpose !== 'BALANCE') {
+      return { ok: false, reason: 'MALFORMED_PAYLOAD' };
+    }
 
     return {
       ok: true,
@@ -136,6 +139,7 @@ module.exports = {
         amountUgx,
         currency,
         outcome,
+        purpose: purpose || null,
         resultCode: outcome === 'SUCCESS' ? 'SUCCESS' : 'DECLINED',
         failureMessage: outcome === 'SUCCESS' ? null : 'Mock webhook failure event',
         occurredAt: new Date().toISOString(),

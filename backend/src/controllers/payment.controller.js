@@ -3,23 +3,31 @@ const { formatOrder } = require('../services/order.service');
 
 // ---------- Customer endpoints ----------
 
-// POST /api/orders/:id/payment — initiate the commitment payment
+// POST /api/orders/:id/payment — initiate commitment or balance payment
 async function initiatePayment(req, res, next) {
   try {
     // Ownership + eligibility + authoritative amount are enforced in the service.
     // The body carries no financially meaningful fields (validator strips them).
-    const result = await paymentService.initiateCommitmentPayment(req.user.id, req.params.id);
+    const purpose = req.body?.purpose;
+    const result = await paymentService.initiatePayment(req.user.id, req.params.id, { purpose });
+
+    const isBalance = result.payment.purpose === 'BALANCE';
+    const prefix = isBalance ? 'Balance payment' : 'Commitment payment';
+
+    const message = result.reused
+      ? `${prefix} already completed for this order`
+      : result.payment.status === 'PENDING'
+        ? `${prefix} initiated. Awaiting provider verification.`
+        : `${prefix} status: ${result.payment.status}`;
+
     res.status(200).json({
       success: true,
-      message: result.reused
-        ? 'Commitment payment already completed for this order'
-        : result.payment.status === 'PENDING'
-          ? 'Commitment payment initiated. Awaiting provider verification.'
-          : `Commitment payment status: ${result.payment.status}`,
+      message,
       data: {
         payment: paymentService.formatPayment(result.payment),
         order: formatOrder(result.order, req.body?.language || 'EN', { includeHistory: false }),
         reused: result.reused || undefined,
+        balance: result.balance || undefined,
       },
     });
   } catch (error) {
@@ -27,17 +35,13 @@ async function initiatePayment(req, res, next) {
   }
 }
 
-// GET /api/orders/:id/payment — safe lookup of own payment attempts
+// GET /api/orders/:id/payment — safe lookup of own payment attempts & financial state
 async function getOrderPayment(req, res, next) {
   try {
     const result = await paymentService.getCustomerOrderPayment(req.user.id, req.params.id);
     res.json({
       success: true,
-      data: {
-        orderId: req.params.id,
-        payments: result.payments,
-        activePayment: result.activePayment,
-      },
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -56,6 +60,7 @@ async function paymentWebhook(req, res, next) {
       event: duplicate ? 'ALREADY_PROCESSED' : ignored ? 'IGNORED' : verified ? 'PAYMENT_APPLIED' : 'PAYMENT_FAILED_RECORDED',
       data: {
         paymentId: payment.id,
+        paymentPurpose: payment.purpose,
         paymentStatus: payment.status,
         orderNumber: order.orderNumber,
         orderStatus: order.status,

@@ -41,6 +41,7 @@ enum OrderStatus {
 enum PaymentType {
   COMMITMENT_ONLINE
   REMAINING_CASH
+  BALANCE_ONLINE
 }
 
 enum PaymentStatus {

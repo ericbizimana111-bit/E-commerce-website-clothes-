@@ -1,101 +1,209 @@
-# UgaFresh Payments API — Phase 6
+# UgaMarket — home to home: Payments & Financial Lifecycle API
 
-Commitment-payment infrastructure for the existing Phase 5 order lifecycle.
+Payment infrastructure and financial lifecycle for **UgaMarket — home to home** marketplace backend (Phases 6 & 8).
 
-**Core business rule:** creating an order does NOT mean the commitment payment has been paid. A new order is `PENDING_PAYMENT`; only a **server-side verified provider result** may move it to `COMMITMENT_PAID`. The client can never assert payment success.
-
----
-
-## 1. Architecture
-
-```
-payment.controller        (HTTP boundary, validation)
-        │
-payment.service           (domain logic: eligibility, amounts, idempotency,
-        │                  transactional verification, order transition)
-        │
-PaymentProvider contract  (src/services/paymentProviders/index.js)
-        │
-        ├── mockProvider  — deterministic sandbox, NON-PRODUCTION
-        └── (future real adapters plug in here, e.g. flutterwaveProvider)
-```
-
-- Providers are **stateless adapters**: they talk to the outside world and return normalized results. They never touch the database and never decide order lifecycle.
-- `payment.service` is the only component that may transition an order because of a payment — and it does so **exclusively** through the central Phase 5 transition function (`order.service.applyOrderStatusTransition`, same map the admin endpoint uses). There is no second status-transition mechanism.
-- The provider `verifyWebhook()` is the **single signature-verification boundary**; provider-specific logic never appears in controllers or routes.
-
-### Real provider integration point (future)
-Add an adapter next to `mockProvider.js`, implement `initiatePayment` / `verifyPayment` / `verifyWebhook`, and register it in `PROVIDER_REGISTRY` (`src/services/paymentProviders/index.js`). The active provider is selected purely by `PAYMENT_PROVIDER` in env — no other code changes. Production refuses non-production providers (`isProduction: false` → 403 under `NODE_ENV=production`).
+**Core Business Rules:**
+1. Creating an order does **not** mean the commitment payment has been paid. A new order is `PENDING_PAYMENT`; only a **server-verified provider result** can transition it to `COMMITMENT_PAID`.
+2. Completing fulfillment does **not** mean the balance payment has been paid. An order in `DELIVERED` or `PICKED_UP` requires a **server-verified balance payment** before reaching its final terminal state `COMPLETED`.
+3. Financial state is **server-authoritative**: client-submitted amounts, currencies, statuses, or tokens are completely ignored and stripped by Zod validation. All financial arithmetic uses strictly integer Ugandan Shillings (UGX).
+4. No fake refunds: when a paid order is cancelled, the payment record is preserved untouched with zero automatic refund simulation.
 
 ---
 
-## 2. Payment lifecycle
-
-Statuses (`PaymentStatus`): `PENDING → PROCESSING → SUCCESS | FAILED | CANCELLED | EXPIRED`
+## 1. System Architecture
 
 ```
-initiate  → PENDING          (attempt created; order STILL PENDING_PAYMENT)
-webhook SUCCESS → SUCCESS    (verified; order → COMMITMENT_PAID, atomically)
-webhook FAILED  → FAILED     (order stays PENDING_PAYMENT; retry creates a fresh attempt)
-TTL exceeded    → EXPIRED    (lazy sweep on next initiate/webhook; can never verify afterwards)
+HTTP Request / Webhook
+         │
+         ▼
+ payment.controller          (HTTP boundary, input validation, user context)
+         │
+         ▼
+ payment.service             (Authoritative domain logic: eligibility guards,
+         │                    balance calculation, attempt reuse, row locking,
+         │                    transactional completion & notifications)
+         │
+         ├──► order.service  (Central state machine & OrderStatusHistory)
+         ├──► audit.service  (Sanitized operational audit logging)
+         └──► db (Prisma)    (PostgreSQL with partial unique index guards)
+         │
+         ▼
+ PaymentProvider Contract    (src/services/paymentProviders/index.js)
+         │
+         ├── mockProvider    (Deterministic HMAC-SHA256 sandbox, NON-PRODUCTION)
+         └── (Future real adapters, e.g. flutterwaveProvider / mtnMomoProvider)
 ```
 
-- Every attempt carries `expiresAt` (`PAYMENT_ATTEMPT_TTL_MINUTES`, default 30). Expiration is **service-based and lazy** — no scheduler was added. A future periodic job can call `paymentExpiry.applyPaymentExpiration(prisma)` if volumes require it.
-- `purpose`: `COMMITMENT` (implemented) / `BALANCE` (reserved — the remaining order balance continues to be collected through the existing cash business process, **not** online in this phase).
+- **Stateless Providers**: Providers talk to external gateways and normalize events. They never touch the database and never make lifecycle decisions.
+- **Single State Machine**: All order status transitions — whether triggered by admin action or payment webhooks — flow exclusively through `applyOrderStatusTransition` using the canonical `ORDER_STATUS_TRANSITIONS` table.
+- **Provider Registry**: The active provider is determined strictly by the `PAYMENT_PROVIDER` environment variable. Production environments block non-production providers (`isProduction: false` → 403 under `NODE_ENV=production`).
 
-## 3. Order integration
+---
 
-- `PENDING_PAYMENT → COMMITMENT_PAID` is validated by the same central map as every admin transition; the payment path cannot jump to `CONFIRMED` or beyond.
-- Verification is one DB transaction: payment → `SUCCESS` (+`verifiedAt`), order → `COMMITMENT_PAID`, exactly one `OrderStatusHistory` entry (`changedByType: SYSTEM`), then post-commit audit `COMMITMENT_PAYMENT_APPLIED`.
-- Failure never marks the order paid and never rolls the order back to an earlier state; the customer simply retries initiation.
-- Audit actions: `PAYMENT_INITIATED`, `PAYMENT_FAILED`, `PAYMENT_WEBHOOK_REJECTED`, `COMMITMENT_PAYMENT_APPLIED` (secrets never appear in audit details).
+## 2. Two-Stage Payment Lifecycle
 
-## 4. API endpoints
+| Lifecycle Stage | Order Prerequisites | Payment Purpose | Success Transition | Resulting Order Status |
+|---|---|---|---|---|
+| **Stage 1: Commitment** | Order created (`PENDING_PAYMENT`) | `COMMITMENT` | `PENDING_PAYMENT` → `COMMITMENT_PAID` | Ready for admin confirmation & prep |
+| **Stage 2: Balance** | Fulfillment finished (`DELIVERED` or `PICKED_UP`) | `BALANCE` | `DELIVERED` / `PICKED_UP` → `COMPLETED` | Fully paid, terminal completion |
+
+### Payment Attempt Statuses (`PaymentStatus`)
+```
+initiatePayment() ──► PENDING / PROCESSING
+                            │
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+     webhook SUCCESS                 webhook FAILED
+            │                               │
+            ▼                               ▼
+         SUCCESS                         FAILED
+(Order transitions atomically)   (Order unchanged; retry creates fresh attempt)
+```
+
+- Attempts carry a configurable TTL (`PAYMENT_ATTEMPT_TTL_MINUTES`, default 30).
+- Expiration is lazily evaluated during subsequent initiation or webhook delivery.
+
+---
+
+## 3. Server-Authoritative Balance Calculation & Eligibility
+
+### Calculation Rules
+The outstanding balance due on any order is computed strictly on the server:
+$$\text{remainingBalanceUgx} = \text{totalUgx} - \sum(\text{successful commitment & balance payments})$$
+
+- If $\text{remainingBalanceUgx} \le 0$, initiation is rejected with `409 Conflict` (`This order has no outstanding balance due`).
+- Client attempts to pass `amount`, `amountUgx`, `currency`, `status`, `providerRef`, or `mockOutcome` in request bodies are discarded by the input sanitizer.
+
+### Fulfillment Eligibility Boundary
+Balance payment cannot be initiated or applied until physical fulfillment is complete:
+- **Home Delivery (`HOME_DELIVERY`)**: Order status must be `DELIVERED`.
+- **Pickup Station (`PICKUP_STATION`)**: Order status must be `PICKED_UP`.
+- Any initiation before reaching these fulfillment states is rejected with `409 Conflict` (`Order is not eligible for balance payment. Fulfillment must be completed first`).
+
+---
+
+## 4. API Endpoints
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/orders/:id/payment` | customer JWT (owner) | Initiate/reuse the commitment payment attempt |
-| GET | `/api/orders/:id/payment` | customer JWT (owner) | List own payment attempts for the order |
-| POST | `/api/payments/webhook` | provider signature (no JWT) | Provider result callbacks |
-| GET | `/api/admin/orders/:id/payment` | admin JWT | Read-only payment visibility |
+| `POST` | `/api/orders/:id/payment` | Customer JWT (Order owner) | Initiate or reuse payment attempt (`COMMITMENT` or `BALANCE`) |
+| `GET` | `/api/orders/:id/payment` | Customer JWT (Order owner) | View payment breakdown, pricing summary, and attempt history |
+| `POST` | `/api/payments/webhook` | Provider Signature (Header) | Signed provider callback for payment outcome |
+| `GET` | `/api/admin/orders/:id/payment` | Admin JWT (`SUPER_ADMIN`, `ADMIN`, `FINANCE`) | Read-only payment audit view for an order |
 
-- Initiation body: nothing financially meaningful is accepted. `amount`, `currency`, `status`, `paymentStatus`, `paid`, `providerRef`, `transactionRef`, `provider` etc. are validated-and-stripped by Zod. The amount always comes from `Order.commitmentAmount` (integer UGX); currency is locked to `UGX`.
-- Idempotent initiation: retries reuse the single active `PENDING/PROCESSING` attempt (order row locked; concurrent initiations share one attempt). After success, initiation returns the existing successful payment (`reused: true`) rather than creating a second one. A `FAILED`/`EXPIRED` attempt is superseded by a fresh attempt on the next initiation.
-- Error mapping follows the central handler: 400 invalid/signature, 401 unauthenticated, 404 unknown order/payment, 409 wrong state (cancelled, not payable), 422 semantic mismatch (amount/order reference), 413 oversized webhook, 429 rate limited.
+### Request: Initiate Payment
+```http
+POST /api/orders/e28be63a-7612-421d-922e-13c59a35e9cb/payment HTTP/1.1
+Authorization: Bearer <customer_token>
+Content-Type: application/json
 
-## 5. Webhook security
+{
+  "purpose": "BALANCE"
+}
+```
+*Note: If `purpose` is omitted, it defaults to `COMMITMENT`.*
 
-- Signature: HMAC-SHA256 over the **exact raw request body bytes** (captured by the `express.json` `verify` hook — re-serialized JSON would not verify), keyed with `PAYMENT_WEBHOOK_SECRET`, header `x-ugafresh-signature`. Comparison is timing-safe.
-- Rejected: missing/invalid signature, malformed payload, unknown `providerRef` (audited `PAYMENT_WEBHOOK_REJECTED`), amount/currency/order-number mismatch, wrong purpose, event for a cancelled/non-payable order.
-- Events are validated against **internal authoritative state** (stored amount/currency/order binding), never against other client data.
-- Rate limiting: dedicated generous webhook limiter so provider retries are not starved, on top of the global API limiter.
+### Response: Initiate Payment
+```json
+{
+  "success": true,
+  "data": {
+    "payment": {
+      "id": "7611ef49-6f1c-43f1-b8f9-4d640242ac11",
+      "provider": "MOCK",
+      "purpose": "BALANCE",
+      "status": "PENDING",
+      "amountUgx": 25000,
+      "currency": "UGX",
+      "providerRef": "mock_bal_e28be63a_1726671000",
+      "checkoutUrl": "https://mock-payments.ugamarket.internal/checkout/mock_bal_e28be63a_1726671000"
+    },
+    "reused": false
+  }
+}
+```
 
-## 6. Idempotency & duplicate protection (DB-enforced)
+### Response: Customer Payment View
+```json
+{
+  "success": true,
+  "data": {
+    "orderId": "e28be63a-7612-421d-922e-13c59a35e9cb",
+    "orderNumber": "FB-20260918-A1B2C3",
+    "orderStatus": "COMPLETED",
+    "fulfillmentMethod": "PICKUP_STATION",
+    "isFullyPaid": true,
+    "isCompleted": true,
+    "pricing": {
+      "currency": "UGX",
+      "subtotalUgx": 30000,
+      "deliveryFeeUgx": 0,
+      "totalUgx": 30000,
+      "commitmentUgx": 5000,
+      "balanceUgx": 25000,
+      "totalPaidUgx": 30000,
+      "remainingBalanceUgx": 0
+    },
+    "commitmentPaymentStatus": "SUCCESS",
+    "balancePaymentStatus": "SUCCESS",
+    "payments": [ ... ]
+  }
+}
+```
 
-- `payments.transaction_ref` UNIQUE (internal reference).
-- `payments (provider, provider_ref)` UNIQUE — one provider event can never map to two payments.
-- Partial unique index `payments_one_successful_commitment_per_order` — **at most one successful COMMITMENT payment per order**, enforced by PostgreSQL (`WHERE purpose='COMMITMENT' AND status='SUCCESS'`), so even concurrent/raced verifications cannot create duplicate financial state.
-- Webhook replay of a processed success is acknowledged (`ALREADY_PROCESSED`) and changes nothing: no second payment, no second transition, no second history entry, no duplicate audit.
-- Row-level `FOR UPDATE` locking serializes concurrent webhook processors; losers observe the committed state and return `ALREADY_PROCESSED`.
+---
 
-## 7. Cancellation × payment (refund boundary)
+## 5. Webhook Security & Idempotency
 
-- `PENDING_PAYMENT → CANCELLED` then a late success webhook → **rejected** (`ORDER_NOT_PAYABLE`, audited); a cancelled order can never become paid.
-- `COMMITMENT_PAID → CANCELLED` (customer-cancellable per Phase 5) → order cancelled, stock restored exactly once, and the successful payment record is **preserved untouched**. No refund is recorded, faked, or processed — real refund-provider integration is explicitly out of Phase 6 scope and must be built on top of this preserved record in a later phase.
+### Signature Verification
+- Provider webhooks must include an HMAC-SHA256 signature in the `x-ugafresh-signature` (or configured provider) header.
+- The HMAC is computed over the **exact raw request body bytes** using `PAYMENT_WEBHOOK_SECRET`.
+- Comparison uses constant-time `crypto.timingSafeEqual` to prevent timing attacks.
+- Missing or invalid signatures result in immediate `400 Bad Request`.
 
-## 8. Environment variables
+### Payload Tampering Protection
+Even with a valid HMAC signature, the webhook payload is cross-checked against database records:
+- `orderNumber` must match the internal `Order.orderNumber`.
+- `amountUgx` must match `Payment.amountUgx` exactly; mismatches return `422 Unprocessable Entity`.
+- `currency` must match `Payment.currency` (`UGX`).
+- `purpose` must match `Payment.purpose`.
 
-| Variable | Purpose |
-|---|---|
-| `PAYMENT_PROVIDER` | Active provider (`MOCK` only for now; refused in production) |
-| `PAYMENT_WEBHOOK_SECRET` | HMAC secret for webhook signatures (never commit; never log) |
-| `PAYMENT_ATTEMPT_TTL_MINUTES` | Attempt TTL before lazy expiry (default 30) |
+### Concurrency & Duplicate Protection (DB-Level)
+- **PostgreSQL Partial Unique Indexes**:
+  - `payments_one_successful_commitment_per_order` on `payments(order_id) WHERE purpose = 'COMMITMENT' AND status = 'SUCCESS'`
+  - `payments_one_successful_balance_per_order` on `payments(order_id) WHERE purpose = 'BALANCE' AND status = 'SUCCESS'`
+- **Pessimistic Row Locking**: Order and Payment rows are locked with `FOR UPDATE` during webhook verification.
+- **Replay Idempotency**: Replaying an already processed webhook returns `200 OK` with `{ event: "ALREADY_PROCESSED" }`, producing zero duplicate history, notification, or audit records.
 
-See `.env.example`. The mock provider is clearly marked non-production and is hard-blocked when `NODE_ENV=production`.
+---
 
-## 9. Testing
+## 6. Order Completion & Side Effects
 
-- `tests/payment.test.js` — initiation, tampering, IDOR, verification transitions, failure/retry, cancellation interaction, snapshot immutability (13 tests).
-- `tests/paymentWebhook.test.js` — signature enforcement, payload validation, replay/duplicate/concurrent webhooks (13 tests).
-- `tests/paymentIntegrity.test.js` — DB-level uniqueness proofs, concurrent initiation, expiry, cancellation-after-payment, response redaction (6 tests).
-- `scripts/phase6-smoke.js` — 32 end-to-end HTTP checks with exact cleanup.
+When a balance payment webhook succeeds:
+1. `Payment.status` moves to `SUCCESS`, stamping `verifiedAt`.
+2. The order transitions atomically to `COMPLETED`.
+3. An `OrderStatusHistory` row is inserted with `statusFrom: <PICKED_UP|DELIVERED>`, `statusTo: 'COMPLETED'`, `changedByType: 'SYSTEM'`.
+4. An in-app `Notification` is created for the customer:
+   - `type`: `ORDER_STATUS`
+   - `title`: `Order Completed`
+   - `message`: `Your order #<orderNumber> is complete. Thank you for shopping with UgaMarket!`
+5. An audit log entry is recorded with action `BALANCE_PAYMENT_APPLIED` (sanitized; no secrets or tokens).
+
+---
+
+## 7. Cancellation & Refund Boundaries
+
+- **Cancellations**:
+  - Orders in `COMPLETED` cannot be cancelled by customers or administrators (`409 Conflict`).
+  - Orders cancelled prior to balance payment cannot accept balance payment initiations or webhooks (`409 Conflict`).
+- **No Fake Refunds**:
+  - If an order with a successful commitment payment is cancelled (e.g. while `CONFIRMED`), the payment record remains intact in the database as `SUCCESS`.
+  - No simulated refund transactions, negative balances, or fake ledger adjustments are created.
+  - Actual financial refund gateways will be implemented when real banking rails are connected.
+
+---
+
+## 8. Automated Verification
+
+- `tests/balancePayment.test.js`: 14 comprehensive tests covering fulfillment boundaries, server-authoritative balance calculation, idempotency, webhook security, failures/retries, order completion, notifications, replay protection, IDOR/RBAC, and concurrency races.
+- `scripts/phase8-smoke.js`: 50 end-to-end integration assertions verifying the live running server, customer & admin flows, and multi-threaded concurrency.

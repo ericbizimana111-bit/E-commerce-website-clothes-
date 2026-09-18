@@ -11,16 +11,17 @@ const orderLanguageSchema = z
   .optional()
   .default('en');
 
-// Initiation body: the client may specify NOTHING financially meaningful.
-// amount/currency/status/paymentStatus/providerRef/etc. are stripped by the
-// transform (server is authoritative). Payment outcomes come ONLY from
-// signed provider webhooks — never from this endpoint.
+// Initiation body: the client may specify purpose (COMMITMENT or BALANCE).
+// Financially meaningful values (amount, currency, status, providerRef, etc.)
+// are stripped by the transform (server is authoritative). Payment outcomes
+// come ONLY from signed provider webhooks — never from this endpoint.
 const initiatePaymentSchema = {
   params: z.object({
     id: uuidSchema,
   }),
   body: z
     .object({
+      purpose: z.enum(['COMMITMENT', 'BALANCE']).optional(),
       language: orderLanguageSchema,
       // Mass-assignment protection: always stripped (incl. dev/test levers)
       mockOutcome: z.unknown().optional(),
@@ -37,6 +38,7 @@ const initiatePaymentSchema = {
       userId: z.unknown().optional(),
     })
     .transform((body) => ({
+      purpose: body.purpose,
       language: body.language,
     })),
 };
