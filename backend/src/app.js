@@ -21,6 +21,9 @@ const orderRoutes = require('./routes/order.routes');
 const adminOrderRoutes = require('./routes/adminOrder.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const adminDeliveryRoutes = require('./routes/adminDelivery.routes');
+const pickupStationRoutes = require('./routes/pickupStation.routes');
+const addressRoutes = require('./routes/address.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 const app = express();
 
@@ -100,6 +103,11 @@ app.use('/api/payments', paymentRoutes);
 // 10d. Phase 7: Admin Delivery & Fulfillment operations (admin JWT + RBAC;
 // DISPATCHER included as the operational fulfillment role)
 app.use('/api/admin/deliveries', adminDeliveryRoutes);
+
+// 10e. Customer Fulfillment & In-App notification routes
+app.use('/api/pickup-stations', pickupStationRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 11. 404 Handler for undefined routes
 app.use((req, res, next) => {

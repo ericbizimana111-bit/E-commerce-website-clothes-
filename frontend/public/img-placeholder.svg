@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="UgaMarket product image placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EAF6EE"/>
+      <stop offset="100%" stop-color="#D2EBDA"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <g fill="none" stroke="#1C5233" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M200 60l-90 45 90 45 90-45-90-45z"/>
+    <path d="M110 150l90 45 90-45"/>
+    <path d="M110 195l90 45 90-45"/>
+  </g>
+  <text x="200" y="272" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1C5233">UgaMarket</text>
+</svg>

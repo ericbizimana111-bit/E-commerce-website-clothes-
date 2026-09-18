@@ -1,367 +1,195 @@
 /* ═══════════════════════════════════════════════
-   FOOTER - Clean & Simple
+   UGAMARKET FOOTER STYLES
    ═══════════════════════════════════════════════ */
 
-.footer {
-  background: #F5FBF5;
-  color: var(--muted);
-  padding: 36px 0 0;
-  border-top: 1px solid rgba(22, 163, 74, 0.08);
+.um-footer {
+  background: var(--dark);
+  color: #E2E8F0;
+  padding: 4rem 0 2rem;
+  margin-top: 5rem;
+  border-top: 4px solid var(--primary);
 }
 
-.fc {
-  max-width: 1280px;
+.um-footer-container {
+  width: min(92%, var(--container-max));
   margin: 0 auto;
-  padding: 0 24px;
 }
 
-.ftop {
+.um-footer-grid {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 1fr 1.5fr;
-  gap: 28px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(22, 163, 74, 0.06);
+  grid-template-columns: 1.5fr 1fr 1fr 1.2fr;
+  gap: 3rem;
+  margin-bottom: 3.5rem;
 }
 
-/* Brand */
-.fb-logo {
+/* Brand col */
+.um-footer-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 0.75rem;
   text-decoration: none;
+  margin-bottom: 1.25rem;
 }
 
-.fb-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--primary);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.um-footer-logo-badge {
+  font-size: 1.5rem;
 }
 
-.fb-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: 1.5px;
+.um-footer-brand-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  display: block;
+  line-height: 1.1;
 }
 
-.fb-desc {
-  font-size: 12px;
-  color: var(--muted);
+.um-footer-brand-sub {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.um-footer-desc {
+  font-size: 0.9rem;
   line-height: 1.6;
-  margin-bottom: 14px;
-  max-width: 260px;
+  color: #94A3B8;
+  margin-bottom: 1.5rem;
 }
 
-/* Socials */
-.socials {
+.um-footer-trust-badges {
   display: flex;
-  gap: 8px;
-  margin-top: 20px;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.slink {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: rgba(22, 163, 74, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  color: var(--muted);
-  transition: all .2s;
-}
-
-.slink:hover {
-  background: var(--primary);
-  color: #fff;
+.um-trust-pill {
+  font-size: 0.8rem;
+  color: #CBD5E1;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  width: fit-content;
 }
 
 /* Columns */
-.col h4 {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--primary);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 12px;
+.um-footer-heading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 1.25rem;
+  position: relative;
+  padding-bottom: 0.5rem;
 }
 
-.col ul {
+.um-footer-heading::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 30px;
+  height: 2px;
+  background: var(--secondary);
+}
+
+.um-footer-links {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.75rem;
 }
 
-.col ul li a {
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: none;
-  transition: color .2s;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.um-footer-links a {
+  color: #94A3B8;
+  font-size: 0.9rem;
+  transition: var(--transition);
 }
 
-.col ul li a:hover {
-  color: var(--primary);
+.um-footer-links a:hover {
+  color: #FFFFFF;
+  transform: translateX(3px);
+  display: inline-block;
 }
 
 /* Newsletter */
-.fnl h4 {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+.um-footer-newsletter-text {
+  font-size: 0.85rem;
+  color: #94A3B8;
+  margin-bottom: 1rem;
 }
 
-.fnl p {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 10px;
-  line-height: 1.5;
-}
-
-.ni-wrap {
+.um-footer-newsletter-form {
   display: flex;
-  background: #fff;
-  border: 1px solid rgba(22, 163, 74, 0.12);
-  border-radius: 6px;
-  overflow: hidden;
-  transition: border-color .2s;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.ni-wrap:focus-within {
-  border-color: var(--primary);
-}
-
-.ni-wrap input {
-  background: transparent;
+.um-footer-newsletter-form input {
   flex: 1;
-  border: none;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: #FFFFFF;
+}
+
+.um-footer-newsletter-form input:focus {
   outline: none;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--text);
+  border-color: var(--secondary);
 }
 
-.ni-wrap input::placeholder {
-  color: var(--muted);
-}
-
-.sub-btn {
-  background: var(--primary);
-  border: none;
-  padding: 8px 14px;
-  color: white;
-  font-size: 11px;
+.um-footer-subscribed {
+  background: rgba(22, 163, 74, 0.2);
+  color: #4ADE80;
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: opacity .2s;
+  margin-bottom: 1.25rem;
 }
 
-.sub-btn:hover {
-  opacity: .85;
-}
-
-.success {
-  font-size: 12.5px;
-  color: var(--primary);
+.um-footer-contact-info {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 0;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #94A3B8;
 }
 
-/* Bottom bar */
-.fbot {
-  padding: 14px 0;
+/* Bottom */
+.um-footer-bottom {
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-size: 0.85rem;
+  color: #64748B;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 1rem;
 }
 
-.fbot-l {
-  font-size: 11px;
-  color: var(--muted);
+.um-footer-bottom-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.fbot-l a {
-  color: var(--text);
-  text-decoration: none;
-  transition: color .2s;
-}
-
-.fbot-l a:hover {
-  color: var(--primary);
-}
-
-.fbot-ai {
-  font-size: 10px;
-  color: var(--primary);
-  font-weight: 500;
-  opacity: 0.7;
-}
-
-.fbot-ai:hover {
-  opacity: 1;
-}
-
-/* ═══════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════ */
-
-@media (max-width: 1024px) {
-  .ftop {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .ftop {
+@media (max-width: 992px) {
+  .um-footer-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 28px;
-  }
-
-  .fb, .fnl {
-    grid-column: 1/-1;
+    gap: 2rem;
   }
 }
 
-@media (max-width: 768px) {
-  .footer {
-    padding: 28px 0 0;
+@media (max-width: 576px) {
+  .um-footer-grid {
+    grid-template-columns: 1fr;
   }
-
-  .fc {
-    padding: 0 16px;
-  }
-
-  .ftop {
-    gap: 24px;
-    padding-bottom: 20px;
-  }
-
-  .fb-name {
-    font-size: 14px;
-  }
-
-  .fb-desc {
-    font-size: 11px;
-    margin-bottom: 12px;
-  }
-
-  .col ul li a {
-    font-size: 11px;
-  }
-
-  .fnl p {
-    font-size: 11px;
-    margin-bottom: 8px;
-  }
-
-  .ni-wrap input {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-
-  .sub-btn {
-    padding: 6px 12px;
-    font-size: 10px;
-  }
-
-  .fbot {
-    padding: 12px 0;
-  }
-
-  .fbot-l {
-    font-size: 10px;
-  }
-}
-
-@media (max-width: 480px) {
-  .footer {
-    padding: 24px 0 0;
-  }
-
-  .fc {
-    padding: 0 12px;
-  }
-
-  .ftop {
-    gap: 20px;
-    padding-bottom: 18px;
-  }
-
-  .fb-logo {
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-
-  .fb-name {
-    font-size: 13px;
-  }
-
-  .fb-desc {
-    font-size: 10px;
-    margin-bottom: 10px;
-  }
-
-  .socials {
-    gap: 5px;
-    margin-top: 12px;
-  }
-
-  .slink {
-    width: 28px;
-    height: 28px;
-  }
-
-  .col ul {
-    gap: 5px;
-  }
-
-  .col ul li a {
-    font-size: 10px;
-  }
-
-  .fnl p {
-    font-size: 10px;
-    margin-bottom: 8px;
-  }
-
-  .ni-wrap input {
-    padding: 5px 8px;
-    font-size: 10px;
-  }
-
-  .sub-btn {
-    padding: 5px 10px;
-    font-size: 9px;
-  }
-
-  .success {
-    font-size: 10px;
-    padding: 6px 0;
-  }
-
-  .fbot {
-    padding: 10px 0;
+  .um-footer-bottom {
     flex-direction: column;
-    gap: 6px;
-  }
-
-  .fbot-l {
-    font-size: 9px;
+    text-align: center;
   }
 }

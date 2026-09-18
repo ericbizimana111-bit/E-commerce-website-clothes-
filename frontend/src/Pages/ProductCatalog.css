@@ -1,0 +1,225 @@
+.um-catalog-page {
+  padding: 2.5rem 0 4rem;
+}
+
+.um-catalog-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.um-catalog-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--dark);
+  letter-spacing: -0.5px;
+}
+
+.um-catalog-subtitle {
+  color: var(--muted);
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+.um-catalog-count {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--slate);
+  background: var(--surface-alt);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* ── Filter Bar ── */
+.um-filter-container {
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.um-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.um-filter-search {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.um-instock-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--slate);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.um-instock-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--secondary);
+}
+
+.um-filter-price-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.um-price-input {
+  width: 105px !important;
+  padding: 0.45rem 0.6rem !important;
+  font-size: 0.85rem !important;
+}
+
+.um-reset-btn {
+  margin-left: auto;
+}
+
+/* ── Category Pills ── */
+.um-category-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+}
+
+.um-pill {
+  white-space: nowrap;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--slate);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.um-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.um-pill--active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+.um-pill--active:hover {
+  background: var(--primary-hover);
+  color: #FFFFFF;
+}
+
+/* ── Loading and Empty ── */
+.um-loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 0;
+  color: var(--muted);
+}
+
+.um-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #E2E8F0;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: umSpin 0.8s linear infinite;
+}
+
+@keyframes umSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.um-no-products {
+  text-align: center;
+  padding: 4rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.um-no-products-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.um-no-products h3 {
+  font-size: 1.25rem;
+  color: var(--dark);
+}
+
+.um-no-products p {
+  color: var(--muted);
+  max-width: 400px;
+  margin-bottom: 1rem;
+}
+
+/* ── Pagination ── */
+.um-pagination {
+  margin-top: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.um-page-numbers {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.um-page-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--dark);
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.um-page-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.um-page-btn--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #FFFFFF;
+}
+
+.um-page-btn--active:hover {
+  background: var(--primary-hover);
+  color: #FFFFFF;
+}

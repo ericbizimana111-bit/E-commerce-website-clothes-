@@ -1,0 +1,104 @@
+.um-auth-page {
+  padding: 3.5rem 0 5rem;
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+}
+
+.um-auth-card {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2.5rem;
+}
+
+.um-auth-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.um-auth-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  text-decoration: none;
+}
+
+.um-auth-badge {
+  font-size: 1.6rem;
+}
+
+.um-auth-brand-name {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--dark);
+  display: block;
+  line-height: 1.1;
+}
+
+.um-auth-brand-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.um-auth-header h2 {
+  font-size: 1.6rem;
+  color: var(--dark);
+  margin-bottom: 0.5rem;
+}
+
+.um-auth-header p {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.um-input-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.um-auth-submit {
+  margin-top: 1.5rem;
+}
+
+.um-auth-footer {
+  text-align: center;
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--slate);
+}
+
+.um-auth-switch-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
+}
+
+.um-auth-switch-btn:hover {
+  color: var(--secondary);
+}
+
+.um-auth-trust-box {
+  margin-top: 1.5rem;
+  padding: 0.85rem;
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--slate);
+  text-align: center;
+}

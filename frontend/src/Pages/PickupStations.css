@@ -1,0 +1,129 @@
+.um-stations-page {
+  padding: 2.5rem 0 5rem;
+}
+
+.um-stations-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.um-stations-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--dark);
+}
+
+.um-stations-subtitle {
+  color: var(--muted);
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+.um-stations-benefits {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.um-benefit-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.um-benefit-icon {
+  font-size: 1.8rem;
+}
+
+.um-benefit-item strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #14532D;
+}
+
+.um-benefit-item span {
+  font-size: 0.82rem;
+  color: #166534;
+  line-height: 1.35;
+}
+
+.um-stations-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.um-stations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.um-station-item-card {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: var(--transition);
+}
+
+.um-station-item-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--secondary);
+}
+
+.um-station-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.um-station-pin-icon {
+  font-size: 1.5rem;
+}
+
+.um-station-item-title {
+  font-size: 1.1rem;
+  color: var(--dark);
+}
+
+.um-station-item-district {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: block;
+}
+
+.um-station-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--slate);
+  flex: 1;
+}
+
+.um-station-item-footer {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 860px) {
+  .um-stations-benefits {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}

@@ -1,441 +1,218 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import "./CSS/loginsignup.css";
-import logo from "../Components/Assets/logo.svg";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../Context/AuthContext';
+import './LoginSignup.css';
 
 const LoginSignup = () => {
-    const [isLogin, setIsLogin] = useState(true);
+  const { login, register, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const [formData, setFormData] = useState({
-        username: "",
-        email: "",
-        password: "",
-    });
+  const query = new URLSearchParams(location.search);
+  const redirectUrl = query.get('redirect') || '/';
+  const initialSignup = query.get('signup') === 'true';
 
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+  const [isLogin, setIsLogin] = useState(!initialSignup);
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    const changeHandler = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
+  // If already authenticated, redirect
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(redirectUrl, { replace: true });
+    }
+  }, [isAuthenticated, navigate, redirectUrl]);
 
-        setError("");
-    };
+  // If search query changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setIsLogin(params.get('signup') !== 'true');
+  }, [location.search]);
 
-    // LOGIN
-    const login = async () => {
-        if (!formData.email || !formData.password) {
-            setError("Please fill in all fields");
-            return;
-        }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
 
-        setLoading(true);
-        setError("");
+    // Phone format basic check
+    const cleanPhone = phone.trim();
+    if (!cleanPhone.startsWith('07') && !cleanPhone.startsWith('+2567')) {
+      setError('Please enter a valid Uganda phone number (e.g. 0770000000 or +256770000000)');
+      return;
+    }
 
-        try {
-            const response = await fetch("http://localhost:4000/login", {
-                method: "POST",
-                headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    email: formData.email,
-                    password: formData.password,
-                }),
-            });
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
 
-            const data = await response.json();
+    setLoading(true);
+    if (isLogin) {
+      const res = await login(cleanPhone, password);
+      setLoading(false);
+      if (res.success) {
+        navigate(redirectUrl, { replace: true });
+      } else {
+        setError(res.error || 'Invalid phone number or password.');
+      }
+    } else {
+      if (!fullName.trim() || fullName.trim().length < 2) {
+        setLoading(false);
+        setError('Please enter your full name (minimum 2 characters)');
+        return;
+      }
 
-            if (data.success) {
-                localStorage.setItem("auth-token", data.token);
-                window.location.replace("/");
-            } else {
-                setError(
-                    data.errors || "Login failed. Please try again."
-                );
-            }
-        } catch (err) {
-            setError(
-                "Login failed. Please check your connection."
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
+      const res = await register({
+        fullName: fullName.trim(),
+        phone: cleanPhone,
+        email: email.trim() || undefined,
+        password
+      });
+      setLoading(false);
+      if (res.success) {
+        navigate(redirectUrl, { replace: true });
+      } else {
+        setError(res.error || 'Registration failed. Please try again.');
+      }
+    }
+  };
 
-    // SIGNUP
-    const signup = async () => {
-        if (
-            !formData.username ||
-            !formData.email ||
-            !formData.password
-        ) {
-            setError("Please fill in all fields");
-            return;
-        }
+  return (
+    <div className="um-auth-page">
+      <div className="container">
+        <div className="um-auth-card card">
+          <div className="um-auth-header">
+            <Link to="/" className="um-auth-logo">
+              <span className="um-auth-badge">🌿</span>
+              <div>
+                <span className="um-auth-brand-name">UgaMarket</span>
+                <span className="um-auth-brand-sub">home to home</span>
+              </div>
+            </Link>
+            <h2>{isLogin ? 'Customer Login' : 'Create Customer Account'}</h2>
+            <p>
+              {isLogin
+                ? 'Access your fresh farm orders, track deliveries, and manage saved addresses.'
+                : 'Join UgaMarket to purchase farm-fresh Ugandan food direct to your home or station.'}
+            </p>
+          </div>
 
-        if (formData.password.length < 6) {
-            setError("Password must be at least 6 characters");
-            return;
-        }
+          {error && (
+            <div className="alert alert-error">
+              <span>⚠️ {error}</span>
+            </div>
+          )}
 
-        setLoading(true);
-        setError("");
+          <form onSubmit={handleSubmit} className="um-auth-form">
+            {!isLogin && (
+              <div className="form-group">
+                <label className="form-label">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sarah Namubiru"
+                  className="form-input"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+            )}
 
-        try {
-            const response = await fetch("http://localhost:4000/signup", {
-                method: "POST",
-                headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    name: formData.username,
-                    email: formData.email,
-                    password: formData.password,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                localStorage.setItem("auth-token", data.token);
-                window.location.replace("/");
-            } else {
-                setError(
-                    data.errors || "Signup failed. Please try again."
-                );
-            }
-        } catch (err) {
-            setError(
-                "Signup failed. Please check your connection."
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // FORM SUBMIT
-    const handleSubmit = (e) => {
-        e.preventDefault();
-
-        if (isLogin) {
-            login();
-        } else {
-            signup();
-        }
-    };
-
-    // SWITCH LOGIN / SIGNUP
-    const toggleMode = () => {
-        setIsLogin(!isLogin);
-        setError("");
-
-        setFormData({
-            username: "",
-            email: "",
-            password: "",
-        });
-    };
-
-    return (
-        <div className="auth">
-
-            {/* Left panel - Branding */}
-            <div className="auth-left">
-                <div className="auth-left-content">
-
-                    <Link to="/" className="auth-logo" onClick={() => window.scrollTo(0, 0)}>
-                        <div className="auth-logo-icon">
-                            <img src={logo} alt="Shopper logo" />
-                        </div>
-
-                        <span className="auth-logo-text">
-                            SHOPPER
-                        </span>
-                    </Link>
-
-                    <h1 className="auth-headline">
-                        Discover Your
-                        <br />
-
-                        <span className="auth-headline-accent">
-                            Perfect Style
-                        </span>
-                    </h1>
-
-                    <p className="auth-tagline">
-                        Join thousands of fashion lovers who trust
-                        Shopper for the latest trends in men's,
-                        women's, and kids' fashion.
-                    </p>
-
-                    <div className="auth-features">
-
-                        <div className="auth-feature">
-                            <div className="auth-feature-icon">
-                                &#10003;
-                            </div>
-
-                            <span>
-                                Free shipping over $50
-                            </span>
-                        </div>
-
-                        <div className="auth-feature">
-                            <div className="auth-feature-icon">
-                                &#10003;
-                            </div>
-
-                            <span>
-                                30-day easy returns
-                            </span>
-                        </div>
-
-                        <div className="auth-feature">
-                            <div className="auth-feature-icon">
-                                &#10003;
-                            </div>
-
-                            <span>
-                                Secure checkout
-                            </span>
-                        </div>
-
-                    </div>
-                </div>
-
-                <div className="auth-left-shapes">
-                    <div className="auth-shape auth-shape-1"></div>
-                    <div className="auth-shape auth-shape-2"></div>
-                    <div className="auth-shape auth-shape-3"></div>
-                </div>
+            <div className="form-group">
+              <label className="form-label">Uganda Phone Number (MTN / Airtel) *</label>
+              <input
+                type="tel"
+                required
+                placeholder="0770000000 or +256770000000"
+                className="form-input"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <small className="um-input-hint">Format: 07XXXXXXXX or +2567XXXXXXXX</small>
             </div>
 
-            {/* Right panel - Form */}
-            <div className="auth-right">
+            {!isLogin && (
+              <div className="form-group">
+                <label className="form-label">Email Address (Optional)</label>
+                <input
+                  type="email"
+                  placeholder="sarah@example.com"
+                  className="form-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            )}
 
-                <div className="auth-form-wrapper">
-
-                    <div
-                        className={`auth-form-container ${isLogin
-                                ? ""
-                                : "auth-form-container--signup"
-                            }`}
-                    >
-
-                        {/* LOGIN FORM */}
-                        <div
-                            className={`auth-form ${isLogin
-                                    ? "auth-form--active"
-                                    : ""
-                                }`}
-                        >
-                            <div className="auth-form-header">
-
-                                <h2>
-                                    Welcome back
-                                </h2>
-
-                                <p>
-                                    Sign in to continue shopping
-                                </p>
-
-                            </div>
-
-                            <form
-                                onSubmit={handleSubmit}
-                                className="auth-fields"
-                            >
-
-                                <div className="auth-field">
-
-                                    <label htmlFor="login-email">
-                                        Email
-                                    </label>
-
-                                    <input
-                                        id="login-email"
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={changeHandler}
-                                        type="email"
-                                        placeholder="you@example.com"
-                                        autoComplete="email"
-                                    />
-
-                                </div>
-
-                                <div className="auth-field">
-
-                                    <label htmlFor="login-password">
-                                        Password
-                                    </label>
-
-                                    <input
-                                        id="login-password"
-                                        name="password"
-                                        value={formData.password}
-                                        onChange={changeHandler}
-                                        type="password"
-                                        placeholder="Enter your password"
-                                        autoComplete="current-password"
-                                    />
-
-                                </div>
-
-                                {error && (
-                                    <div className="auth-error">
-                                        {error}
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="auth-submit"
-                                >
-                                    {loading
-                                        ? "Please wait..."
-                                        : "Sign In"}
-                                </button>
-
-                            </form>
-
-                            <p className="auth-toggle">
-                                Don't have an account?{" "}
-
-                                <button
-                                    type="button"
-                                    onClick={toggleMode}
-                                >
-                                    Create account
-                                </button>
-                            </p>
-
-                        </div>
-
-                        {/* SIGNUP FORM */}
-                        <div
-                            className={`auth-form ${!isLogin
-                                    ? "auth-form--active"
-                                    : ""
-                                }`}
-                        >
-
-                            <div className="auth-form-header">
-
-                                <h2>
-                                    Create account
-                                </h2>
-
-                                <p>
-                                    Start your fashion journey today
-                                </p>
-
-                            </div>
-
-                            <form
-                                onSubmit={handleSubmit}
-                                className="auth-fields"
-                            >
-
-                                <div className="auth-field">
-
-                                    <label htmlFor="signup-username">
-                                        Username
-                                    </label>
-
-                                    <input
-                                        id="signup-username"
-                                        name="username"
-                                        value={formData.username}
-                                        onChange={changeHandler}
-                                        type="text"
-                                        placeholder="Enter your username"
-                                        autoComplete="username"
-                                    />
-
-                                </div>
-
-                                <div className="auth-field">
-
-                                    <label htmlFor="signup-email">
-                                        Email
-                                    </label>
-
-                                    <input
-                                        id="signup-email"
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={changeHandler}
-                                        type="email"
-                                        placeholder="you@example.com"
-                                        autoComplete="email"
-                                    />
-
-                                </div>
-
-                                <div className="auth-field">
-
-                                    <label htmlFor="signup-password">
-                                        Password
-                                    </label>
-
-                                    <input
-                                        id="signup-password"
-                                        name="password"
-                                        value={formData.password}
-                                        onChange={changeHandler}
-                                        type="password"
-                                        placeholder="Create a password"
-                                        autoComplete="new-password"
-                                    />
-
-                                </div>
-
-                                {error && (
-                                    <div className="auth-error">
-                                        {error}
-                                    </div>
-                                )}
-
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="auth-submit"
-                                >
-                                    {loading
-                                        ? "Please wait..."
-                                        : "Create Account"}
-                                </button>
-
-                            </form>
-
-                            <p className="auth-toggle">
-                                Already have an account?{" "}
-
-                                <button
-                                    type="button"
-                                    onClick={toggleMode}
-                                >
-                                    Sign in
-                                </button>
-                            </p>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
+            <div className="form-group">
+              <label className="form-label">Password (Min 8 characters) *</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="••••••••"
+                className="form-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
 
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary btn-lg btn-block um-auth-submit"
+            >
+              {loading
+                ? 'Processing...'
+                : isLogin
+                ? 'Login to UgaMarket'
+                : 'Create Account & Continue'}
+            </button>
+          </form>
+
+          <div className="um-auth-footer">
+            {isLogin ? (
+              <p>
+                Don’t have an account yet?{' '}
+                <button
+                  type="button"
+                  className="um-auth-switch-btn"
+                  onClick={() => {
+                    setIsLogin(false);
+                    setError('');
+                  }}
+                >
+                  Create one here
+                </button>
+              </p>
+            ) : (
+              <p>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  className="um-auth-switch-btn"
+                  onClick={() => {
+                    setIsLogin(true);
+                    setError('');
+                  }}
+                >
+                  Login here
+                </button>
+              </p>
+            )}
+          </div>
+
+          <div className="um-auth-trust-box">
+            <span>🇺🇬 Verified Ugandan Customer Marketplace</span>
+            <span>🔒 Secure password hashing & JWT token sessions</span>
+          </div>
         </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default LoginSignup;

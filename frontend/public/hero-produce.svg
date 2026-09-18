@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 520" role="img" aria-label="Illustration of fresh Ugandan farm produce">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EAF6EE"/>
+      <stop offset="100%" stop-color="#CBE7D4"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2E7D4F"/>
+      <stop offset="100%" stop-color="#1C5233"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="520" rx="24" fill="url(#sky)"/>
+
+  <!-- sun -->
+  <circle cx="520" cy="110" r="56" fill="#F7C948" opacity="0.85"/>
+  <circle cx="520" cy="110" r="78" fill="#F7C948" opacity="0.25"/>
+
+  <!-- rolling hills -->
+  <path d="M0 330 Q160 250 320 320 T640 300 V520 H0 Z" fill="url(#ground)" opacity="0.9"/>
+  <path d="M0 380 Q200 310 400 370 T640 350 V520 H0 Z" fill="#1C5233"/>
+
+  <!-- banana / matooke plant -->
+  <g transform="translate(120 220)">
+    <path d="M0 160 C-8 100 8 60 0 10" stroke="#256B41" stroke-width="12" fill="none" stroke-linecap="round"/>
+    <path d="M0 40 C-70 20 -90 70 -30 78 C-60 60 -30 46 0 52" fill="#2E9A5C"/>
+    <path d="M0 70 C70 40 100 90 30 100 C60 80 34 70 0 82" fill="#2E9A5C"/>
+    <path d="M0 10 C-40 -30 40 -30 0 10" fill="#37B36A"/>
+  </g>
+
+  <!-- basket of produce -->
+  <g transform="translate(330 300)">
+    <path d="M0 60 H200 L180 190 H20 Z" fill="#B47B3C"/>
+    <path d="M0 60 H200 L196 88 H4 Z" fill="#8E5D28"/>
+    <path d="M30 60 C30 10 170 10 170 60" fill="none" stroke="#8E5D28" stroke-width="12" stroke-linecap="round"/>
+    <!-- matooke cluster -->
+    <ellipse cx="70" cy="34" rx="26" ry="20" fill="#37B36A"/>
+    <ellipse cx="110" cy="26" rx="30" ry="22" fill="#2E9A5C"/>
+    <ellipse cx="148" cy="38" rx="22" ry="17" fill="#37B36A"/>
+    <!-- tomatoes -->
+    <circle cx="46" cy="118" r="16" fill="#D64545"/>
+    <circle cx="82" cy="128" r="16" fill="#C93B3B"/>
+    <circle cx="118" cy="118" r="16" fill="#D64545"/>
+    <circle cx="152" cy="128" r="16" fill="#C93B3B"/>
+    <!-- greens -->
+    <path d="M56 92 C66 66 86 66 96 92 C86 84 66 84 56 92" fill="#2E9A5C"/>
+    <path d="M116 92 C126 66 146 66 156 92 C146 84 126 84 116 92" fill="#2E9A5C"/>
+  </g>
+
+  <!-- small plants on hills -->
+  <g fill="#37B36A" opacity="0.9">
+    <path d="M470 400 q6 -26 12 0 q6 -26 12 0 q6 -20 12 0 l-36 6z"/>
+    <path d="M520 430 q6 -26 12 0 q6 -26 12 0 q6 -20 12 0 l-36 6z"/>
+    <path d="M90 430 q6 -26 12 0 q6 -26 12 0 q6 -20 12 0 l-36 6z"/>
+  </g>
+</svg>
