@@ -88,7 +88,7 @@ export default function Sidebar({ open, onClose }) {
             return (
               <div key={section.label} className="sidebar__section">
                 <div className="sidebar__section-label">{section.label}</div>
-                {items.map(({ to, label, icon: Icon, end }) => (
+                {items.map((item) => {
                   <NavLink
                     key={to}
                     to={to}
@@ -98,10 +98,22 @@ export default function Sidebar({ open, onClose }) {
                     }
                     onClick={onClose}
                   >
-                    <Icon size={17} aria-hidden="true" />
-                    <span>{label}</span>
-                  </NavLink>
-                ))}
+                  const { to, label, icon: Icon, end } = item;
+                  return (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={end}
+                      className={({ isActive }) =>
+                        `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                      }
+                      onClick={onClose}
+                    >
+                      <Icon size={17} aria-hidden="true" />
+                      <span>{label}</span>
+                    </NavLink>
+                  );
+                })}
               </div>
             );
           })}
