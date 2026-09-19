@@ -27,7 +27,6 @@ export default function DeliveryStatusModal({ delivery, onClose, onDone }) {
   const [failureReason, setFailureReason] = useState('');
   const [failureMessage, setFailureMessage] = useState('');
   const [notes, setNotes] = useState('');
-  const [staff, setStaff] = useState([]);
   const [assignedAdminId, setAssignedAdminId] = useState('');
   const [validation, setValidation] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -41,15 +40,9 @@ export default function DeliveryStatusModal({ delivery, onClose, onDone }) {
     };
   }, []);
 
-  // Load candidate assignees (dispatchers/admins) from the deliveries page's
-  // own assignment flow: the backend validates target staff server-side.
-  // There is no public admin-directory endpoint, so assignment uses a pasted
-  // admin ID OR the assigned dispatcher shown on the record. We support the
-  // ID field and surface backend errors verbatim.
-  useEffect(() => {
-    if (mode !== 'assign') return;
-    setStaff([]);
-  }, [mode]);
+  // Assignment targets are validated server-side (active DISPATCHER/ADMIN/
+  // SUPER_ADMIN); there is no admin-directory endpoint, so the console
+  // submits the staff UUID and surfaces backend errors verbatim.
 
   const validate = () => {
     const errors = {};
