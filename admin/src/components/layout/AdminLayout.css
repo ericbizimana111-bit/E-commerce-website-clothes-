@@ -1,0 +1,27 @@
+.admin-shell {
+  min-height: 100vh;
+}
+
+.admin-shell__main {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-shell__content {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  padding: 20px 22px 40px;
+}
+
+@media (max-width: 900px) {
+  .admin-shell__main {
+    margin-left: 0;
+  }
+
+  .admin-shell__content {
+    padding: 16px 14px 36px;
+  }
+}
