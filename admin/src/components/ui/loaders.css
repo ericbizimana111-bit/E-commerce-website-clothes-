@@ -1,0 +1,82 @@
+.skel {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--surface-sunken) 25%, #E2E7E5 50%, var(--surface-sunken) 75%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.3s infinite;
+}
+
+@keyframes skel-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.skel-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.skel-table__row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.skel-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.skel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skel--label { width: 45%; }
+.skel--value { width: 70%; height: 20px; }
+.skel--title { width: 38%; height: 18px; }
+
+.skel-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+/* Shared state block styling (empty/error) */
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.state-block svg {
+  color: var(--text-faint);
+}
+
+.state-block--error svg {
+  color: var(--danger);
+}
+
+.state-block h3 {
+  font-size: 15px;
+}
+
+.state-block p {
+  font-size: 13px;
+  max-width: 420px;
+}

@@ -1,0 +1,60 @@
+/**
+ * UgaMarket Operations Console — design tokens.
+ * Shared brand identity with the customer frontend (primary #1C5233).
+ * Colors are semantic: status colors are used consistently for
+ * SUCCESS/PAID/COMPLETED (success), PENDING/PROCESSING/PREPARING (warning/info),
+ * FAILED/CANCELLED (danger), operational neutrals (slate).
+ */
+:root {
+  /* Brand */
+  --brand-primary: #1C5233;
+  --brand-primary-strong: #143D26;
+  --brand-primary-soft: #EAF3EE;
+  --brand-accent: #D97706;
+  --brand-accent-soft: #FEF3E2;
+
+  /* Surfaces */
+  --surface: #FFFFFF;
+  --surface-muted: #F6F8F7;
+  --surface-sunken: #EEF1F0;
+
+  /* Text */
+  --text-strong: #101828;
+  --text: #334155;
+  --text-muted: #64748B;
+  --text-faint: #94A3B8;
+
+  /* Borders */
+  --border: #E3E8E6;
+  --border-strong: #CBD5D1;
+
+  /* Status — semantic and used app-wide */
+  --success: #15803D;
+  --success-soft: #E8F6EC;
+  --warning: #B45309;
+  --warning-soft: #FCF1DF;
+  --danger: #B91C1C;
+  --danger-soft: #FBEAEA;
+  --info: #1D4ED8;
+  --info-soft: #E8EEFB;
+  --neutral: #475569;
+  --neutral-soft: #EDF1F5;
+
+  /* Elevation (restrained) */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 2px 8px rgba(16, 24, 40, 0.07);
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --topbar-height: 60px;
+  --content-max: 1440px;
+}
