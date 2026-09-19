@@ -1,0 +1,121 @@
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import './LoginPage.css';
+
+const LOGO_SRC = '/logo.png';
+
+/**
+ * Admin login against the backend's dedicated admin auth context
+ * (email + password, admin JWT with a separate secret from customer tokens).
+ */
+export default function LoginPage() {
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from || '/';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Already signed in: go straight to the console.
+  if (isAuthenticated) {
+    navigate(redirectTo, { replace: true });
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    setError(null);
+
+    if (!email.trim()) {
+      setError('Enter your admin email address.');
+      return;
+    }
+    if (!password) {
+      setError('Enter your password.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      setError(err.message || 'Sign in failed. Check your credentials and try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">
+          <img src={LOGO_SRC} alt="UgaMarket — home to home" className="login-brand__logo" />
+          <h1>Operations Console</h1>
+          <p>Sign in with your UgaMarket staff account.</p>
+        </div>
+
+        {error && (
+          <div className="alert alert--error" role="alert">
+            <AlertCircle size={15} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="form-field">
+            <label htmlFor="login-email" className="required">
+              Email
+            </label>
+            <input
+              id="login-email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@ugamarket.ug"
+              disabled={submitting}
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="login-password" className="required">
+              Password
+            </label>
+            <input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              disabled={submitting}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn btn--primary btn--block"
+            disabled={submitting}
+          >
+            <LogIn size={15} aria-hidden="true" />
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="login-footnote">
+          <ShieldCheck size={14} aria-hidden="true" />
+          <span>
+            Staff access only. Customer accounts cannot sign in here.{' '}
+            <Link to="/">Back to console</Link>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
