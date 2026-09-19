@@ -34,4 +34,15 @@ export default defineConfig([
       globals: { ...globals.browser, ...globals.jest },
     },
   },
+  {
+    // Context/provider files intentionally export both the provider component
+    // and its hook/constants (standard React context pattern).
+    files: [
+      'src/context/*.jsx',
+      'src/components/feedback/Toast.jsx',
+    ],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
