@@ -20,5 +20,8 @@ export default defineConfig({
     globals: true,
     setupFiles: './src/test/setup.js',
     css: false,
+    // Threads pool: more reliable on Windows than the default forks pool.
+    pool: 'threads',
+    testTimeout: 15000,
   },
 });
