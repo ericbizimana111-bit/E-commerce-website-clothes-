@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import './LoginPage.css';
@@ -21,9 +21,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Already signed in: go straight to the console.
+  // Already signed in: go straight to the console. Declarative redirect —
+  // calling navigate() during render would trigger a React warning.
   if (isAuthenticated) {
-    navigate(redirectTo, { replace: true });
+    return <Navigate to={redirectTo} replace />;
   }
 
   const handleSubmit = async (e) => {
