@@ -85,9 +85,10 @@ async function request(endpoint, options = {}) {
       // Session expired or invalid: single signalling point for the AuthContext.
       window.dispatchEvent(new CustomEvent('ugamarket:admin:unauthorized'));
     }
+    // Prefer a field-specific validation message over the generic envelope.
     const message =
-      data?.message ||
       data?.errors?.[0]?.message ||
+      data?.message ||
       `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, data);
   }

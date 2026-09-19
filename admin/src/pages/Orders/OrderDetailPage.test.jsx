@@ -116,10 +116,11 @@ describe('OrderDetailPage (real backend contract)', () => {
 
     await waitFor(() => expect(screen.getByText('FB-20260919-ABC123')).toBeInTheDocument());
 
-    // Server-authoritative pricing from order.pricing
+    // Server-authoritative pricing from order.pricing (getAllByText: the
+    // commitment amount also appears in the payments breakdown)
     expect(screen.getByText('UGX 46,000')).toBeInTheDocument(); // total
-    expect(screen.getByText('UGX 13,800')).toBeInTheDocument(); // commitment
-    expect(screen.getByText('UGX 32,200')).toBeInTheDocument(); // remaining balance
+    expect(screen.getAllByText('UGX 13,800').length).toBeGreaterThan(0); // commitment
+    expect(screen.getAllByText('UGX 32,200').length).toBeGreaterThan(0); // remaining balance
 
     // Customer block (never password material)
     expect(screen.getByText('Sarah Namubiru')).toBeInTheDocument();

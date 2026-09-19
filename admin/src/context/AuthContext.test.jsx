@@ -136,7 +136,7 @@ describe('AdminAuthContext', () => {
     act(() => {
       screen.getByTestId('btn-logout').click();
     });
-    expect(screen.getByTestId('authed').textContent).toBe('false');
+    await waitFor(() => expect(screen.getByTestId('authed').textContent).toBe('false'));
     expect(localStorage.getItem('ugamarket_admin_token')).toBeNull();
   });
 });
