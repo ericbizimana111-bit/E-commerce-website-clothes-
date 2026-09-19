@@ -10,11 +10,13 @@ import './AdminLayout.css';
 export default function AdminLayout({ pageTitle }) {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
+  const pathname = location.pathname;
 
-  // Close the mobile drawer on navigation.
+  // Close the mobile drawer whenever the route changes (skips the redundant
+  // same-route render so the effect has no cascading same-path setState).
   useEffect(() => {
-    setNavOpen(false);
-  }, [location.pathname]);
+    setNavOpen((open) => (open ? false : open));
+  }, [pathname]);
 
   return (
     <div className="admin-shell">
