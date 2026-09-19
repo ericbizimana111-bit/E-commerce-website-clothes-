@@ -89,15 +89,6 @@ export default function Sidebar({ open, onClose }) {
               <div key={section.label} className="sidebar__section">
                 <div className="sidebar__section-label">{section.label}</div>
                 {items.map((item) => {
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end={end}
-                    className={({ isActive }) =>
-                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
-                    }
-                    onClick={onClose}
-                  >
                   const { to, label, icon: Icon, end } = item;
                   return (
                     <NavLink
