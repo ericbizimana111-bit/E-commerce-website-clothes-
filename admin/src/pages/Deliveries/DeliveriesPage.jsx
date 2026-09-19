@@ -56,7 +56,6 @@ export default function DeliveriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusTarget, setStatusTarget] = useState(null);
-  const [activeCount, setActiveCount] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,15 +71,6 @@ export default function DeliveriesPage() {
       const res = await api.get(`/admin/deliveries?${params.toString()}`);
       setRows(Array.isArray(res?.items) ? res.items : []);
       setPagination(res?.pagination || null);
-
-      // Live count of in-flight deliveries for the summary strip.
-      const activeRes = await api.get(
-        '/admin/deliveries?page=1&limit=1&status=PENDING,ASSIGNED,READY,OUT_FOR_DELIVERY',
-      ).catch(() => null);
-      // List endpoint validates status as a single enum value, so count via
-      // the unfiltered total minus terminal states is not available — use the
-      // current page rows instead when the combined query is rejected.
-      setActiveCount(activeRes?.pagination?.total ?? null);
     } catch (err) {
       setError(err.message || 'Unable to load deliveries.');
     } finally {
