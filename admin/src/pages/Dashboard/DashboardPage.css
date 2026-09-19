@@ -1,0 +1,97 @@
+.dash-greeting {
+  margin-bottom: 18px;
+}
+
+.dash-greeting h1 {
+  font-size: 20px;
+}
+
+.dash-greeting p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dash-table thead th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dash-table__sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.dash-table__open {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.dash-table__open:hover {
+  color: var(--brand-primary);
+}
+
+.dash-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.dash-alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.dash-alert--danger svg,
+.dash-alert--danger strong { color: var(--danger); }
+
+.dash-alert--warning svg,
+.dash-alert--warning { color: var(--warning); }
+
+.dash-alert--info svg { color: var(--info); }
+.dash-alert--info { color: var(--text-muted); }
+
+.dash-alert--success svg,
+.dash-alert--success { color: var(--success); }
+
+.dash-alert ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.dash-alert a {
+  font-size: 12.5px;
+  text-decoration: underline;
+}

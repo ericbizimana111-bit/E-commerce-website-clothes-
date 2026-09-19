@@ -1,0 +1,24 @@
+.products-page__slug {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.products-page__sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.products-page__stock-out {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.products-page__actions-col {
+  text-align: right;
+}
+
+.products-page__row-actions {
+  display: inline-flex;
+  gap: 6px;
+}

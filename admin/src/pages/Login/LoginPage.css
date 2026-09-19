@@ -1,0 +1,62 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    radial-gradient(1200px 500px at 80% -10%, var(--brand-primary-soft), transparent),
+    var(--surface-muted);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 28px 26px;
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.login-brand__logo {
+  height: 52px;
+  width: auto;
+  margin-bottom: 12px;
+}
+
+.login-brand h1 {
+  font-size: 17px;
+  margin-bottom: 3px;
+}
+
+.login-brand p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.login-card form {
+  margin-top: 16px;
+}
+
+.login-footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.login-footnote svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--text-faint);
+}
