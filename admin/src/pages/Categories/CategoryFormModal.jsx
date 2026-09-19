@@ -91,10 +91,10 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
       if (imageUrl.trim()) payload.imageUrl = imageUrl.trim();
 
       if (isEdit) {
-        await api.put(`/admin/categories/${category.id}`, payload);
+        await api.put(`/admin/catalog/categories/${category.id}`, payload);
         await onSaved('Category updated successfully.');
       } else {
-        await api.post('/admin/categories', payload);
+        await api.post('/admin/catalog/categories', payload);
         await onSaved('Category created successfully.');
       }
     } catch (err) {

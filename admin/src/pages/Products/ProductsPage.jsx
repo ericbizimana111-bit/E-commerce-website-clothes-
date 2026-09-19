@@ -41,7 +41,7 @@ export default function ProductsPage() {
   // Category options for the filter (admin categories endpoint, first page).
   useEffect(() => {
     api
-      .get('/admin/categories?page=1&limit=100')
+      .get('/admin/catalog/categories?page=1&limit=100')
       .then((res) => setCategories(Array.isArray(res?.items) ? res.items : []))
       .catch(() => setCategories([]));
   }, []);
@@ -57,8 +57,8 @@ export default function ProductsPage() {
       if (inStock) params.set('inStock', inStock);
       if (categoryId) params.set('categoryId', categoryId);
 
-      // GET /api/admin/products -> { success, items, pagination }
-      const res = await api.get(`/admin/products?${params.toString()}`);
+      // GET /api/admin/catalog/products -> { success, items, pagination }
+      const res = await api.get(`/admin/catalog/products?${params.toString()}`);
       setRows(Array.isArray(res?.items) ? res.items : []);
       setPagination(res?.pagination || null);
     } catch (err) {
@@ -87,7 +87,7 @@ export default function ProductsPage() {
     setToggleBusy(true);
     try {
       // PATCH /api/admin/catalog/products/:id/active { isActive }
-      await api.patch(`/admin/products/${toggleTarget.id}/active`, {
+      await api.patch(`/admin/catalog/products/${toggleTarget.id}/active`, {
         isActive: !toggleTarget.isActive,
       });
       showToast(

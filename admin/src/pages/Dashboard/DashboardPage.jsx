@@ -40,7 +40,7 @@ export default function DashboardPage() {
         api.get('/admin/orders?page=1&limit=1'),
         api.get('/admin/orders?page=1&limit=1&status=PENDING_PAYMENT,PAYMENT_FAILED'),
         api.get('/admin/deliveries?page=1&limit=50&status=PENDING,ASSIGNED,READY,OUT_FOR_DELIVERY'),
-        api.get('/admin/products?page=1&limit=50&inStock=false'),
+        api.get('/admin/catalog/products?page=1&limit=50&inStock=false'),
       ]);
 
       const ordersRes = await api.get('/admin/orders?page=1&limit=8');

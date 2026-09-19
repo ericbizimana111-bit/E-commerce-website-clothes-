@@ -59,7 +59,7 @@ export default function ProductFormPage() {
 
   useEffect(() => {
     api
-      .get('/admin/categories?page=1&limit=100')
+      .get('/admin/catalog/categories?page=1&limit=100')
       .then((res) => setCategories(Array.isArray(res?.items) ? res.items : []))
       .catch(() => setCategories([]));
   }, []);
@@ -68,9 +68,9 @@ export default function ProductFormPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      // GET /api/admin/products?search=<slug> is list-level; the admin API has
+      // GET /api/admin/catalog/products?search=<slug> is list-level; the admin API has
       // no single-product endpoint, so pull the list page and locate the row.
-      const res = await api.get(`/admin/products?page=1&limit=100&search=${encodeURIComponent(id)}`);
+      const res = await api.get(`/admin/catalog/products?page=1&limit=100&search=${encodeURIComponent(id)}`);
       const product = (res?.items || []).find((p) => String(p.id) === String(id));
       if (!product) {
         throw new Error('Product not found.');
@@ -162,11 +162,11 @@ export default function ProductFormPage() {
 
       if (isEdit) {
         // PUT /api/admin/products/:id
-        await api.put(`/admin/products/${id}`, payload);
+        await api.put(`/admin/catalog/products/${id}`, payload);
         showToast('Product updated successfully.', { type: 'success' });
       } else {
         // POST /api/admin/products
-        await api.post('/admin/products', payload);
+        await api.post('/admin/catalog/products', payload);
         showToast('Product created successfully.', { type: 'success' });
       }
       navigate('/products');

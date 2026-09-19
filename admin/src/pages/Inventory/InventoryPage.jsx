@@ -45,7 +45,7 @@ export default function InventoryPage() {
       params.set('limit', '20');
       if (stockFilter) params.set('inStock', stockFilter);
       if (search.trim()) params.set('search', search.trim());
-      const res = await api.get(`/admin/products?${params.toString()}`);
+      const res = await api.get(`/admin/catalog/products?${params.toString()}`);
       setRows(Array.isArray(res?.items) ? res.items : []);
       setPagination(res?.pagination || null);
     } catch (err) {

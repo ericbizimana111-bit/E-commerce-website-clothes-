@@ -40,7 +40,7 @@ export default function StockHistoryModal({ product, onClose }) {
     async function loadHistory() {
       try {
         const res = await api.get(
-          `/admin/products/${product.id}/inventory/history?page=${page}&limit=10`,
+          `/admin/catalog/products/${product.id}/inventory/history?page=${page}&limit=10`,
         );
         if (!active) return;
         setItems(Array.isArray(res?.data) ? res.data : []);

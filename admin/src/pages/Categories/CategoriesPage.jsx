@@ -38,7 +38,7 @@ export default function CategoriesPage() {
       params.set('page', String(page));
       params.set('limit', '20');
       if (search.trim()) params.set('search', search.trim());
-      const res = await api.get(`/admin/categories?${params.toString()}`);
+      const res = await api.get(`/admin/catalog/categories?${params.toString()}`);
       setRows(Array.isArray(res?.items) ? res.items : []);
       setPagination(res?.pagination || null);
     } catch (err) {
@@ -56,7 +56,7 @@ export default function CategoriesPage() {
     if (!toggleTarget) return;
     setToggleBusy(true);
     try {
-      await api.patch(`/admin/categories/${toggleTarget.id}/active`, {
+      await api.patch(`/admin/catalog/categories/${toggleTarget.id}/active`, {
         isActive: !toggleTarget.isActive,
       });
       showToast(

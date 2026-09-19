@@ -55,11 +55,11 @@ export default function StockActionModal({ mode, product, onClose, onDone }) {
       if (referenceId.trim()) payload.referenceId = referenceId.trim();
       if (isRestock) {
         payload.quantity = Number(quantity);
-        await api.post(`/admin/products/${product.id}/inventory/restock`, payload);
+        await api.post(`/admin/catalog/products/${product.id}/inventory/restock`, payload);
         await onDone(`Restocked "${product.slug}" by ${Number(quantity).toLocaleString('en-UG')} units.`);
       } else {
         payload.quantityChange = Number(quantity);
-        await api.post(`/admin/products/${product.id}/inventory/adjust`, payload);
+        await api.post(`/admin/catalog/products/${product.id}/inventory/adjust`, payload);
         await onDone(
           `Adjusted "${product.slug}" stock by ${payload.quantityChange > 0 ? '+' : ''}${payload.quantityChange} units.`,
         );
