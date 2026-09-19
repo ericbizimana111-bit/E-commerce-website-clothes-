@@ -1,0 +1,19 @@
+.deliveries-page__dest {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.deliveries-page__sub {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deliveries-page__actions-col {
+  text-align: right;
+}

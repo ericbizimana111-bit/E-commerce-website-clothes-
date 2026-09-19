@@ -1,0 +1,125 @@
+.stock-modal__overlay,
+.history-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+}
+
+.stock-modal,
+.history-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(16, 24, 40, 0.25);
+  width: 100%;
+  padding: 18px 20px;
+}
+
+.stock-modal {
+  max-width: 440px;
+}
+
+.history-modal {
+  max-width: 720px;
+}
+
+.stock-modal__header,
+.history-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.stock-modal__header h2,
+.history-modal__header h2 {
+  flex: 1;
+  font-size: 15px;
+}
+
+.stock-modal__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand-primary-soft);
+  color: var(--brand-primary);
+}
+
+.stock-modal__close,
+.history-modal__close {
+  display: flex;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.stock-modal__close:hover,
+.history-modal__close:hover {
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+}
+
+.stock-modal__product {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.stock-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* History table */
+.history-modal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.history-modal__table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.history-modal__table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-txn--in {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.history-txn--out {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.history-modal__loading {
+  padding: 30px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
