@@ -1,0 +1,20 @@
+.categories-page__slug {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.categories-page__alt {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.categories-page__actions-col {
+  text-align: right;
+}
+
+.categories-page__row-actions {
+  display: inline-flex;
+  gap: 6px;
+}
