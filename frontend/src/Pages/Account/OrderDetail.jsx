@@ -27,8 +27,8 @@ const LIFECYCLE_STEPS = [
   { key: 'COMMITMENT_PAID', label: 'Commitment Deposit Paid' },
   { key: 'PREPARING', label: 'Preparing Your Order' },
   { key: 'IN_TRANSIT', label: 'In Transit' },
-  { key: 'FULFILLED', label: 'Delivered / Picked Up' },
-  { key: 'COMPLETED', label: 'Balance Paid & Complete' }
+  { key: 'FULFILLED', label: 'Delivered' },
+  { key: 'COMPLETED', label: 'Paid & Complete' }
 ];
 
 function getStepIndex(status) {
@@ -71,6 +71,25 @@ const PAYMENT_PURPOSE_LABELS = {
   BALANCE: 'Remaining Balance Payment'
 };
 
+// Customer-friendly order status wording (no raw enums in the UI).
+const ORDER_STATUS_BADGES = {
+  PENDING_PAYMENT: { label: 'Awaiting Deposit', type: 'warning' },
+  COMMITMENT_PAID: { label: 'Deposit Paid', type: 'success' },
+  CONFIRMED: { label: 'Confirmed', type: 'success' },
+  PREPARING: { label: 'Preparing', type: 'info' },
+  READY_FOR_DELIVERY: { label: 'Ready for Delivery', type: 'info' },
+  READY_FOR_PICKUP: { label: 'Ready for Pickup', type: 'success' },
+  OUT_FOR_DELIVERY: { label: 'On the Way', type: 'warning' },
+  DELIVERED: { label: 'Delivered', type: 'success' },
+  PICKED_UP: { label: 'Picked Up', type: 'success' },
+  BALANCE_PAID: { label: 'Balance Paid', type: 'success' },
+  COMPLETED: { label: 'Completed', type: 'success' },
+  CANCELLED: { label: 'Cancelled', type: 'danger' },
+  PAYMENT_FAILED: { label: 'Payment Issue', type: 'danger' },
+  REFUNDED: { label: 'Refunded', type: 'neutral' },
+  DELIVERY_FAILED: { label: 'Delivery Issue', type: 'danger' }
+};
+
 function formatDateTime(value) {
   if (!value) return '—';
   try {
@@ -107,8 +126,9 @@ const OrderDetail = () => {
         apiClient.get(`/orders/${id}/payment`)
       ]);
 
-      if (orderRes.status === 'fulfilled' && orderRes.value?.data) {
-        setOrder(orderRes.value.data);
+      if (orderRes.status === 'fulfilled' && orderRes.value?.data?.order) {
+        // GET /api/orders/:id -> { data: { order } }
+        setOrder(orderRes.value.data.order);
       } else {
         throw new Error(orderRes.status === 'rejected' ? orderRes.reason?.message : 'Order not found');
       }
@@ -120,7 +140,7 @@ const OrderDetail = () => {
       }
 
       // GET /api/orders/:id/payment -> { data: { pricing, payments, activePayment, ... } }
-      if (payRes.status === 'fulfilled' && payRes.value?.data) {
+      if (payRes.status === 'fulfilled' && payRes.value?.data?.pricing) {
         setPaymentInfo(payRes.value.data);
       } else {
         setPaymentInfo(null);
@@ -237,6 +257,7 @@ const OrderDetail = () => {
   }
 
   const currentStep = getStepIndex(order.status);
+  const statusBadge = ORDER_STATUS_BADGES[order.status] || { label: order.status, type: 'neutral' };
   const isCancelled = order.status === 'CANCELLED' || order.status === 'REFUNDED' || order.status === 'DELIVERY_FAILED';
   const isHomeDelivery = order.fulfillment?.method === 'HOME_DELIVERY';
 
@@ -269,8 +290,8 @@ const OrderDetail = () => {
           </Link>
           <div className="um-order-title-wrap">
             <h2>Order {order.orderNumber}</h2>
-            <span className={`badge ${isCancelled ? 'badge-danger' : 'badge-success'}`}>
-              {order.status}
+            <span className={`badge badge-${statusBadge.type}`}>
+              {statusBadge.label}
             </span>
           </div>
           <span className="um-order-timestamp">
@@ -311,7 +332,7 @@ const OrderDetail = () => {
         </div>
       )}
 
-      {/* Lifecycle Progress Stepper */}
+      {/* Lifecycle Progress Stepper — labels adapt to home delivery vs pickup */}
       {!isCancelled ? (
         <div className="um-stepper-box card">
           <h4 className="um-stepper-title">Fulfillment Progress</h4>
@@ -327,7 +348,13 @@ const OrderDetail = () => {
                   <div className="um-step-marker">
                     {isPassed && !isCurrent ? '✓' : idx + 1}
                   </div>
-                  <span className="um-step-label">{step.label}</span>
+                  <span className="um-step-label">
+                    {!isHomeDelivery && step.key === 'IN_TRANSIT'
+                      ? 'Ready for Collection'
+                      : !isHomeDelivery && step.key === 'FULFILLED'
+                        ? 'Picked Up'
+                        : step.label}
+                  </span>
                 </div>
               );
             })}
@@ -335,7 +362,7 @@ const OrderDetail = () => {
         </div>
       ) : (
         <div className="alert alert-error" role="alert">
-          <span>❌ This order is {order.status}. Contact support if you believe this is a mistake.</span>
+          <span>❌ This order was cancelled. If you believe this is a mistake, please contact UgaMarket support.</span>
         </div>
       )}
 
@@ -428,7 +455,7 @@ const OrderDetail = () => {
         </div>
       </div>
 
-      {/* Two Column Section: Fulfillment & Financials */}
+      {/* Financial Breakdown Card — server-authoritative, always shows the two-stage payment model */}
       <div className="um-order-info-grid">
         {/* Fulfillment Card */}
         <div className="um-info-card card">

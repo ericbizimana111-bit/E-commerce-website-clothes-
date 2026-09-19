@@ -216,7 +216,7 @@ export const Product = () => {
                 <span className="um-detail-price">{formatUGX(price)}</span>
                 {product.unit && <span className="um-detail-per">per {product.unit}</span>}
               </div>
-              <p className="um-detail-vat-note">Inclusive of all local agricultural taxes</p>
+              <p className="um-detail-vat-note">Prices shown in Ugandan Shillings (UGX)</p>
             </div>
 
             {/* Transparent Financial Structure Box */}
@@ -296,9 +296,9 @@ export const Product = () => {
               <h3>Produce Information</h3>
               <p>{description || 'Fresh agricultural produce sourced directly from local Ugandan farmers. Grown naturally with sustainable farm practices.'}</p>
               <div className="um-detail-features">
-                <div>🚚 <strong>Fast Fulfillment:</strong> Dispatched freshly within 24 hours</div>
-                <div>📍 <strong>Fulfillment Choice:</strong> Doorstep delivery or pickup station collection</div>
-                <div>🌱 <strong>Farm Fresh:</strong> Directly harvested from Ugandan soils</div>
+                <div>🛡️ <strong>Inspect First:</strong> Pay the balance only after checking your produce</div>
+                <div>📍 <strong>Your Choice:</strong> Doorstep delivery or pickup station collection</div>
+                <div>🌱 <strong>Farm Sourced:</strong> From verified Ugandan farmers</div>
               </div>
             </div>
           </div>

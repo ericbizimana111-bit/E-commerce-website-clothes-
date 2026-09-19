@@ -11,9 +11,10 @@ const Notifications = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
+      // GET /api/notifications -> { data: { notifications: [...] } }
       const res = await apiClient.get('/notifications');
-      if (res?.data) {
-        setNotifications(res.data);
+      if (Array.isArray(res?.data?.notifications)) {
+        setNotifications(res.data.notifications);
       }
     } catch (err) {
       console.error('Failed to load notifications', err);

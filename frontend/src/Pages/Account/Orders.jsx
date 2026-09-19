@@ -36,10 +36,10 @@ const Orders = () => {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        // GET /api/orders -> { data: [...], pagination: {...} }
+        // GET /api/orders -> { success, items: [...], pagination: {...} } (order.controller spreads listCustomerOrders)
         const res = await apiClient.get(`/orders?page=${page}&limit=10&lang=${currentLang || 'en'}`);
-        if (isMounted && Array.isArray(res?.data)) {
-          setOrders(res.data);
+        if (isMounted && Array.isArray(res?.items)) {
+          setOrders(res.items);
           if (res.pagination) setPagination(res.pagination);
         }
       } catch (err) {

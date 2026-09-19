@@ -14,7 +14,7 @@ const HowItWorks = () => {
             How UgaMarket Works
           </h1>
           <p style={{ color: 'var(--muted)', fontSize: '1.1rem', marginTop: '0.5rem' }}>
-            A fair, transparent food supply chain connecting Ugandan farmers directly to consumers with zero risks.
+            A fair, transparent way to buy food: a small deposit secures your order, and you pay the balance only after inspecting your produce.
           </p>
         </div>
 

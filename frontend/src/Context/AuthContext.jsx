@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import apiClient, { setAuthToken, getAuthToken } from '../api/client';
+import apiClient, { setAuthToken, getAuthToken, clearAuthToken } from '../api/client';
 
 const AuthContext = createContext();
 
@@ -105,6 +105,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     applySession(null, null);
+    clearAuthToken();
     setAuthError(null);
   };
 

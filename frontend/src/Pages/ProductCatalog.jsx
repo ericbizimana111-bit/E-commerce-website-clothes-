@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
+import { ProductGridSkeleton } from '../Components/Skeletons/Skeletons';
 import { useLanguage } from '../Context/LanguageContext';
 import './ProductCatalog.css';
 
@@ -231,10 +232,7 @@ const ProductCatalog = () => {
 
         {/* Content Body */}
         {loading ? (
-          <div className="um-loading-box">
-            <div className="um-spinner" />
-            <p>Loading fresh harvests from farmers...</p>
-          </div>
+          <ProductGridSkeleton count={12} />
         ) : error ? (
           <div className="alert alert-error">
             <span>⚠️ {error}</span>

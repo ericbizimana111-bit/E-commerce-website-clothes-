@@ -24,24 +24,10 @@
   text-decoration: none;
 }
 
-.um-auth-badge {
-  font-size: 1.6rem;
-}
-
-.um-auth-brand-name {
-  font-size: 1.3rem;
-  font-weight: 800;
-  color: var(--dark);
+.um-auth-logo-img {
+  height: 48px;
+  width: auto;
   display: block;
-  line-height: 1.1;
-}
-
-.um-auth-brand-sub {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .um-auth-header h2 {

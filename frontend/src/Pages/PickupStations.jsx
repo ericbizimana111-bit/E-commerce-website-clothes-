@@ -45,7 +45,7 @@ const PickupStations = () => {
           <div>
             <h1 className="um-stations-title">UgaMarket Pickup Stations</h1>
             <p className="um-stations-subtitle">
-              Collect your farm-fresh produce with zero delivery surcharges at verified neighborhood hubs.
+              Collect your order yourself at a UgaMarket station — no delivery fee added.
             </p>
           </div>
           <Link to="/catalog" className="btn btn-primary">
@@ -58,22 +58,22 @@ const PickupStations = () => {
           <div className="um-benefit-item">
             <span className="um-benefit-icon">🆓</span>
             <div>
-              <strong>100% Free Collection</strong>
-              <span>Save on home delivery fees when collecting at our hubs</span>
+              <strong>Free Collection</strong>
+              <span>Avoid home delivery fees by collecting your order yourself</span>
             </div>
           </div>
           <div className="um-benefit-item">
-            <span className="um-benefit-icon">❄️</span>
+            <span className="um-benefit-icon">📍</span>
             <div>
-              <strong>Secure Cold Storage</strong>
-              <span>Your leafy greens, milk, and meats are kept chilled until pickup</span>
+              <strong>Convenient Locations</strong>
+              <span>Verified neighborhood hubs you can visit on your normal route</span>
             </div>
           </div>
           <div className="um-benefit-item">
             <span className="um-benefit-icon">🕒</span>
             <div>
-              <strong>Extended Hours</strong>
-              <span>Collect after work up to 8:00 PM on weekdays</span>
+              <strong>Clear Opening Hours</strong>
+              <span>Each station lists its hours and contact number</span>
             </div>
           </div>
         </div>

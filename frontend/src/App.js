@@ -3,6 +3,8 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './Components/Navbar/Navbar';
 import Footer from './Components/Footer/Footer';
+import MobileNav from './Components/MobileNav/MobileNav';
+import { ToastProvider } from './Components/Toast/Toast';
 import Shop from './Pages/Shop';
 import ProductCatalog from './Pages/ProductCatalog';
 import Product from './Pages/Product';
@@ -88,6 +90,8 @@ function AppRoutes() {
         </Routes>
       </main>
       {!isAuthPage && <Footer />}
+      {/* Thumb-reachable primary navigation on small screens */}
+      {!isAuthPage && <MobileNav />}
     </div>
   );
 }
@@ -95,7 +99,9 @@ function AppRoutes() {
 function App() {
   return (
     <Router>
-      <AppRoutes />
+      <ToastProvider>
+        <AppRoutes />
+      </ToastProvider>
     </Router>
   );
 }

@@ -5,6 +5,7 @@ import ProductCard from './ProductCard';
 import { LanguageProvider } from '../../Context/LanguageContext';
 import { AuthProvider } from '../../Context/AuthContext';
 import { CartProvider } from '../../Context/CartContext';
+import { ToastProvider } from '../Toast/Toast';
 
 const renderCard = (product) =>
   render(
@@ -12,7 +13,9 @@ const renderCard = (product) =>
       <LanguageProvider>
         <AuthProvider>
           <CartProvider>
-            <ProductCard product={product} />
+            <ToastProvider>
+              <ProductCard product={product} />
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </LanguageProvider>

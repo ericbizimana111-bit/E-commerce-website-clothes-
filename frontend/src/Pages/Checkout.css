@@ -6,6 +6,60 @@
   margin-bottom: 2rem;
 }
 
+/* ── Checkout Journey Progress ── */
+.um-checkout-progress {
+  margin-bottom: 1.75rem;
+}
+
+.um-progress-steps {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.um-progress-step {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.um-progress-step:not(:last-child)::after {
+  content: '→';
+  margin-left: 0.5rem;
+  color: #CBD5E1;
+  font-weight: 400;
+}
+
+.um-progress-step--done {
+  color: var(--primary);
+}
+
+.um-progress-step--done a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.um-progress-step--current {
+  color: var(--dark);
+}
+
+.um-progress-step--current::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 6px;
+}
+
 .um-checkout-title {
   font-size: 2.2rem;
   font-weight: 800;

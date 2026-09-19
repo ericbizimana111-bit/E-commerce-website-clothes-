@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../../Context/CartContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { useToast } from '../Toast/Toast';
 import { formatUGX } from '../../utils/currency';
 import { resolveImageUrl } from '../../api/client';
 import './ProductCard.css';
@@ -12,6 +13,7 @@ const PLACEHOLDER = '/img-placeholder.svg';
 const ProductCard = ({ product }) => {
   const { addToCart, loading } = useCart();
   const { getLocalizedField, t } = useLanguage();
+  const { showToast } = useToast();
   const [added, setAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -36,7 +38,10 @@ const ProductCard = ({ product }) => {
     setIsAdding(false);
     if (res?.success) {
       setAdded(true);
+      showToast(`${name} added to cart`, { type: 'success' });
       setTimeout(() => setAdded(false), 1800);
+    } else if (res?.error) {
+      showToast(res.error, { type: 'error' });
     }
   };
 

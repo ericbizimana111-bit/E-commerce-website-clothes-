@@ -254,10 +254,28 @@ const Checkout = () => {
   return (
     <div className="um-checkout-page">
       <div className="container">
+        {/* Checkout journey progress — Cart is done, Payment/Confirmation follow on the order page */}
+        <nav className="um-checkout-progress" aria-label="Checkout progress">
+          <ol className="um-progress-steps">
+            <li className="um-progress-step um-progress-step--done">
+              <Link to="/cart">Cart</Link>
+            </li>
+            <li className="um-progress-step um-progress-step--current" aria-current="step">
+              <span>Delivery &amp; Review</span>
+            </li>
+            <li className="um-progress-step">
+              <span>{t('commitmentDeposit')}</span>
+            </li>
+            <li className="um-progress-step">
+              <span>Confirmation</span>
+            </li>
+          </ol>
+        </nav>
+
         <div className="um-checkout-header">
           <h1 className="um-checkout-title">Checkout</h1>
           <p className="um-checkout-subtitle">
-            Secure farm-to-door fulfillment • {t('commitmentDeposit')} paid now, {t('balancePayable').toLowerCase()} after inspection
+            {t('commitmentDeposit')} paid now • {t('balancePayable')} after your produce is inspected
           </p>
         </div>
 
@@ -540,7 +558,7 @@ const Checkout = () => {
                 </div>
                 {preview && !previewLoading && (
                   <p className="um-review-server-note" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-                    ✓ Totals calculated by the UgaMarket server
+                    ✓ Final amounts confirmed by UgaMarket
                   </p>
                 )}
               </div>
@@ -580,15 +598,15 @@ const Checkout = () => {
                 className="btn btn-primary btn-lg btn-block um-place-order-btn"
               >
                 {submitting
-                  ? 'Placing Order...'
+                  ? 'Placing your order...'
                   : previewLoading || !hasAllServerAmounts
-                    ? 'Calculating server totals...'
-                    : `Place Order — ${t('commitmentDeposit')}: ${formatUGX(displayCommitment)}`}
+                    ? 'Confirming your totals…'
+                    : `Place Order — Pay ${formatUGX(displayCommitment)} Now`}
               </button>
 
               <div className="um-checkout-security">
-                <span>🔒 Server-authoritative checkout</span>
-                <span>🛡️ Inspect quality before paying the balance</span>
+            <span>🔒 Checkout secured by UgaMarket</span>
+            <span>🛡️ Inspect quality before paying the balance</span>
               </div>
             </div>
           </div>

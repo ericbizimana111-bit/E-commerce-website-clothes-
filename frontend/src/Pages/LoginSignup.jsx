@@ -3,6 +3,9 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext';
 import './LoginSignup.css';
 
+// Official UgaMarket brand asset (frontend/public/logo.png)
+const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
+
 const LoginSignup = () => {
   const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -86,11 +89,13 @@ const LoginSignup = () => {
         <div className="um-auth-card card">
           <div className="um-auth-header">
             <Link to="/" className="um-auth-logo">
-              <span className="um-auth-badge">🌿</span>
-              <div>
-                <span className="um-auth-brand-name">UgaMarket</span>
-                <span className="um-auth-brand-sub">home to home</span>
-              </div>
+              <img
+                src={LOGO_SRC}
+                alt="UgaMarket — home to home"
+                className="um-auth-logo-img"
+                width="168"
+                height="48"
+              />
             </Link>
             <h2>{isLogin ? 'Customer Login' : 'Create Customer Account'}</h2>
             <p>

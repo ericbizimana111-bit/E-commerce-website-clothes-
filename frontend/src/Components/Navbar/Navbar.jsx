@@ -5,6 +5,9 @@ import { useCart } from '../../Context/CartContext';
 import { useLanguage, SUPPORTED_LANGUAGES } from '../../Context/LanguageContext';
 import './Navbar.css';
 
+// Official UgaMarket brand asset (frontend/public/logo.png)
+const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
+
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -63,7 +66,7 @@ const Navbar = () => {
       {/* Top Banner */}
       <div className="um-topbar">
         <div className="um-topbar-inner">
-          <span>🇺🇬 Fresh Farm Harvests Direct to You • Small Commitment Deposit • Quality Guaranteed</span>
+          <span>🇺🇬 Fresh Farm Harvests Direct to You • Small Commitment Deposit • Inspect Before You Pay the Balance</span>
           <div className="um-topbar-right">
             <span className="um-tagline-pill">home to home</span>
           </div>
@@ -73,19 +76,15 @@ const Navbar = () => {
       {/* Main Navigation Bar */}
       <header className="um-header">
         <div className="um-nav-container">
-          {/* Brand Logo */}
+          {/* Official Brand Logo */}
           <Link to="/" className="um-logo" onClick={closeMobileMenu}>
-            <div className="um-logo-badge">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <div className="um-logo-text">
-              <span className="um-logo-title">UgaMarket</span>
-              <span className="um-logo-sub">home to home</span>
-            </div>
+            <img
+              src={LOGO_SRC}
+              alt="UgaMarket — home to home"
+              className="um-logo-img"
+              width="156"
+              height="44"
+            />
           </Link>
 
           {/* Desktop Search Bar */}
@@ -301,13 +300,15 @@ const Navbar = () => {
       />
       <div className={`um-mobile-drawer ${isMobileMenuOpen ? 'um-mobile-drawer--open' : ''}`}>
         <div className="um-drawer-header">
-          <div className="um-logo">
-            <div className="um-logo-badge">🌿</div>
-            <div className="um-logo-text">
-              <span className="um-logo-title">UgaMarket</span>
-              <span className="um-logo-sub">home to home</span>
-            </div>
-          </div>
+          <Link to="/" className="um-logo" onClick={closeMobileMenu}>
+            <img
+              src={LOGO_SRC}
+              alt="UgaMarket — home to home"
+              className="um-logo-img"
+              width="132"
+              height="38"
+            />
+          </Link>
           <button className="um-drawer-close" onClick={closeMobileMenu}>
             ✕
           </button>

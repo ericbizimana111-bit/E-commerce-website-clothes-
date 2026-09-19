@@ -64,38 +64,25 @@
   flex-shrink: 0;
 }
 
-.um-logo-badge {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  color: #FFFFFF;
+/* Logo — official UgaMarket brand asset (logo.png) */
+.um-logo {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  box-shadow: 0 4px 10px rgba(28, 82, 51, 0.25);
+  gap: 0.75rem;
+  text-decoration: none;
+  flex-shrink: 0;
 }
 
-.um-logo-text {
-  display: flex;
-  flex-direction: column;
+.um-logo-img {
+  height: 44px;
+  width: auto;
+  display: block;
 }
 
-.um-logo-title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--dark);
-  line-height: 1.1;
-  letter-spacing: -0.5px;
-}
-
-.um-logo-sub {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--secondary);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+@media (max-width: 576px) {
+  .um-logo-img {
+    height: 36px;
+  }
 }
 
 /* Search Form */

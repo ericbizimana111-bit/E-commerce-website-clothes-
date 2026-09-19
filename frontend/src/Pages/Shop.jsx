@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
+import { ProductGridSkeleton, CategoryGridSkeleton } from '../Components/Skeletons/Skeletons';
 import { useLanguage } from '../Context/LanguageContext';
 import './Shop.css';
 
@@ -179,7 +180,7 @@ const Shop = () => {
           </div>
 
           {loading ? (
-            <div className="um-loading-state">Loading categories...</div>
+            <CategoryGridSkeleton count={6} />
           ) : categories.length === 0 ? (
             <div className="um-empty-state">No categories available yet. Check back soon!</div>
           ) : (
@@ -232,7 +233,7 @@ const Shop = () => {
           </div>
 
           {loading ? (
-            <div className="um-loading-state">Loading fresh harvest produce...</div>
+            <ProductGridSkeleton count={8} />
           ) : error && featuredProducts.length === 0 ? (
             <div className="um-empty-state">
               Could not load products. Please check your connection and refresh.
@@ -255,10 +256,10 @@ const Shop = () => {
           <div className="container">
             <div className="um-stations-box">
               <div className="um-stations-text">
-                <span className="badge badge-warning">No Pickup Surcharge</span>
-                <h2>Free Pickup at UgaMarket Stations</h2>
+                <span className="badge badge-warning">No Delivery Fee</span>
+                <h2>Pick Up Your Order at a UgaMarket Station</h2>
                 <p>
-                  Prefer collecting your fresh produce on your commute home? Select a convenient pickup station with secure storage.
+                  Prefer collecting your fresh produce yourself? Choose a convenient pickup station and pay no delivery fee.
                 </p>
                 <Link to="/pickup-stations" className="btn btn-accent">
                   Explore Pickup Stations
