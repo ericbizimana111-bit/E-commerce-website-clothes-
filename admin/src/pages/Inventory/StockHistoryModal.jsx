@@ -36,21 +36,23 @@ export default function StockHistoryModal({ product, onClose }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(null);
-    api
-      .get(`/admin/products/${product.id}/inventory/history?page=${page}&limit=10`)
-      .then((res) => {
+    // Async load; setState happens in promise callbacks, not synchronously.
+    async function loadHistory() {
+      try {
+        const res = await api.get(
+          `/admin/products/${product.id}/inventory/history?page=${page}&limit=10`,
+        );
         if (!active) return;
         setItems(Array.isArray(res?.data) ? res.data : []);
         setPagination(res?.pagination || null);
-      })
-      .catch((err) => {
+        setError(null);
+      } catch (err) {
         if (active) setError(err.message || 'Unable to load history.');
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    }
+    loadHistory();
     return () => {
       active = false;
     };
