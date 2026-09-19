@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Eye, RefreshCw, Search } from 'lucide-react';
 import api from '../../services/api';
-import { formatUGX, formatDateTime, getOrderStatusMeta } from '../../utils/format';
+import { formatUGX, formatDateTime } from '../../utils/format';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
@@ -32,7 +32,6 @@ const STATUS_FILTERS = [
 
 export default function OrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const page = parseInt(searchParams.get('page') || '1', 10);
   const search = searchParams.get('search') || '';

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { History, PackageCheck, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
-import { formatUGX, formatDateTime } from '../../utils/format';
+import { formatUGX } from '../../utils/format';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
