@@ -126,9 +126,10 @@ describe('OrderDetailPage (real backend contract)', () => {
     expect(screen.getByText('Sarah Namubiru')).toBeInTheDocument();
     expect(screen.getByText('+256770000000')).toBeInTheDocument();
 
-    // Payment attempt rendered from payment.payments
+    // Payment attempt rendered from payment.payments ("Commitment Paid"
+    // appears both as the order status badge and the history entry)
     expect(screen.getByText('PAY-abc')).toBeInTheDocument();
-    expect(screen.getByText('Commitment Paid')).toBeInTheDocument();
+    expect(screen.getAllByText('Commitment Paid').length).toBeGreaterThan(0);
   });
 
   it('offers only valid suggested transitions for the current status', async () => {

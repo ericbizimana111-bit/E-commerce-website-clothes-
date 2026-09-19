@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { AuthProvider, useAuth, hasRole, CATALOG_ROLES, OPERATIONS_ROLES } from './AuthContext';
+import { setAdminToken } from '../services/api';
 
 const TestConsumer = () => {
   const { admin, isAuthenticated, loading, login, logout, role } = useAuth();
@@ -45,6 +46,7 @@ function mockFetchOnce(body, status = 200) {
 describe('AdminAuthContext', () => {
   beforeEach(() => {
     localStorage.clear();
+    setAdminToken(null); // reset both storage AND the api module mirror
     vi.restoreAllMocks();
   });
 
@@ -94,7 +96,7 @@ describe('AdminAuthContext', () => {
   });
 
   it('restores the session from a stored token via /admin/auth/me', async () => {
-    localStorage.setItem('ugamarket_admin_token', 'stored-jwt');
+    setAdminToken('stored-jwt');
     vi.stubGlobal(
       'fetch',
       mockFetchOnce({
@@ -109,7 +111,7 @@ describe('AdminAuthContext', () => {
   });
 
   it('clears the session when the 401 event fires (expired token)', async () => {
-    localStorage.setItem('ugamarket_admin_token', 'expired-jwt');
+    setAdminToken('expired-jwt');
     vi.stubGlobal(
       'fetch',
       mockFetchOnce({ success: false, message: 'Authentication token has expired' }, 401),
@@ -121,7 +123,7 @@ describe('AdminAuthContext', () => {
   });
 
   it('logout clears the admin session', async () => {
-    localStorage.setItem('ugamarket_admin_token', 'some-jwt');
+    setAdminToken('some-jwt');
     vi.stubGlobal(
       'fetch',
       mockFetchOnce({

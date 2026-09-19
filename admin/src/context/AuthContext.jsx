@@ -14,9 +14,13 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(() => Boolean(getAdminToken()));
+  // Track the token in state so isAuthenticated stays reactive (the module
+  // mirror in api.js is intentionally not observable).
+  const [token, setToken] = useState(() => getAdminToken());
 
-  const applySession = useCallback((token, adminUser) => {
-    setAdminToken(token);
+  const applySession = useCallback((sessionToken, adminUser) => {
+    setToken(sessionToken || null);
+    setAdminToken(sessionToken);
     setAdmin(adminUser || null);
   }, []);
 
@@ -75,13 +79,13 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       admin,
-      isAuthenticated: Boolean(getAdminToken() && admin),
+      isAuthenticated: Boolean(token && admin),
       loading,
       login,
       logout,
       role: admin?.role || null,
     }),
-    [admin, loading, login, logout],
+    [admin, token, loading, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
