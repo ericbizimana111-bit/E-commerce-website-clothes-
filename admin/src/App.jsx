@@ -1,52 +1,79 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import Admin from './Pages/Admin/Admin';
-import Navbar from './Components/Navbar/Navbar';
-import AddProduct from './Components/AddProduct/AddProduct';
-import ListProduct from './Components/ListProduct/ListProduct';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import AdminLayout from './components/layout/AdminLayout';
+import { useAuth } from './context/AuthContext';
+import LoginPage from './pages/Login/LoginPage';
+import DashboardPage from './pages/Dashboard/DashboardPage';
+import OrdersPage from './pages/Orders/OrdersPage';
+import OrderDetailPage from './pages/Orders/OrderDetailPage';
+import ProductsPage from './pages/Products/ProductsPage';
+import ProductFormPage from './pages/Products/ProductFormPage';
+import CategoriesPage from './pages/Categories/CategoriesPage';
+import InventoryPage from './pages/Inventory/InventoryPage';
+import DeliveriesPage from './pages/Deliveries/DeliveriesPage';
+import PaymentsPage from './pages/Payments/PaymentsPage';
+import CustomersPage from './pages/Customers/CustomersPage';
 
-const WelcomeCard = () => (
-  <div style={{
-    flex: 1,
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '60vh',
-    margin: '30px',
-  }}>
-    <div style={{
-      textAlign: 'center',
-      padding: '60px 40px',
-      borderRadius: '20px',
-      background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%)',
-      color: 'white',
-      boxShadow: '0 8px 32px rgba(200, 87, 42, 0.3)',
-      maxWidth: '500px',
-      width: '100%',
-    }}>
-      <h2 style={{ fontSize: '28px', marginBottom: '12px', fontWeight: 700 }}>
-        Welcome to Shopper Admin
-      </h2>
-      <p style={{ fontSize: '15px', opacity: 0.9, lineHeight: 1.6 }}>
-        Manage your products, track inventory, and grow your store from here.
-      </p>
-    </div>
-  </div>
-);
-
-const App = () => {
-  return (
-    <div className='app'>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Admin />}>
-          <Route path="" element={<WelcomeCard />} />
-          <Route path="addproduct" element={<AddProduct />} />
-          <Route path="listproduct" element={<ListProduct />} />
-        </Route>
-      </Routes>
-    </div>
-  );
+const PAGE_TITLES = {
+  '/': 'Dashboard',
+  '/orders': 'Orders',
+  '/products': 'Products',
+  '/categories': 'Categories',
+  '/inventory': 'Inventory',
+  '/deliveries': 'Deliveries',
+  '/payments': 'Payments',
+  '/customers': 'Customers',
 };
 
-export default App;
+/** Blocked route while the session is being restored (prevents login flash). */
+function RequireAuth({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+  if (loading) {
+    return (
+      <div className="auth-boot" role="status">
+        <span className="auth-boot__spinner" aria-hidden="true" />
+        Restoring session…
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+  return children;
+}
+
+export default function App() {
+  const location = useLocation();
+  const base = location.pathname.split('/')[1];
+  const pageTitle = location.pathname.startsWith('/orders/')
+    ? 'Order Detail'
+    : PAGE_TITLES[location.pathname] ||
+      (base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Operations Console');
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <AdminLayout pageTitle={pageTitle} />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="orders/:id" element={<OrderDetailPage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="products/new" element={<ProductFormPage />} />
+        <Route path="products/:id" element={<ProductFormPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="deliveries" element={<DeliveriesPage />} />
+        <Route path="payments" element={<PaymentsPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
