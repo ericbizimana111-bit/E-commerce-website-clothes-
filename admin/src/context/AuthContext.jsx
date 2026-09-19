@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import api, { setAdminToken, getAdminToken, clearAdminToken } from '../services/api';
+import api, { setAdminToken, getAdminToken } from '../services/api';
 
 /**
  * Admin authentication context.
@@ -49,7 +49,8 @@ export function AuthProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [applySession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleUnauthorized = () => {
