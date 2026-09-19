@@ -1,6 +1,7 @@
 {
-  "short_name": "Shopper",
-  "name": "Shopper - Premium Fashion & Lifestyle",
+  "short_name": "UgaMarket",
+  "name": "UgaMarket — home to home",
+  "description": "UgaMarket — home to home. Direct-from-farm Ugandan food marketplace with home delivery and pickup stations across Uganda.",
   "icons": [
     {
       "src": "favicon.svg",
@@ -15,6 +16,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#16A34A",
+  "theme_color": "#1C5233",
   "background_color": "#ffffff"
 }

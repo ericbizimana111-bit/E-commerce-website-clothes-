@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
-import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
 
+/**
+ * Addresses — UgaMarket — home to home.
+ * Consumes the actual backend address contract:
+ *   GET    /api/addresses        -> { data: { addresses } }
+ *   POST   /api/addresses        -> { data: { address } }  (title, district, division, streetAddress, isDefault)
+ *   DELETE /api/addresses/:id    -> { success, message }
+ * Ownership is enforced server-side; the frontend never sends a userId.
+ */
 const Addresses = () => {
-  const { user } = useAuth();
   const { t } = useLanguage();
 
   const [addresses, setAddresses] = useState([]);
@@ -14,22 +20,21 @@ const Addresses = () => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
-  const [form, setForm] = useState({
-    recipientName: user?.fullName || '',
-    phone: user?.phone || '',
-    addressLine: '',
-    city: 'Kampala',
+  const emptyForm = {
+    title: 'Home',
     district: 'Kampala',
-    deliveryNotes: '',
+    division: '',
+    streetAddress: '',
     isDefault: false
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const fetchAddresses = async () => {
     try {
       setLoading(true);
       const res = await apiClient.get('/addresses');
-      if (res?.data) {
-        setAddresses(res.data);
+      if (Array.isArray(res?.data?.addresses)) {
+        setAddresses(res.data.addresses);
       }
     } catch (err) {
       console.error('Failed to load addresses', err);
@@ -51,18 +56,10 @@ const Addresses = () => {
 
     try {
       const res = await apiClient.post('/addresses', form);
-      if (res?.data) {
+      if (res?.data?.address) {
         setMessage('Address saved successfully!');
         setShowAddForm(false);
-        setForm({
-          recipientName: user?.fullName || '',
-          phone: user?.phone || '',
-          addressLine: '',
-          city: 'Kampala',
-          district: 'Kampala',
-          deliveryNotes: '',
-          isDefault: false
-        });
+        setForm(emptyForm);
         fetchAddresses();
       }
     } catch (err) {
@@ -101,13 +98,13 @@ const Addresses = () => {
       </div>
 
       {message && (
-        <div className="alert alert-success">
+        <div className="alert alert-success" role="status">
           <span>{message}</span>
         </div>
       )}
 
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" role="alert">
           <span>⚠️ {error}</span>
         </div>
       )}
@@ -116,54 +113,36 @@ const Addresses = () => {
         <form onSubmit={handleAddSubmit} className="um-new-address-form card" style={{ marginBottom: '1.5rem' }}>
           <h4>Add New Delivery Location</h4>
           <div className="form-group">
-            <label className="form-label">Recipient Full Name *</label>
+            <label className="form-label" htmlFor="addr-title">Address Label *</label>
             <input
+              id="addr-title"
               type="text"
               required
               className="form-input"
-              value={form.recipientName}
-              onChange={(e) => setForm({ ...form, recipientName: e.target.value })}
+              placeholder="e.g. Home, Office"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Uganda Phone Number (07XXXXXXXX) *</label>
+            <label className="form-label" htmlFor="addr-street">Street Address / Landmark *</label>
             <input
-              type="tel"
-              required
-              placeholder="0770000000"
-              className="form-input"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Address Line / Street / Landmark *</label>
-            <input
+              id="addr-street"
               type="text"
               required
-              placeholder="e.g. Plot 15 Bukoto Street, opposite market"
               className="form-input"
-              value={form.addressLine}
-              onChange={(e) => setForm({ ...form, addressLine: e.target.value })}
+              placeholder="e.g. Plot 15 Bukoto Street, opposite the market"
+              value={form.streetAddress}
+              onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
             />
           </div>
 
           <div style={{ display: 'flex', gap: '1rem' }}>
             <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">City *</label>
+              <label className="form-label" htmlFor="addr-district">District *</label>
               <input
-                type="text"
-                required
-                className="form-input"
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-              />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">District *</label>
-              <input
+                id="addr-district"
                 type="text"
                 required
                 className="form-input"
@@ -171,27 +150,27 @@ const Addresses = () => {
                 onChange={(e) => setForm({ ...form, district: e.target.value })}
               />
             </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Special Delivery Directions (optional)</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="e.g. Near blue gate, call before arrival"
-              value={form.deliveryNotes}
-              onChange={(e) => setForm({ ...form, deliveryNotes: e.target.value })}
-            />
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label" htmlFor="addr-division">Division (optional)</label>
+              <input
+                id="addr-division"
+                type="text"
+                className="form-input"
+                placeholder="e.g. Nakawa"
+                value={form.division}
+                onChange={(e) => setForm({ ...form, division: e.target.value })}
+              />
+            </div>
           </div>
 
           <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
             <input
               type="checkbox"
-              id="isDefault"
+              id="addr-isDefault"
               checked={form.isDefault}
               onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
             />
-            <label htmlFor="isDefault" style={{ cursor: 'pointer', fontSize: '0.88rem' }}>
+            <label htmlFor="addr-isDefault" style={{ cursor: 'pointer', fontSize: '0.88rem' }}>
               Set as default delivery address
             </label>
           </div>
@@ -224,16 +203,14 @@ const Addresses = () => {
           {addresses.map((addr) => (
             <div key={addr.id} className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: '1rem', color: 'var(--dark)' }}>{addr.recipientName}</strong>
+                <strong style={{ fontSize: '1rem', color: 'var(--dark)' }}>{addr.title || 'Address'}</strong>
                 {addr.isDefault && <span className="badge badge-success">Default</span>}
               </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--slate)' }}>📞 {addr.phone}</span>
               <p style={{ fontSize: '0.9rem', color: 'var(--slate)', margin: '0.25rem 0' }}>
-                {addr.addressLine}, {addr.city || addr.district}
+                {addr.streetAddress}
+                {addr.division ? `, ${addr.division}` : ''}
+                {addr.district ? `, ${addr.district}` : ''}
               </p>
-              {addr.deliveryNotes && (
-                <small style={{ color: 'var(--muted)' }}>Note: {addr.deliveryNotes}</small>
-              )}
 
               <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                 <button

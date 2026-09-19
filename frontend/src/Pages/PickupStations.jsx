@@ -13,9 +13,10 @@ const PickupStations = () => {
     const fetchStations = async () => {
       try {
         setLoading(true);
+        // GET /api/pickup-stations -> { data: { stations: [...] } }
         const res = await apiClient.get('/pickup-stations');
-        if (isMounted && res?.data) {
-          setStations(res.data);
+        if (isMounted && Array.isArray(res?.data?.stations)) {
+          setStations(res.data.stations);
         }
       } catch (err) {
         console.error('Failed to load stations', err);
@@ -30,9 +31,11 @@ const PickupStations = () => {
     };
   }, []);
 
-  const cities = Array.from(new Set(stations.map((s) => s.city || s.district).filter(Boolean)));
+  // Backend station fields: name, district, addressText, contactPhone,
+  // operatingHours, pickupFeeUgx
+  const districts = Array.from(new Set(stations.map((s) => s.district).filter(Boolean)));
   const filtered = filterCity
-    ? stations.filter((s) => (s.city || s.district) === filterCity)
+    ? stations.filter((s) => s.district === filterCity)
     : stations;
 
   return (
@@ -76,7 +79,7 @@ const PickupStations = () => {
         </div>
 
         {/* Filter */}
-        {cities.length > 1 && (
+        {districts.length > 1 && (
           <div className="um-stations-filter">
             <button
               type="button"
@@ -85,14 +88,14 @@ const PickupStations = () => {
             >
               All Locations ({stations.length})
             </button>
-            {cities.map((city) => (
+            {districts.map((district) => (
               <button
-                key={city}
+                key={district}
                 type="button"
-                className={`um-pill ${filterCity === city ? 'um-pill--active' : ''}`}
-                onClick={() => setFilterCity(city)}
+                className={`um-pill ${filterCity === district ? 'um-pill--active' : ''}`}
+                onClick={() => setFilterCity(district)}
               >
-                {city}
+                {district}
               </button>
             ))}
           </div>
@@ -117,7 +120,7 @@ const PickupStations = () => {
                   <div>
                     <h3 className="um-station-item-title">{station.name}</h3>
                     <span className="um-station-item-district">
-                      {station.district || station.city}
+                      {station.district}
                     </span>
                   </div>
                   <span className="badge badge-success" style={{ marginLeft: 'auto' }}>
@@ -127,10 +130,10 @@ const PickupStations = () => {
 
                 <div className="um-station-item-body">
                   <p className="um-station-item-address">
-                    <strong>Address:</strong> {station.addressLine}
+                    <strong>Address:</strong> {station.addressText}
                   </p>
                   <p className="um-station-item-hours">
-                    <strong>🕒 Operating Hours:</strong> {station.operatingHours || '8:00 AM - 7:00 PM'}
+                    <strong>🕒 Operating Hours:</strong> {station.operatingHours || 'Contact station for hours'}
                   </p>
                   {station.contactPhone && (
                     <p className="um-station-item-phone">
@@ -140,8 +143,8 @@ const PickupStations = () => {
                 </div>
 
                 <div className="um-station-item-footer">
-                  <Link to={`/catalog?pickupStationId=${station.id}`} className="btn btn-secondary btn-sm btn-block">
-                    Select & Browse Produce
+                  <Link to="/catalog" className="btn btn-secondary btn-sm btn-block">
+                    Browse Produce
                   </Link>
                 </div>
               </div>

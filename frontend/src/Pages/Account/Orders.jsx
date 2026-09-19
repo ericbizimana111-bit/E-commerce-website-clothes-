@@ -6,7 +6,7 @@ import { formatUGX } from '../../utils/currency';
 import './Orders.css';
 
 const STATUS_BADGES = {
-  PENDING_PAYMENT: { label: 'Awaiting 10% Deposit', type: 'warning' },
+  PENDING_PAYMENT: { label: 'Awaiting Commitment Deposit', type: 'warning' },
   COMMITMENT_PAID: { label: 'Deposit Paid • Sourcing', type: 'info' },
   CONFIRMED: { label: 'Confirmed', type: 'info' },
   PREPARING: { label: 'Harvesting & Packing', type: 'info' },
@@ -28,14 +28,19 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+
   useEffect(() => {
     let isMounted = true;
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const res = await apiClient.get(`/orders?lang=${currentLang || 'en'}`);
-        if (isMounted && res?.data) {
+        // GET /api/orders -> { data: [...], pagination: {...} }
+        const res = await apiClient.get(`/orders?page=${page}&limit=10&lang=${currentLang || 'en'}`);
+        if (isMounted && Array.isArray(res?.data)) {
           setOrders(res.data);
+          if (res.pagination) setPagination(res.pagination);
         }
       } catch (err) {
         console.error('Failed to fetch customer orders', err);
@@ -49,7 +54,7 @@ const Orders = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentLang]);
+  }, [currentLang, page]);
 
   if (loading) {
     return (
@@ -89,7 +94,7 @@ const Orders = () => {
     <div className="card um-subview-card">
       <div className="um-subview-header">
         <h2>{t('orders')}</h2>
-        <span className="um-orders-count-badge">{orders.length} orders</span>
+        <span className="um-orders-count-badge">{pagination.total} {pagination.total === 1 ? 'order' : 'orders'}</span>
       </div>
 
       <div className="um-orders-list">
@@ -124,7 +129,7 @@ const Orders = () => {
                 </div>
 
                 <div className="um-order-detail-col">
-                  <span className="um-order-col-label">10% Commitment</span>
+                  <span className="um-order-col-label">{t('commitmentDeposit')}</span>
                   <span className="um-order-deposit-val">
                     {formatUGX(order.pricing?.commitmentUgx || 0)}
                   </span>
@@ -150,6 +155,29 @@ const Orders = () => {
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="um-pagination" style={{ marginTop: '1.25rem' }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ← Previous
+          </button>
+          <span style={{ alignSelf: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+            Page {pagination.page} of {pagination.totalPages}
+          </span>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={page >= pagination.totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 };

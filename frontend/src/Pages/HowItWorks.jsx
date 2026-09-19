@@ -41,10 +41,10 @@ const HowItWorks = () => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--dark)', marginBottom: '0.35rem' }}>
-                Secure With a 10% Commitment Deposit
+                Secure With a Small Commitment Deposit
               </h3>
               <p style={{ color: 'var(--slate)', lineHeight: 1.6 }}>
-                Unlike traditional stores that demand 100% upfront, UgaMarket only requires a <strong>10% commitment deposit</strong> via Mobile Money (MTN / Airtel). This small deposit guarantees your commitment so our farming partners can harvest and pack fresh produce specifically for your order.
+                Unlike traditional stores that demand full payment upfront, UgaMarket only requires a <strong>small commitment deposit</strong> via Mobile Money (MTN / Airtel). This small deposit guarantees your commitment so our farming partners can harvest and pack fresh produce specifically for your order.
               </p>
             </div>
           </div>
@@ -57,10 +57,10 @@ const HowItWorks = () => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--dark)', marginBottom: '0.35rem' }}>
-                Inspect Produce & Pay the 90% Balance
+                Inspect Produce & Pay the Balance
               </h3>
               <p style={{ color: 'var(--slate)', lineHeight: 1.6 }}>
-                Your order is safely dispatched to your doorstep in Kampala or your preferred pickup station. When your produce arrives, inspect the freshness and quality firsthand. Once satisfied, complete the remaining 90% balance on your phone.
+                Your order is safely dispatched to your doorstep in Kampala or your preferred pickup station. When your produce arrives, inspect the freshness and quality firsthand. Once satisfied, complete the remaining balance on your phone.
               </p>
             </div>
           </div>

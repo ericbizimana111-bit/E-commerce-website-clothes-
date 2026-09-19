@@ -7,7 +7,7 @@ import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
 import './Product.css';
 
-const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80';
+const DEFAULT_IMAGE = '/img-placeholder.svg';
 
 export const Product = () => {
   const { productId } = useParams();
@@ -100,9 +100,8 @@ export const Product = () => {
   const inStock = product.availability?.inStock ?? (stock > 0);
   const isAvailable = (product.isActive !== false) && inStock && stock > 0;
 
-  // 10% commitment preview calculation
-  const commitmentDeposit = Math.round(price * 0.10);
-  const balanceRemaining = price - commitmentDeposit;
+  // NOTE: commitment deposit percentages are configured on the UgaMarket
+  // server and may change; the authoritative split is shown at checkout.
 
   const handleAddToCart = async () => {
     if (!isAvailable || cartLoading) return;
@@ -223,21 +222,21 @@ export const Product = () => {
             {/* Transparent Financial Structure Box */}
             <div className="um-financial-callout card">
               <div className="um-callout-header">
-                <strong>UgaMarket 10% Commitment Model</strong>
+                <strong>UgaMarket Commitment Model</strong>
               </div>
               <div className="um-callout-grid">
                 <div className="um-callout-item">
-                  <span className="um-callout-label">Pay Now (10% Deposit)</span>
-                  <span className="um-callout-val">{formatUGX(commitmentDeposit * quantity)}</span>
+                  <span className="um-callout-label">Pay Now</span>
+                  <span className="um-callout-val">Small commitment deposit</span>
                 </div>
                 <div className="um-callout-divider">+</div>
                 <div className="um-callout-item">
-                  <span className="um-callout-label">Pay on Delivery (90% Balance)</span>
-                  <span className="um-callout-val">{formatUGX(balanceRemaining * quantity)}</span>
+                  <span className="um-callout-label">Pay at Fulfillment</span>
+                  <span className="um-callout-val">Remaining balance</span>
                 </div>
               </div>
               <p className="um-callout-hint">
-                🛡️ You only pay the remaining 90% balance after inspecting fresh food quality at your door or station.
+                🛡️ You only pay the remaining balance after inspecting fresh food quality at your door or pickup station. Exact amounts are confirmed at checkout by the UgaMarket server.
               </p>
             </div>
 

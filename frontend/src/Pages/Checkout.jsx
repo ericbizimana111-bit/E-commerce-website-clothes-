@@ -7,9 +7,21 @@ import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
 import './Checkout.css';
 
+/**
+ * Checkout — UgaMarket — home to home.
+ *
+ * Server-authoritative rules:
+ *  - Totals/commitment/balance come ONLY from POST /api/checkout/preview
+ *    (read-only, server-calculated). No client financial math is authoritative.
+ *  - Addresses come from GET/POST /api/addresses (ownership enforced server-side).
+ *  - Pickup stations come from GET /api/pickup-stations (never hardcoded).
+ *  - Orders are created via POST /api/orders, which revalidates stock, prices,
+ *    fulfillment and computes the authoritative amounts in one transaction.
+ */
+
 const Checkout = () => {
   const { isAuthenticated, user } = useAuth();
-  const { items, itemCount, subtotalUgx, refreshCart } = useCart();
+  const { items, itemCount, refreshCart } = useCart();
   const { currentLang, t } = useLanguage();
   const navigate = useNavigate();
 
@@ -24,12 +36,11 @@ const Checkout = () => {
   // Add new address toggle/form
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [newAddress, setNewAddress] = useState({
-    recipientName: user?.fullName || '',
-    phone: user?.phone || '',
-    addressLine: '',
-    city: 'Kampala',
+    title: 'Home',
     district: 'Kampala',
-    deliveryNotes: ''
+    division: '',
+    streetAddress: '',
+    isDefault: false
   });
 
   // Server checkout preview state
@@ -37,6 +48,7 @@ const Checkout = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [fulfillmentDataLoading, setFulfillmentDataLoading] = useState(true);
 
   // Auth Guard
   useEffect(() => {
@@ -49,6 +61,7 @@ const Checkout = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     let isMounted = true;
+    setFulfillmentDataLoading(true);
 
     const loadFulfillmentData = async () => {
       try {
@@ -58,8 +71,9 @@ const Checkout = () => {
         ]);
 
         if (isMounted) {
-          if (addrRes.status === 'fulfilled' && addrRes.value?.data) {
-            const list = addrRes.value.data;
+          // GET /api/addresses -> { data: { addresses: [...] } }
+          if (addrRes.status === 'fulfilled' && Array.isArray(addrRes.value?.data?.addresses)) {
+            const list = addrRes.value.data.addresses;
             setAddresses(list);
             if (list.length > 0) {
               const def = list.find((a) => a.isDefault) || list[0];
@@ -69,8 +83,9 @@ const Checkout = () => {
             }
           }
 
-          if (stationRes.status === 'fulfilled' && stationRes.value?.data) {
-            const stations = stationRes.value.data;
+          // GET /api/pickup-stations -> { data: { stations: [...] } }
+          if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
+            const stations = stationRes.value.data.stations;
             setPickupStations(stations);
             if (stations.length > 0) {
               setSelectedStationId(stations[0].id.toString());
@@ -79,6 +94,8 @@ const Checkout = () => {
         }
       } catch (err) {
         console.error('Failed to load fulfillment data', err);
+      } finally {
+        if (isMounted) setFulfillmentDataLoading(false);
       }
     };
 
@@ -88,7 +105,7 @@ const Checkout = () => {
     };
   }, [isAuthenticated]);
 
-  // Server checkout preview fetch
+  // Server checkout preview fetch (authoritative pricing)
   const fetchCheckoutPreview = useCallback(async () => {
     if (items.length === 0) return;
 
@@ -112,12 +129,14 @@ const Checkout = () => {
           : { pickupStationId: Number(selectedStationId) })
       };
 
+      // POST /api/checkout/preview -> { data: { checkout: { ready, issues, fulfillment, pricing, items } } }
       const res = await apiClient.post('/checkout/preview', payload);
-      if (res?.data) {
-        setPreview(res.data);
+      if (res?.data?.checkout) {
+        setPreview(res.data.checkout);
       }
     } catch (err) {
       console.warn('Checkout preview error', err);
+      setPreview(null);
       setErrorMessage(err.message || 'Unable to calculate checkout totals');
     } finally {
       setPreviewLoading(false);
@@ -128,23 +147,33 @@ const Checkout = () => {
     fetchCheckoutPreview();
   }, [fetchCheckoutPreview]);
 
-  // Handle saving new address
+  // Handle saving new address (backend Address model:
+  // title, district, division, streetAddress, latitude, longitude, isDefault)
   const handleSaveNewAddress = async (e) => {
     e.preventDefault();
     setErrorMessage(null);
     try {
       const res = await apiClient.post('/addresses', newAddress);
-      if (res?.data) {
-        setAddresses((prev) => [res.data, ...prev]);
-        setSelectedAddressId(res.data.id);
+      // POST /api/addresses -> { data: { address } }
+      const created = res?.data?.address;
+      if (created) {
+        setAddresses((prev) => [created, ...prev]);
+        setSelectedAddressId(created.id);
         setShowNewAddressForm(false);
+        setNewAddress({
+          title: 'Home',
+          district: 'Kampala',
+          division: '',
+          streetAddress: '',
+          isDefault: false
+        });
       }
     } catch (err) {
       setErrorMessage(err.message || 'Failed to save address');
     }
   };
 
-  // Place Order
+  // Place Order — POST /api/orders (server revalidates everything)
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -195,10 +224,10 @@ const Checkout = () => {
       <div className="um-checkout-page">
         <div className="container">
           <div className="um-empty-checkout card">
-            <h2>Your cart is empty</h2>
+            <h2>{t('emptyCart')}</h2>
             <p>Please add fresh farm produce before proceeding to checkout.</p>
             <Link to="/catalog" className="btn btn-primary">
-              Browse Food Catalog
+              {t('catalog')}
             </Link>
           </div>
         </div>
@@ -206,12 +235,21 @@ const Checkout = () => {
     );
   }
 
-  // Fallback estimates if preview is not yet fetched
-  const displaySubtotal = preview?.subtotalUgx ?? subtotalUgx;
-  const displayDeliveryFee = preview?.deliveryFeeUgx ?? (fulfillmentMethod === 'HOME_DELIVERY' ? 5000 : 0);
-  const displayTotal = preview?.totalUgx ?? (displaySubtotal + displayDeliveryFee);
-  const displayCommitment = preview?.commitmentUgx ?? Math.round(displayTotal * 0.10);
-  const displayBalance = preview?.remainingBalanceUgx ?? (displayTotal - displayCommitment);
+  // Server-authoritative values (no client financial math).
+  const pricing = preview?.pricing || null;
+  const fulfillment = preview?.fulfillment || null;
+  const displaySubtotal = pricing?.subtotalUgx ?? null;
+  const displayDeliveryFee = fulfillment?.deliveryFeeUgx ?? null;
+  const displayTotal = pricing?.totalUgx ?? null;
+  const displayCommitment = pricing?.commitmentUgx ?? null;
+  const displayBalance = pricing?.remainingBalanceUgx ?? null;
+  const commitmentNote = pricing?.commitmentNote || null;
+  const cartIssues = preview?.issues || [];
+
+  const hasAllServerAmounts =
+    displayTotal !== null && displayCommitment !== null && displayDeliveryFee !== null;
+
+  const formatOrPending = (value) => (value === null ? '…' : formatUGX(value));
 
   return (
     <div className="um-checkout-page">
@@ -219,13 +257,28 @@ const Checkout = () => {
         <div className="um-checkout-header">
           <h1 className="um-checkout-title">Checkout</h1>
           <p className="um-checkout-subtitle">
-            Secure farm-to-door fulfillment • 10% Commitment Deposit
+            Secure farm-to-door fulfillment • {t('commitmentDeposit')} paid now, {t('balancePayable').toLowerCase()} after inspection
           </p>
         </div>
 
         {errorMessage && (
-          <div className="alert alert-error">
+          <div className="alert alert-error" role="alert">
             <span>⚠️ {errorMessage}</span>
+          </div>
+        )}
+
+        {/* Cart issues surfaced by the server (stale price / stock conflicts) */}
+        {cartIssues.length > 0 && (
+          <div className="alert alert-error" role="alert">
+            <strong>Your cart needs attention:</strong>
+            <ul style={{ margin: '0.5rem 0 0 1.25rem' }}>
+              {cartIssues.map((issue) => (
+                <li key={issue.cartItemId || issue.slug}>{issue.message}</li>
+              ))}
+            </ul>
+            <Link to="/cart" style={{ display: 'inline-block', marginTop: '0.5rem', textDecoration: 'underline' }}>
+              Review your cart →
+            </Link>
           </div>
         )}
 
@@ -236,7 +289,7 @@ const Checkout = () => {
             <div className="um-checkout-step card">
               <div className="um-step-heading">
                 <span className="um-step-badge-num">1</span>
-                <h3>Choose Fulfillment Method</h3>
+                <h3>{t('fulfillmentMethod')}</h3>
               </div>
 
               <div className="um-fulfillment-tabs">
@@ -248,7 +301,7 @@ const Checkout = () => {
                   <span className="um-tab-icon">🚚</span>
                   <div>
                     <strong>{t('homeDelivery')}</strong>
-                    <span>Direct to your doorstep in Kampala</span>
+                    <span>Direct to your doorstep</span>
                   </div>
                 </button>
 
@@ -259,7 +312,7 @@ const Checkout = () => {
                 >
                   <span className="um-tab-icon">📍</span>
                   <div>
-                    <strong>{t('pickupStation')} (Free)</strong>
+                    <strong>{t('pickupStation')}</strong>
                     <span>Collect at a secure neighborhood station</span>
                   </div>
                 </button>
@@ -295,15 +348,21 @@ const Checkout = () => {
                             onChange={() => setSelectedAddressId(addr.id)}
                           />
                           <div className="um-address-details">
-                            <strong>{addr.recipientName || user?.fullName}</strong>
-                            <span>📞 {addr.phone || user?.phone}</span>
-                            <p>{addr.addressLine}, {addr.city || addr.district}</p>
-                            {addr.deliveryNotes && (
-                              <small className="um-addr-notes">Note: {addr.deliveryNotes}</small>
-                            )}
+                            <strong>
+                              {addr.title || 'Address'}
+                              {addr.isDefault && <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>Default</span>}
+                            </strong>
+                            <p>{addr.streetAddress}{addr.division ? `, ${addr.division}` : ''}, {addr.district}</p>
                           </div>
                         </label>
                       ))}
+                    </div>
+                  )}
+
+                  {!showNewAddressForm && fulfillmentDataLoading && (
+                    <div className="um-subview-loading" style={{ padding: '1.5rem' }}>
+                      <div className="um-spinner" />
+                      <p>Loading your addresses...</p>
                     </div>
                   )}
 
@@ -312,51 +371,34 @@ const Checkout = () => {
                     <form onSubmit={handleSaveNewAddress} className="um-new-address-form card">
                       <h5>Enter Delivery Location</h5>
                       <div className="form-group">
-                        <label className="form-label">Recipient Full Name *</label>
+                        <label className="form-label" htmlFor="co-addr-title">Address Label *</label>
                         <input
+                          id="co-addr-title"
                           type="text"
                           required
                           className="form-input"
-                          value={newAddress.recipientName}
-                          onChange={(e) => setNewAddress({ ...newAddress, recipientName: e.target.value })}
+                          placeholder="e.g. Home, Office"
+                          value={newAddress.title}
+                          onChange={(e) => setNewAddress({ ...newAddress, title: e.target.value })}
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Uganda Phone Number (07XXXXXXXX) *</label>
+                        <label className="form-label" htmlFor="co-addr-street">Street Address / Landmark *</label>
                         <input
-                          type="tel"
-                          required
-                          className="form-input"
-                          placeholder="0770000000"
-                          value={newAddress.phone}
-                          onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Physical Address / Street / Landmark *</label>
-                        <input
+                          id="co-addr-street"
                           type="text"
                           required
                           className="form-input"
-                          placeholder="e.g. Plot 12 Ntinda Road, near Shell"
-                          value={newAddress.addressLine}
-                          onChange={(e) => setNewAddress({ ...newAddress, addressLine: e.target.value })}
+                          placeholder="e.g. Plot 12 Ntinda Road, near the shell station"
+                          value={newAddress.streetAddress}
+                          onChange={(e) => setNewAddress({ ...newAddress, streetAddress: e.target.value })}
                         />
                       </div>
                       <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>
                         <div className="form-group" style={{ flex: 1 }}>
-                          <label className="form-label">City / Town *</label>
+                          <label className="form-label" htmlFor="co-addr-district">District *</label>
                           <input
-                            type="text"
-                            required
-                            className="form-input"
-                            value={newAddress.city}
-                            onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                          />
-                        </div>
-                        <div className="form-group" style={{ flex: 1 }}>
-                          <label className="form-label">District *</label>
-                          <input
+                            id="co-addr-district"
                             type="text"
                             required
                             className="form-input"
@@ -364,19 +406,34 @@ const Checkout = () => {
                             onChange={(e) => setNewAddress({ ...newAddress, district: e.target.value })}
                           />
                         </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                          <label className="form-label" htmlFor="co-addr-division">Division (optional)</label>
+                          <input
+                            id="co-addr-division"
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Nakawa"
+                            value={newAddress.division}
+                            onChange={(e) => setNewAddress({ ...newAddress, division: e.target.value })}
+                          />
+                        </div>
                       </div>
-                      <div className="form-group">
-                        <label className="form-label">Delivery Instructions (optional)</label>
+                      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
                         <input
-                          type="text"
-                          className="form-input"
-                          placeholder="e.g. Call when outside the black gate"
-                          value={newAddress.deliveryNotes}
-                          onChange={(e) => setNewAddress({ ...newAddress, deliveryNotes: e.target.value })}
+                          type="checkbox"
+                          id="co-addr-default"
+                          checked={newAddress.isDefault}
+                          onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
                         />
+                        <label htmlFor="co-addr-default" style={{ cursor: 'pointer', fontSize: '0.88rem' }}>
+                          Set as default delivery address
+                        </label>
                       </div>
+                      <p className="um-input-hint">
+                        Delivering as <strong>{user?.fullName}</strong> ({user?.phone})
+                      </p>
                       <button type="submit" className="btn btn-primary btn-sm">
-                        Save & Use Address
+                        Save &amp; Use Address
                       </button>
                     </form>
                   )}
@@ -387,6 +444,12 @@ const Checkout = () => {
               {fulfillmentMethod === 'PICKUP_STATION' && (
                 <div className="um-stations-selection">
                   <h4>Select a Pickup Station</h4>
+                  {fulfillmentDataLoading && (
+                    <div className="um-subview-loading" style={{ padding: '1.5rem' }}>
+                      <div className="um-spinner" />
+                      <p>Loading pickup stations...</p>
+                    </div>
+                  )}
                   <div className="um-station-options-grid">
                     {pickupStations.map((station) => (
                       <label
@@ -402,8 +465,8 @@ const Checkout = () => {
                         />
                         <div className="um-station-body">
                           <strong>📍 {station.name}</strong>
-                          <p>{station.addressLine}, {station.district || station.city}</p>
-                          <span className="um-station-hrs">🕒 {station.operatingHours || '8:00 AM - 7:00 PM'}</span>
+                          <p>{station.addressText}, {station.district}</p>
+                          <span className="um-station-hrs">🕒 {station.operatingHours || 'Contact station for hours'}</span>
                         </div>
                       </label>
                     ))}
@@ -416,16 +479,18 @@ const Checkout = () => {
             <div className="um-checkout-step card">
               <div className="um-step-heading">
                 <span className="um-step-badge-num">2</span>
-                <h3>Special Instructions & Packaging</h3>
+                <h3>Special Instructions &amp; Packaging</h3>
               </div>
               <div className="form-group">
-                <label className="form-label">Harvest & Delivery Notes (Optional)</label>
+                <label className="form-label" htmlFor="co-notes">Harvest &amp; Delivery Notes (Optional)</label>
                 <textarea
+                  id="co-notes"
                   className="form-textarea"
                   rows="3"
                   placeholder="e.g. Please pick ripe matooke fingers, leave with security guard if not available."
                   value={orderNotes}
                   onChange={(e) => setOrderNotes(e.target.value)}
+                  maxLength={1000}
                 />
               </div>
             </div>
@@ -434,7 +499,9 @@ const Checkout = () => {
           {/* Sidebar Summary */}
           <div className="um-checkout-sidebar">
             <div className="um-checkout-review card">
-              <h3 className="um-review-title">Order Overview ({itemCount} {itemCount === 1 ? 'item' : 'items'})</h3>
+              <h3 className="um-review-title">
+                Order Overview ({itemCount} {itemCount === 1 ? 'item' : 'items'})
+              </h3>
 
               <div className="um-review-items">
                 {items.map((item) => {
@@ -455,55 +522,73 @@ const Checkout = () => {
               <div className="um-review-totals">
                 <div className="um-review-row">
                   <span>Subtotal</span>
-                  <span>{formatUGX(displaySubtotal)}</span>
+                  <span>{formatOrPending(displaySubtotal)}</span>
                 </div>
                 <div className="um-review-row">
-                  <span>Fulfillment Fee</span>
+                  <span>{t('deliveryFee')}</span>
                   <span>
-                    {displayDeliveryFee === 0 ? 'FREE (Pickup)' : formatUGX(displayDeliveryFee)}
+                    {displayDeliveryFee === null
+                      ? '…'
+                      : displayDeliveryFee === 0
+                        ? 'FREE (Pickup)'
+                        : formatUGX(displayDeliveryFee)}
                   </span>
                 </div>
                 <div className="um-review-row um-review-total-row">
                   <strong>Total Order Value</strong>
-                  <strong className="um-review-total-ugx">{formatUGX(displayTotal)}</strong>
+                  <strong className="um-review-total-ugx">{formatOrPending(displayTotal)}</strong>
                 </div>
+                {preview && !previewLoading && (
+                  <p className="um-review-server-note" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
+                    ✓ Totals calculated by the UgaMarket server
+                  </p>
+                )}
               </div>
 
-              {/* 10% / 90% Financial Breakdown Card */}
+              {/* Commitment / Balance breakdown — server-authoritative values */}
               <div className="um-checkout-breakdown card">
                 <div className="um-breakdown-row">
                   <div>
-                    <strong className="um-breakdown-title">10% Commitment Deposit</strong>
-                    <span className="um-breakdown-sub">Required now to initiate farm harvest</span>
+                    <strong className="um-breakdown-title">{t('commitmentDeposit')} — Pay Now</strong>
+                    <span className="um-breakdown-sub">Required now to initiate your order</span>
                   </div>
                   <strong className="um-breakdown-amount um-deposit-val">
-                    {formatUGX(displayCommitment)}
+                    {formatOrPending(displayCommitment)}
                   </strong>
                 </div>
                 <div className="um-breakdown-divider" />
                 <div className="um-breakdown-row">
                   <div>
-                    <strong className="um-breakdown-title">90% Remaining Balance</strong>
-                    <span className="um-breakdown-sub">Payable upon fulfillment after inspection</span>
+                    <strong className="um-breakdown-title">{t('balancePayable')} — Pay at Fulfillment</strong>
+                    <span className="um-breakdown-sub">Payable after quality inspection</span>
                   </div>
                   <strong className="um-breakdown-amount">
-                    {formatUGX(displayBalance)}
+                    {formatOrPending(displayBalance)}
                   </strong>
                 </div>
+                {commitmentNote && (
+                  <p className="um-breakdown-note" style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
+                    {commitmentNote}
+                  </p>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={handlePlaceOrder}
-                disabled={submitting || previewLoading}
+                disabled={submitting || previewLoading || !hasAllServerAmounts}
                 className="btn btn-primary btn-lg btn-block um-place-order-btn"
               >
-                {submitting ? 'Placing Order...' : `Confirm & Pay 10% (${formatUGX(displayCommitment)})`} →
+                {submitting
+                  ? 'Placing Order...'
+                  : previewLoading || !hasAllServerAmounts
+                    ? 'Calculating server totals...'
+                    : `Place Order — ${t('commitmentDeposit')}: ${formatUGX(displayCommitment)}`}
               </button>
 
               <div className="um-checkout-security">
-                <span>🔒 Encrypted Server-Authoritative Checkout</span>
-                <span>🛡️ Inspect Quality at Delivery Before Final 90%</span>
+                <span>🔒 Server-authoritative checkout</span>
+                <span>🛡️ Inspect quality before paying the balance</span>
               </div>
             </div>
           </div>

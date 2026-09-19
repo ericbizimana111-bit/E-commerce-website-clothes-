@@ -83,11 +83,6 @@ function AppRoutes() {
             <Route path="notifications" element={<Notifications />} />
           </Route>
 
-          {/* Legacy redirect compatibility */}
-          <Route path="/mens" element={<Navigate to="/catalog?category=grains-cereals" replace />} />
-          <Route path="/womens" element={<Navigate to="/catalog?category=matooke-tubers" replace />} />
-          <Route path="/kids" element={<Navigate to="/catalog?category=fresh-fruits" replace />} />
-
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

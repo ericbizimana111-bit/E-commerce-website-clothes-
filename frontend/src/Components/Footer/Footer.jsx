@@ -34,7 +34,7 @@ const Footer = () => {
             <div className="um-footer-trust-badges">
               <span className="um-trust-pill">🇺🇬 100% Local Ugandan Farmers</span>
               <span className="um-trust-pill">🛡️ Quality Inspected Produce</span>
-              <span className="um-trust-pill">💵 Pay 10% First, 90% at Fulfillment</span>
+              <span className="um-trust-pill">💵 Small Deposit First, Balance at Fulfillment</span>
             </div>
           </div>
 
@@ -42,10 +42,9 @@ const Footer = () => {
           <div className="um-footer-col">
             <h4 className="um-footer-heading">Fresh Food Categories</h4>
             <ul className="um-footer-links">
-              <li><Link to="/catalog?category=matooke-bananas">Matooke & Plantains</Link></li>
+              <li><Link to="/catalog?category=matooke-tubers">Matooke & Tubers</Link></li>
               <li><Link to="/catalog?category=grains-cereals">Grains & Flour (Kawunga)</Link></li>
-              <li><Link to="/catalog?category=legumes-beans">Legumes & Yellow Beans</Link></li>
-              <li><Link to="/catalog?category=tubers-roots">Tubers, Cassava & Sweet Potatoes</Link></li>
+              <li><Link to="/catalog?category=grains-cereals">Grains & Cereals</Link></li>
               <li><Link to="/catalog?category=fresh-vegetables">Fresh Greens & Vegetables</Link></li>
             </ul>
           </div>
@@ -56,7 +55,7 @@ const Footer = () => {
             <ul className="um-footer-links">
               <li><Link to="/pickup-stations">Pickup Stations in Kampala</Link></li>
               <li><Link to="/catalog">Browse All Harvests</Link></li>
-              <li><Link to="/how-it-works">How 10% Commitment Works</Link></li>
+              <li><Link to="/how-it-works">How the Commitment Deposit Works</Link></li>
               <li><Link to="/account/orders">Track My Order</Link></li>
               <li><Link to="/account/addresses">Saved Delivery Addresses</Link></li>
             </ul>

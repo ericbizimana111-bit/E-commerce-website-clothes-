@@ -70,7 +70,7 @@ const Shop = () => {
           <div className="um-hero-content">
             <div className="um-hero-badge">
               <span className="um-badge-icon">🌿</span>
-              <span>100% Farm Fresh Produce Direct to Your Door</span>
+              <span>Farm Fresh Produce Direct to Your Door</span>
             </div>
             <h1 className="um-hero-title">
               Uganda’s Fresh Food Marketplace, <span className="um-highlight">home to home.</span>

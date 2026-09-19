@@ -5,7 +5,6 @@ import App from './App';
 import { LanguageProvider } from './Context/LanguageContext';
 import { AuthProvider } from './Context/AuthContext';
 import { CartProvider } from './Context/CartContext';
-import ShopContextProvider from './Context/ShopContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -13,9 +12,7 @@ root.render(
     <LanguageProvider>
       <AuthProvider>
         <CartProvider>
-          <ShopContextProvider>
-            <App />
-          </ShopContextProvider>
+          <App />
         </CartProvider>
       </AuthProvider>
     </LanguageProvider>

@@ -63,7 +63,7 @@ const Navbar = () => {
       {/* Top Banner */}
       <div className="um-topbar">
         <div className="um-topbar-inner">
-          <span>🇺🇬 Fresh Farm Harvests Direct to You • 10% Commitment Deposit • Quality Guaranteed</span>
+          <span>🇺🇬 Fresh Farm Harvests Direct to You • Small Commitment Deposit • Quality Guaranteed</span>
           <div className="um-topbar-right">
             <span className="um-tagline-pill">home to home</span>
           </div>

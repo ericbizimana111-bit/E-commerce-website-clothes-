@@ -1,15 +1,32 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
 import './OrderDetail.css';
 
+/**
+ * Order detail / tracking — UgaMarket — home to home.
+ *
+ * Server-authoritative integration:
+ *  - Order + lifecycle: GET /api/orders/:id (statusHistory, items, payments)
+ *  - Fulfillment:        GET /api/orders/:id/delivery
+ *  - Payments & balance: GET /api/orders/:id/payment (safe projection,
+ *                        server-calculated: commitmentPaid, balancePaid,
+ *                        balanceDue, activePayment)
+ *  - Pay actions:        POST /api/orders/:id/payment { purpose }
+ *  - Cancel:             POST /api/orders/:id/cancel { reason }
+ *
+ * Payment success is decided ONLY by the backend webhook; in development the
+ * deterministic mock provider requires the dev webhook script, so this page
+ * polls the payment endpoint while an attempt is PENDING/PROCESSING.
+ */
+
 const LIFECYCLE_STEPS = [
   { key: 'ORDER_PLACED', label: 'Order Placed' },
-  { key: 'COMMITMENT_PAID', label: '10% Deposit Paid' },
-  { key: 'PREPARING', label: 'Harvesting & Packing' },
-  { key: 'IN_TRANSIT', label: 'Quality Check & Transit' },
+  { key: 'COMMITMENT_PAID', label: 'Commitment Deposit Paid' },
+  { key: 'PREPARING', label: 'Preparing Your Order' },
+  { key: 'IN_TRANSIT', label: 'In Transit' },
   { key: 'FULFILLED', label: 'Delivered / Picked Up' },
   { key: 'COMPLETED', label: 'Balance Paid & Complete' }
 ];
@@ -40,46 +57,114 @@ function getStepIndex(status) {
   }
 }
 
+const PAYMENT_STATUS_BADGES = {
+  PENDING: { label: 'Pending Verification', type: 'warning' },
+  PROCESSING: { label: 'Processing', type: 'warning' },
+  SUCCESS: { label: 'Paid', type: 'success' },
+  FAILED: { label: 'Failed', type: 'danger' },
+  EXPIRED: { label: 'Expired', type: 'danger' },
+  CANCELLED: { label: 'Cancelled', type: 'neutral' }
+};
+
+const PAYMENT_PURPOSE_LABELS = {
+  COMMITMENT: 'Commitment Deposit Payment',
+  BALANCE: 'Remaining Balance Payment'
+};
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString('en-UG', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(value);
+  }
+}
+
 const OrderDetail = () => {
   const { id } = useParams();
   const { currentLang } = useLanguage();
 
   const [order, setOrder] = useState(null);
   const [delivery, setDelivery] = useState(null);
+  const [paymentInfo, setPaymentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const pollTimerRef = useRef(null);
 
   const fetchOrderDetails = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage(null);
     try {
-      const [orderRes, delivRes] = await Promise.allSettled([
+      const [orderRes, delivRes, payRes] = await Promise.allSettled([
         apiClient.get(`/orders/${id}?lang=${currentLang || 'en'}`),
-        apiClient.get(`/orders/${id}/delivery`)
+        apiClient.get(`/orders/${id}/delivery`),
+        apiClient.get(`/orders/${id}/payment`)
       ]);
 
       if (orderRes.status === 'fulfilled' && orderRes.value?.data) {
         setOrder(orderRes.value.data);
       } else {
-        throw new Error('Order not found');
+        throw new Error(orderRes.status === 'rejected' ? orderRes.reason?.message : 'Order not found');
       }
 
       if (delivRes.status === 'fulfilled' && delivRes.value?.data?.delivery) {
         setDelivery(delivRes.value.data.delivery);
+      } else {
+        setDelivery(null);
+      }
+
+      // GET /api/orders/:id/payment -> { data: { pricing, payments, activePayment, ... } }
+      if (payRes.status === 'fulfilled' && payRes.value?.data) {
+        setPaymentInfo(payRes.value.data);
+      } else {
+        setPaymentInfo(null);
       }
     } catch (err) {
       console.error('Failed to load order', err);
       setErrorMessage(err.message || 'Could not load order details');
-    } finally {
-      setLoading(false);
     }
   }, [id, currentLang]);
 
+  // Initial load + reload whenever the language changes
   useEffect(() => {
-    fetchOrderDetails();
+    let isMounted = true;
+    setLoading(true);
+    setErrorMessage(null);
+    fetchOrderDetails().finally(() => {
+      if (isMounted) setLoading(false);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, [fetchOrderDetails]);
+
+  // Payment outcome polling: the webhook (server-side) decides success, so
+  // while an attempt is PENDING/PROCESSING we poll the payment endpoint.
+  const activePayment = paymentInfo?.activePayment || null;
+  useEffect(() => {
+    if (!activePayment) {
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      return;
+    }
+    pollTimerRef.current = setTimeout(() => {
+      fetchOrderDetails();
+    }, 4000);
+    return () => {
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [activePayment, fetchOrderDetails]);
 
   // Payment Handler
   const handleInitiatePayment = async (purpose) => {
@@ -98,10 +183,7 @@ const OrderDetail = () => {
         setActionMessage(
           `✓ ${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
         );
-        // Refresh order status
-        setTimeout(() => {
-          fetchOrderDetails();
-        }, 1200);
+        await fetchOrderDetails();
       }
     } catch (err) {
       setErrorMessage(err.message || 'Payment initiation failed');
@@ -110,7 +192,7 @@ const OrderDetail = () => {
     }
   };
 
-  // Order Cancellation Handler
+  // Order Cancellation Handler (server gates which statuses are cancellable)
   const handleCancelOrder = async () => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
     setActionLoading(true);
@@ -121,7 +203,7 @@ const OrderDetail = () => {
       });
       if (res?.success) {
         setActionMessage('Order successfully cancelled.');
-        fetchOrderDetails();
+        await fetchOrderDetails();
       }
     } catch (err) {
       setErrorMessage(err.message || 'Could not cancel order');
@@ -144,7 +226,7 @@ const OrderDetail = () => {
   if (errorMessage && !order) {
     return (
       <div className="card um-subview-card">
-        <div className="alert alert-error">
+        <div className="alert alert-error" role="alert">
           <span>⚠️ {errorMessage}</span>
         </div>
         <Link to="/account/orders" className="btn btn-secondary" style={{ width: 'fit-content' }}>
@@ -155,15 +237,27 @@ const OrderDetail = () => {
   }
 
   const currentStep = getStepIndex(order.status);
-  const isCancelled = order.status === 'CANCELLED' || order.status === 'REFUNDED';
+  const isCancelled = order.status === 'CANCELLED' || order.status === 'REFUNDED' || order.status === 'DELIVERY_FAILED';
+  const isHomeDelivery = order.fulfillment?.method === 'HOME_DELIVERY';
+
+  // Payment eligibility strictly mirrors backend rules:
+  //  - commitment: order still PENDING_PAYMENT
+  //  - balance: fulfillment complete (DELIVERED for home, PICKED_UP for pickup)
   const canPayCommitment = order.status === 'PENDING_PAYMENT';
   const canPayBalance = order.status === 'DELIVERED' || order.status === 'PICKED_UP';
   const canCancel = ['PENDING_PAYMENT', 'COMMITMENT_PAID', 'CONFIRMED'].includes(order.status);
 
-  // Check paid payments
-  const payments = order.payments || [];
-  const commitmentPayment = payments.find((p) => p.purpose === 'COMMITMENT' && p.status === 'SUCCESS');
-  const balancePayment = payments.find((p) => p.purpose === 'BALANCE' && p.status === 'SUCCESS');
+  // Server-authoritative financials from GET /orders/:id/payment
+  const fin = paymentInfo?.pricing || null;
+  const commitmentPaidUgx = fin?.commitmentPaidUgx ?? 0;
+  const balancePaidUgx = fin?.balancePaidUgx ?? 0;
+  const balanceDueUgx = fin?.remainingBalanceUgx ?? null;
+  const paymentHistory = paymentInfo?.payments || [];
+
+  const commitmentStatus = paymentInfo?.commitmentPaymentStatus || 'UNPAID';
+  const balanceStatus = paymentInfo?.balancePaymentStatus || 'UNPAID';
+
+  const balanceBeforeFulfillment = !canPayBalance && !isCancelled && balanceDueUgx !== null && balanceDueUgx > 0;
 
   return (
     <div className="card um-subview-card um-order-detail-view">
@@ -180,7 +274,7 @@ const OrderDetail = () => {
             </span>
           </div>
           <span className="um-order-timestamp">
-            Placed on {new Date(order.createdAt).toLocaleString()}
+            Placed on {formatDateTime(order.createdAt)}
           </span>
         </div>
 
@@ -197,14 +291,23 @@ const OrderDetail = () => {
       </div>
 
       {actionMessage && (
-        <div className="alert alert-success">
+        <div className="alert alert-success" role="status">
           <span>{actionMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" role="alert">
           <span>⚠️ {errorMessage}</span>
+        </div>
+      )}
+
+      {activePayment && (
+        <div className="alert alert-info" role="status" style={{ background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1E3A8A' }}>
+          <span>
+            ⏳ A payment of {formatUGX(activePayment.amountUgx)} ({activePayment.purpose === 'BALANCE' ? 'balance' : 'commitment'}) is awaiting provider verification.
+            This page updates automatically once the UgaMarket server confirms it.
+          </span>
         </div>
       )}
 
@@ -231,8 +334,8 @@ const OrderDetail = () => {
           </div>
         </div>
       ) : (
-        <div className="alert alert-error">
-          <span>❌ This order has been cancelled.</span>
+        <div className="alert alert-error" role="alert">
+          <span>❌ This order is {order.status}. Contact support if you believe this is a mistake.</span>
         </div>
       )}
 
@@ -240,15 +343,15 @@ const OrderDetail = () => {
       {canPayCommitment && (
         <div className="um-action-banner card">
           <div>
-            <strong>Action Required: Pay 10% Commitment Deposit</strong>
+            <strong>Action Required: Pay Commitment Deposit</strong>
             <p>
-              Please pay <strong>{formatUGX(order.pricing?.commitmentUgx)}</strong> via Mobile Money to confirm and start harvesting your fresh produce.
+              Please pay <strong>{formatUGX(order.pricing?.commitmentUgx)}</strong> to confirm your order so our farmers can start preparing your fresh produce.
             </p>
           </div>
           <button
             type="button"
             onClick={() => handleInitiatePayment('COMMITMENT')}
-            disabled={actionLoading}
+            disabled={actionLoading || !!activePayment}
             className="btn btn-primary btn-lg"
           >
             {actionLoading ? 'Initiating...' : `Pay Deposit (${formatUGX(order.pricing?.commitmentUgx)})`}
@@ -256,32 +359,55 @@ const OrderDetail = () => {
         </div>
       )}
 
-      {canPayBalance && (
+      {canPayBalance && !paymentInfo?.isFullyPaid && (
         <div className="um-action-banner card um-balance-action-banner">
           <div>
-            <strong>Produce Received: Complete 90% Balance</strong>
+            <strong>Produce Received: Complete Your Balance</strong>
             <p>
-              Your produce has been delivered/picked up! Please verify quality and complete the remaining balance of{' '}
-              <strong>{formatUGX(order.pricing?.remainingBalanceUgx)}</strong>.
+              Your produce has been {isHomeDelivery ? 'delivered' : 'ready for pickup and collected'}! After verifying quality, pay the remaining balance of{' '}
+              <strong>{balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx)}</strong>.
             </p>
           </div>
           <button
             type="button"
             onClick={() => handleInitiatePayment('BALANCE')}
-            disabled={actionLoading}
+            disabled={actionLoading || !!activePayment}
             className="btn btn-accent btn-lg"
           >
-            {actionLoading ? 'Processing...' : `Pay 90% Balance (${formatUGX(order.pricing?.remainingBalanceUgx)})`}
+            {actionLoading
+              ? 'Processing...'
+              : `Pay Balance (${balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx)})`}
           </button>
+        </div>
+      )}
+
+      {balanceBeforeFulfillment && (
+        <div className="alert alert-info" role="status" style={{ background: '#F8FAFC', borderColor: 'var(--border)', color: 'var(--slate)' }}>
+          <span>
+            💡 Your remaining balance of <strong>{formatUGX(balanceDueUgx)}</strong> becomes payable once your order is{' '}
+            {isHomeDelivery ? 'delivered' : 'picked up'}.
+          </span>
+        </div>
+      )}
+
+      {paymentInfo?.isFullyPaid && order.status !== 'COMPLETED' && (
+        <div className="alert alert-success" role="status">
+          <span>✓ All payments complete — the UgaMarket server is finalizing your order.</span>
+        </div>
+      )}
+
+      {order.status === 'COMPLETED' && (
+        <div className="alert alert-success" role="status">
+          <span>🎉 This order is complete. Thank you for shopping with UgaMarket — home to home!</span>
         </div>
       )}
 
       {/* Order Items Table */}
       <div className="um-order-items-box card">
-        <h4>Harvest Line Items</h4>
+        <h4>Order Line Items</h4>
         <div className="um-order-items-table">
           <div className="um-order-table-head">
-            <span>Produce</span>
+            <span>Product</span>
             <span>Unit Price</span>
             <span>Quantity</span>
             <span>Line Total</span>
@@ -306,21 +432,21 @@ const OrderDetail = () => {
       <div className="um-order-info-grid">
         {/* Fulfillment Card */}
         <div className="um-info-card card">
-          <h4>Fulfillment Destination</h4>
-          {order.fulfillment?.method === 'HOME_DELIVERY' ? (
+          <h4>Fulfillment Details</h4>
+          {isHomeDelivery ? (
             <div className="um-fulfillment-info">
               <span className="badge badge-info">🚚 Home Delivery</span>
               {order.fulfillment.address ? (
                 <div className="um-addr-box">
-                  <strong>{order.fulfillment.address.recipientName}</strong>
-                  <span>📞 {order.fulfillment.address.phone}</span>
-                  <p>{order.fulfillment.address.addressLine}, {order.fulfillment.address.city || order.fulfillment.address.district}</p>
-                  {order.fulfillment.address.deliveryNotes && (
-                    <small>Instructions: {order.fulfillment.address.deliveryNotes}</small>
-                  )}
+                  <strong>{order.fulfillment.address.title || 'Delivery Address'}</strong>
+                  <p>
+                    {order.fulfillment.address.streetAddress}
+                    {order.fulfillment.address.division ? `, ${order.fulfillment.address.division}` : ''}
+                    {order.fulfillment.address.district ? `, ${order.fulfillment.address.district}` : ''}
+                  </p>
                 </div>
               ) : (
-                <p>Address details stored on order.</p>
+                <p>Address details are stored with your order.</p>
               )}
             </div>
           ) : (
@@ -329,11 +455,17 @@ const OrderDetail = () => {
               {order.fulfillment?.station ? (
                 <div className="um-station-info-box">
                   <strong>{order.fulfillment.station.name}</strong>
-                  <p>{order.fulfillment.station.addressLine}, {order.fulfillment.station.district || order.fulfillment.station.city}</p>
-                  <span>🕒 {order.fulfillment.station.operatingHours || '8:00 AM - 7:00 PM'}</span>
+                  <p>
+                    {order.fulfillment.station.addressText}
+                    {order.fulfillment.station.district ? `, ${order.fulfillment.station.district}` : ''}
+                  </p>
+                  <span>🕒 {order.fulfillment.station.operatingHours || 'Contact station for hours'}</span>
+                  {order.fulfillment.station.contactPhone && (
+                    <span>📞 {order.fulfillment.station.contactPhone}</span>
+                  )}
                 </div>
               ) : (
-                <p>Pickup station selected on order.</p>
+                <p>Pickup station details are stored with your order.</p>
               )}
             </div>
           )}
@@ -345,19 +477,37 @@ const OrderDetail = () => {
                 <span>Dispatch Status:</span>
                 <strong>{delivery.status}</strong>
               </div>
-              {delivery.trackingCode && (
+              {delivery.scheduledAt && (
                 <div className="um-tracking-item">
-                  <span>Tracking Code:</span>
-                  <code>{delivery.trackingCode}</code>
+                  <span>Scheduled:</span>
+                  <strong>{formatDateTime(delivery.scheduledAt)}</strong>
+                </div>
+              )}
+              {delivery.startedAt && (
+                <div className="um-tracking-item">
+                  <span>Dispatched:</span>
+                  <strong>{formatDateTime(delivery.startedAt)}</strong>
+                </div>
+              )}
+              {delivery.completedAt && (
+                <div className="um-tracking-item">
+                  <span>Completed:</span>
+                  <strong>{formatDateTime(delivery.completedAt)}</strong>
+                </div>
+              )}
+              {delivery.failureMessage && (
+                <div className="um-tracking-item">
+                  <span>Issue:</span>
+                  <strong>{delivery.failureMessage}</strong>
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Financial Breakdown Card */}
+        {/* Financial Breakdown Card — server-authoritative */}
         <div className="um-info-card card">
-          <h4>Payment & Financial Summary</h4>
+          <h4>Payment &amp; Financial Summary</h4>
           <div className="um-financial-rows">
             <div className="um-fin-row">
               <span>Items Subtotal</span>
@@ -374,34 +524,88 @@ const OrderDetail = () => {
 
             <div className="um-fin-divider" />
 
-            <div className="um-fin-payment-status">
-              <div className="um-payment-stage">
-                <div>
-                  <strong>10% Commitment Deposit</strong>
-                  <small>{formatUGX(order.pricing?.commitmentUgx || 0)}</small>
-                </div>
-                {(commitmentPayment || (order.status !== 'PENDING_PAYMENT' && !isCancelled)) ? (
-                  <span className="badge badge-success">✓ Paid</span>
-                ) : (
-                  <span className="badge badge-warning">Unpaid</span>
-                )}
-              </div>
+            <div className="um-fin-row">
+              <span>Commitment Paid</span>
+              <span className={commitmentPaidUgx > 0 ? 'um-fin-paid' : ''}>{formatUGX(commitmentPaidUgx)}</span>
+            </div>
+            <div className="um-fin-row">
+              <span>Balance Paid</span>
+              <span className={balancePaidUgx > 0 ? 'um-fin-paid' : ''}>{formatUGX(balancePaidUgx)}</span>
+            </div>
+            <div className="um-fin-row um-fin-row--bold">
+              <span>Remaining Balance</span>
+              <strong>{balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx || 0)}</strong>
+            </div>
 
-              <div className="um-payment-stage">
-                <div>
-                  <strong>90% Remaining Balance</strong>
-                  <small>{formatUGX(order.pricing?.remainingBalanceUgx || 0)}</small>
-                </div>
-                {balancePayment || order.status === 'COMPLETED' ? (
-                  <span className="badge badge-success">✓ Paid</span>
-                ) : (
-                  <span className="badge badge-neutral">Pay on Delivery</span>
-                )}
+            <div className="um-fin-divider" />
+
+            <div className="um-payment-stage">
+              <div>
+                <strong>Commitment Deposit</strong>
+                <small>{formatUGX(order.pricing?.commitmentUgx || 0)}</small>
               </div>
+              {commitmentStatus === 'SUCCESS' ? (
+                <span className="badge badge-success">✓ Paid</span>
+              ) : PAYMENT_STATUS_BADGES[commitmentStatus] ? (
+                <span className={`badge badge-${PAYMENT_STATUS_BADGES[commitmentStatus].type}`}>
+                  {PAYMENT_STATUS_BADGES[commitmentStatus].label}
+                </span>
+              ) : (
+                <span className="badge badge-warning">Unpaid</span>
+              )}
+            </div>
+
+            <div className="um-payment-stage">
+              <div>
+                <strong>Remaining Balance</strong>
+                <small>{formatUGX(order.pricing?.remainingBalanceUgx || 0)}</small>
+              </div>
+              {balanceStatus === 'SUCCESS' || balanceStatus === 'NOT_REQUIRED' ? (
+                <span className="badge badge-success">{balanceStatus === 'NOT_REQUIRED' ? '✓ Nothing Due' : '✓ Paid'}</span>
+              ) : PAYMENT_STATUS_BADGES[balanceStatus] ? (
+                <span className={`badge badge-${PAYMENT_STATUS_BADGES[balanceStatus].type}`}>
+                  {PAYMENT_STATUS_BADGES[balanceStatus].label}
+                </span>
+              ) : (
+                <span className="badge badge-neutral">Pay at Fulfillment</span>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment History — GET /api/orders/:id/payment (safe projection only) */}
+      {paymentHistory.length > 0 && (
+        <div className="um-order-items-box card">
+          <h4>Payment History</h4>
+          <div className="um-order-items-table">
+            <div className="um-order-table-head">
+              <span>Purpose</span>
+              <span>Amount</span>
+              <span>Status</span>
+              <span>Date</span>
+            </div>
+            <div className="um-order-table-rows">
+              {paymentHistory.map((p) => {
+                const badge = PAYMENT_STATUS_BADGES[p.status] || { label: p.status, type: 'neutral' };
+                return (
+                  <div key={p.id} className="um-order-table-row">
+                    <div>
+                      <strong>{PAYMENT_PURPOSE_LABELS[p.purpose] || p.paymentType || p.purpose}</strong>
+                      <small className="um-it-unit">
+                        {p.provider} • Ref {p.transactionRef}
+                      </small>
+                    </div>
+                    <span>{formatUGX(p.amountUgx)}</span>
+                    <span className={`badge badge-${badge.type}`}>{badge.label}</span>
+                    <span>{formatDateTime(p.createdAt)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

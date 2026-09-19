@@ -6,10 +6,10 @@ import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
 import './Cart.css';
 
-const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80';
+const DEFAULT_IMAGE = '/img-placeholder.svg';
 
 const Cart = () => {
-  const { items, itemCount, subtotalUgx, updateQuantity, removeFromCart, clearCart, loading, error } = useCart();
+  const { items, itemCount, subtotalUgx, updateQuantity, removeFromCart, clearCart, loading, error, refreshCart } = useCart();
   const { isAuthenticated } = useAuth();
   const { t, getLocalizedField } = useLanguage();
   const navigate = useNavigate();
@@ -39,10 +39,6 @@ const Cart = () => {
     );
   }
 
-  // Calculate commitment & balance estimations
-  const estCommitment = Math.round(subtotalUgx * 0.10);
-  const estBalance = subtotalUgx - estCommitment;
-
   return (
     <div className="um-cart-page">
       <div className="container">
@@ -64,8 +60,11 @@ const Cart = () => {
         </div>
 
         {error && (
-          <div className="alert alert-error">
+          <div className="alert alert-error" role="alert">
             <span>⚠️ {error}</span>
+            <button onClick={refreshCart} className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }}>
+              Retry
+            </button>
           </div>
         )}
 
@@ -73,7 +72,7 @@ const Cart = () => {
           {/* Items List */}
           <div className="um-cart-items card">
             <div className="um-cart-items-head">
-              <span className="um-head-item">Produce</span>
+              <span className="um-head-item">Product</span>
               <span className="um-head-price">Price</span>
               <span className="um-head-qty">Quantity</span>
               <span className="um-head-subtotal">Subtotal</span>
@@ -84,13 +83,18 @@ const Cart = () => {
               {items.map((item) => {
                 const product = item.product || {};
                 const name = getLocalizedField(product, 'name') || product.name || 'Fresh Item';
+                // The current DB price (unitPriceUgx) is authoritative; the
+                // backend flags priceIsStale when the cart snapshot differs.
                 const unitPrice = item.unitPriceUgx || product.priceUgx || 0;
                 const lineSubtotal = item.subtotalUgx || (unitPrice * item.quantity);
                 const imageUrl = product.image || (product.images && product.images[0]?.imageUrl) || DEFAULT_IMAGE;
-                const isItemOutOfStock = product.isActive === false || product.stockQuantity === 0;
+                const availability = item.availability || {};
+                const outOfStock = availability.isActive === false || availability.inStock === false;
+                const insufficient = availability.sufficientStock === false && !outOfStock;
+                const hasProblem = outOfStock || insufficient || item.priceIsStale;
 
                 return (
-                  <div key={item.id} className={`um-cart-row ${isItemOutOfStock ? 'um-cart-row--stale' : ''}`}>
+                  <div key={item.id} className={`um-cart-row ${hasProblem ? 'um-cart-row--stale' : ''}`}>
                     <div className="um-cart-prod-cell">
                       <Link to={`/product/${product.id || item.productId}`} className="um-cart-thumb-wrap">
                         <img
@@ -110,8 +114,16 @@ const Cart = () => {
                         <span className="um-cart-prod-unit">
                           {product.unit ? `Unit: per ${product.unit}` : ''}
                         </span>
-                        {isItemOutOfStock && (
-                          <span className="badge badge-danger">Out of Stock - Please remove</span>
+                        {item.priceIsStale && (
+                          <span className="badge badge-warning">Price changed — current price applies</span>
+                        )}
+                        {outOfStock && (
+                          <span className="badge badge-danger">Out of Stock — please remove</span>
+                        )}
+                        {insufficient && (
+                          <span className="badge badge-warning">
+                            Only {availability.stockQuantity} available in stock
+                          </span>
                         )}
                       </div>
                     </div>
@@ -136,7 +148,7 @@ const Cart = () => {
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          disabled={loading || (product.stockQuantity && item.quantity >= product.stockQuantity)}
+                          disabled={loading || (availability.stockQuantity && item.quantity >= availability.stockQuantity)}
                           className="um-stepper-btn"
                           aria-label="Increase quantity"
                         >
@@ -185,27 +197,8 @@ const Cart = () => {
               </div>
 
               <div className="um-summary-row">
-                <span>Fulfillment Fee</span>
+                <span>{t('deliveryFee')}</span>
                 <span className="um-summary-muted">Calculated at checkout</span>
-              </div>
-            </div>
-
-            {/* Transparent 10% / 90% breakdown */}
-            <div className="um-summary-breakdown card">
-              <div className="um-breakdown-row">
-                <div>
-                  <strong>Payable Now (10% Deposit)</strong>
-                  <span>Commitment to harvest</span>
-                </div>
-                <strong className="um-highlight-deposit">{formatUGX(estCommitment)}</strong>
-              </div>
-              <div className="um-breakdown-divider" />
-              <div className="um-breakdown-row">
-                <div>
-                  <strong>Payable on Delivery (90% Balance)</strong>
-                  <span>After produce quality inspection</span>
-                </div>
-                <strong>{formatUGX(estBalance)}</strong>
               </div>
             </div>
 
@@ -214,7 +207,9 @@ const Cart = () => {
                 <span>Estimated Total</span>
                 <span className="um-summary-total">{formatUGX(subtotalUgx)}</span>
               </div>
-              <span className="um-summary-tax-note">Excludes optional doorstep delivery fee</span>
+              <span className="um-summary-tax-note">
+                Final total, delivery fee and commitment deposit are calculated by the UgaMarket server at checkout.
+              </span>
             </div>
 
             <button
@@ -229,7 +224,7 @@ const Cart = () => {
             <div className="um-summary-guarantees">
               <div>🛡️ Quality guarantee on delivery</div>
               <div>⚡ Mobile Money payments (MTN / Airtel)</div>
-              <div>📍 Home delivery or free station pickup</div>
+              <div>📍 Home delivery or station pickup</div>
             </div>
           </div>
         </div>
