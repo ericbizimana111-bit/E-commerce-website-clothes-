@@ -6,6 +6,21 @@ const { getPaymentProvider } = require('./paymentProviders');
 const { applyPaymentExpiration } = require('./paymentExpiry.service');
 const { applyOrderStatusTransition } = require('./order.service');
 const { logAudit } = require('./audit.service');
+const { normalizeUgandaPhone } = require('../utils/phone');
+const logger = require('../utils/logger');
+
+// Customer-selected payment rails (Phase 12 Step 2). NOT financially
+// authoritative — amount/currency/order/purpose stay server-decided. Only
+// providers that implement the chosen rail receive it; unsupported rails
+// fail initiation with a clear business error rather than faking support.
+const PROVIDER_METHOD_SUPPORT = {
+  MOCK: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD']),
+  FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']), // CARD: deferred slice
+};
+
+// Provider initiation result fields that may be surfaced to the frontend.
+// Everything else (raw provider payloads, internal notes) stays server-side.
+const PROVIDER_INITIATION_FIELDS = ['providerRef', 'checkoutUrl', 'resultCode', 'failureMessage'];
 
 const PAYMENT_ATTEMPT_TTL_MINUTES = env.PAYMENT_ATTEMPT_TTL_MINUTES || 30;
 const CURRENCY = 'UGX';
@@ -16,6 +31,7 @@ const CURRENCY = 'UGX';
 function formatPayment(payment) {
   return {
     id: payment.id,
+    checkoutUrl: (payment.payload && payment.payload.checkoutUrl) || null,
     orderId: payment.orderId,
     purpose: payment.purpose,
     provider: payment.provider,
@@ -207,9 +223,101 @@ async function completeOrderIfEligible(tx, orderId, { changedByType = 'SYSTEM', 
 // ============================================================
 // COMMITMENT PAYMENT INITIATION (Phase 6 preserved)
 // ============================================================
-async function initiateCommitmentPayment(userId, orderId) {
+/**
+ * The method is a rail HINT, not an authority — but an unsupported rail must
+ * fail initiation with a clear business error instead of pretending support.
+ */
+function assertMethodSupported(provider, method) {
+  if (method && !PROVIDER_METHOD_SUPPORT[provider.name]?.has(method)) {
+    throw new AppError(`Payment method ${method} is not supported by the ${provider.name} provider`, 422);
+  }
+}
+
+/**
+ * Resolve the customer identity block handed to the provider adapter.
+ * Email policy (Phase 12 Step 2 §12): Flutterwave requires an email; the
+ * EXISTING user email is used when present, otherwise initiation must fail
+ * with a clear business error — fake addresses are never invented, and no
+ * identity fields are stored on the Payment row.
+ */
+function resolveCustomerIdentity(user, method) {
+  if (!user || !user.phone) {
+    throw new AppError('Customer mobile number is required for payment', 422);
+  }
+  const phone = normalizeUgandaPhone(user.phone);
+  if (!phone.isValid || !phone.normalized) {
+    throw new AppError('Customer mobile number is invalid for payment', 422);
+  }
+  if (method === 'MTN_MOBILE_MONEY' || method === 'AIRTEL_MONEY') {
+    if (!user.email) {
+      throw new AppError(
+        'A customer email address is required for mobile money payments. Add an email to your account and try again.',
+        422
+      );
+    }
+    return {
+      fullName: user.fullName || null,
+      email: user.email,
+      phoneE164: phone.normalized,
+    };
+  }
+  return { fullName: user.fullName || null, email: user.email || null, phoneE164: phone.normalized };
+}
+
+/**
+ * Map the DB attempt (+ resolved customer identity) into the provider-agnostic
+ * initiation input. The method is a non-authoritative rail hint from the
+ * request; amount/currency/references are the server-authoritative DB values.
+ */
+function buildProviderPaymentInput(attempt, order, { method } = {}) {
+  return {
+    transactionRef: attempt.transactionRef,
+    providerRef: attempt.providerRef || null,
+    amountUgx: attempt.amountUgx,
+    currency: attempt.currency,
+    purpose: attempt.purpose,
+    method: method || null,
+    customer: resolveCustomerIdentity(order.user, method),
+  };
+}
+
+/**
+ * Gate initiation results: a provider refusal/network failure must fail the
+ * request with a clear business error — never be mistaken for a started
+ * attempt. Initiation success does NOT mean the payment succeeded; it only
+ * means the provider-side charge attempt was created.
+ */
+function assertInitiationAccepted(result, attempt) {
+  if (!result || result.ok !== true) {
+    const detail = (result && result.failureMessage) || 'Payment provider refused the charge request';
+    logger.error(`[payment] initiation failed`, {
+      provider: env.PAYMENT_PROVIDER,
+      transactionRef: attempt.transactionRef,
+      resultCode: (result && result.resultCode) || 'PROVIDER_ERROR',
+      httpStatus: (result && result.httpStatus) || null,
+    });
+    throw new AppError(`Payment initiation failed: ${detail}`, 502);
+  }
+}
+
+/**
+ * Whitelisted provider initiation fields surfaced with the initiation
+ * response (checkoutUrl etc.). Raw provider payloads never leave the server.
+ */
+function sanitizeInitiation(result) {
+  const safe = {};
+  for (const field of PROVIDER_INITIATION_FIELDS) {
+    if (result[field] !== undefined && result[field] !== null) {
+      safe[field] = result[field];
+    }
+  }
+  return safe;
+}
+
+async function initiateCommitmentPayment(userId, orderId, options = {}) {
   const provider = getPaymentProvider(env.PAYMENT_PROVIDER);
   assertProviderAllowed(provider);
+  assertMethodSupported(provider, options.method);
 
   return prisma.$transaction(async (tx) => {
     // 1. Lazy expiry sweep
@@ -218,7 +326,7 @@ async function initiateCommitmentPayment(userId, orderId) {
     // 2. Order must exist and belong to this customer (ownership from JWT identity)
     const order = await tx.order.findFirst({
       where: { id: orderId, userId }, // IDOR-safe
-      include: { items: true },
+      include: { items: true, user: { select: { id: true, fullName: true, email: true, phone: true } } },
     });
     if (!order) {
       throw new AppError('Order not found', 404);
@@ -288,10 +396,15 @@ async function initiateCommitmentPayment(userId, orderId) {
     }
 
     // 5. Ask provider to initiate/refresh the charge
-    const result = provider.initiatePayment({ payment: attempt });
+    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options) });
+    assertInitiationAccepted(result, attempt);
     attempt = await tx.payment.update({
       where: { id: attempt.id },
-      data: { providerRef: result.providerRef },
+      data: {
+        providerRef: result.providerRef || attempt.providerRef,
+        status: 'PENDING',
+        payload: { method: options.method || null, checkoutUrl: result.checkoutUrl || null },
+      },
     });
 
     await logAudit({
@@ -309,7 +422,7 @@ async function initiateCommitmentPayment(userId, orderId) {
       },
     });
 
-    return { payment: attempt, order, reused: false };
+    return { payment: attempt, order, reused: false, initiation: sanitizeInitiation(result) };
   });
 }
 
@@ -318,9 +431,10 @@ async function initiateCommitmentPayment(userId, orderId) {
 // Fulfillment completed prerequisite, server-authoritative balance,
 // concurrency protected, reusable active attempt.
 // ============================================================
-async function initiateBalancePayment(userId, orderId) {
+async function initiateBalancePayment(userId, orderId, options = {}) {
   const provider = getPaymentProvider(env.PAYMENT_PROVIDER);
   assertProviderAllowed(provider);
+  assertMethodSupported(provider, options.method);
 
   return prisma.$transaction(async (tx) => {
     // 1. Lazy expiry sweep
@@ -329,7 +443,10 @@ async function initiateBalancePayment(userId, orderId) {
     // 2. Order must exist and belong to this customer
     const order = await tx.order.findFirst({
       where: { id: orderId, userId },
-      include: { delivery: true },
+      include: {
+        delivery: true,
+        user: { select: { id: true, fullName: true, email: true, phone: true } },
+      },
     });
     if (!order) {
       throw new AppError('Order not found', 404);
@@ -445,10 +562,15 @@ async function initiateBalancePayment(userId, orderId) {
     }
 
     // 8. Ask provider to initiate/refresh the charge
-    const result = provider.initiatePayment({ payment: attempt });
+    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options) });
+    assertInitiationAccepted(result, attempt);
     attempt = await tx.payment.update({
       where: { id: attempt.id },
-      data: { providerRef: result.providerRef },
+      data: {
+        providerRef: result.providerRef || attempt.providerRef,
+        status: 'PENDING',
+        payload: { method: options.method || null, checkoutUrl: result.checkoutUrl || null },
+      },
     });
 
     await logAudit({
@@ -467,19 +589,19 @@ async function initiateBalancePayment(userId, orderId) {
       },
     });
 
-    return { payment: attempt, order, balance, reused: false };
+    return { payment: attempt, order, balance, reused: false, initiation: sanitizeInitiation(result) };
   });
 }
 
 // ============================================================
 // UNIFIED PAYMENT INITIATION DISPATCHER
 // ============================================================
-async function initiatePayment(userId, orderId, { purpose } = {}) {
+async function initiatePayment(userId, orderId, { purpose, method } = {}) {
   if (purpose === 'BALANCE') {
-    return initiateBalancePayment(userId, orderId);
+    return initiateBalancePayment(userId, orderId, { method });
   }
   if (purpose === 'COMMITMENT') {
-    return initiateCommitmentPayment(userId, orderId);
+    return initiateCommitmentPayment(userId, orderId, { method });
   }
 
   // Automatic determination based on current order state
@@ -492,9 +614,9 @@ async function initiatePayment(userId, orderId, { purpose } = {}) {
   }
 
   if (['DELIVERED', 'PICKED_UP'].includes(order.status)) {
-    return initiateBalancePayment(userId, orderId);
+    return initiateBalancePayment(userId, orderId, { method });
   }
-  return initiateCommitmentPayment(userId, orderId);
+  return initiateCommitmentPayment(userId, orderId, { method });
 }
 
 // ============================================================
@@ -526,7 +648,7 @@ async function processWebhook(rawBody, headers) {
       await applyPaymentExpiration(tx);
 
       // 3. Correlate the provider event with internal payment attempt
-      const payment = await tx.payment.findFirst({
+      let payment = await tx.payment.findFirst({
         where: { provider: provider.name, providerRef: event.providerRef },
         include: {
           order: {
@@ -534,6 +656,22 @@ async function processWebhook(rawBody, headers) {
           },
         },
       });
+      if (!payment) {
+        // tx_ref fallback (Phase 12 Step 2 §9): Flutterwave's UG mobile-money
+        // initiation returns no flw_ref/id, so providerRef may still be null
+        // when the FIRST webhook arrives. Resolve the attempt through the
+        // UgaMarket transactionRef (sent as tx_ref) — then the authoritative
+        // providerRef is established below. @@unique([provider, providerRef])
+        // remains untouched.
+        payment = await tx.payment.findFirst({
+          where: { provider: provider.name, transactionRef: event.orderNumber },
+          include: {
+            order: {
+              include: { delivery: true },
+            },
+          },
+        });
+      }
       if (!payment) {
         const err = new AppError('Unknown payment reference', 404);
         err.rejectionAudit = {
@@ -557,7 +695,7 @@ async function processWebhook(rawBody, headers) {
         return err;
       };
 
-      if (payment.order.orderNumber !== event.orderNumber) {
+      if (payment.order.orderNumber !== event.orderNumber && event.orderNumber !== payment.transactionRef) {
         throw reject('Webhook order reference mismatch', 422, 'ORDER_MISMATCH');
       }
       if (payment.order.currency !== event.currency || event.currency !== CURRENCY) {
@@ -622,6 +760,7 @@ async function processWebhook(rawBody, headers) {
         const failed = await tx.payment.update({
           where: { id: payment.id },
           data: {
+            providerRef: payment.providerRef || event.providerRef,
             status: 'FAILED',
             resultCode: event.resultCode || 'PROVIDER_ERROR',
             failureMessage: event.failureMessage || 'Payment failed',
@@ -646,6 +785,9 @@ async function processWebhook(rawBody, headers) {
       const updatedPayment = await tx.payment.update({
         where: { id: payment.id },
         data: {
+          // Establish the authoritative providerRef (§9): the first event for
+          // an attempt initiated without one (UG momo) creates it here.
+          providerRef: payment.providerRef || event.providerRef,
           status: 'SUCCESS',
           resultCode: event.resultCode || 'SUCCESS',
           failureMessage: null,

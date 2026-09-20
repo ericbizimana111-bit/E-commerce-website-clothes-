@@ -34,10 +34,11 @@
  */
 
 const mockProvider = require('./mockProvider');
+const flutterwaveProvider = require('./flutterwaveProvider');
 
 const PROVIDER_REGISTRY = {
   MOCK: mockProvider,
-  // FLUTTERWAVE: require('./flutterwaveProvider'), // future phase
+  FLUTTERWAVE: flutterwaveProvider,
   // MTN_MOMO:    require('./mtnMomoProvider'),    // future phase
 };
 

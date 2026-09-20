@@ -35,6 +35,11 @@ function validProductionConfig(overrides = {}) {
     ADMIN_2_NAME: 'Operations Manager',
     CORS_ORIGIN: 'https://shop.example.com,https://admin.example.com',
     PAYMENT_PROVIDER: 'FLUTTERWAVE',
+    PAYMENT_MODE: 'TEST',
+    // Dashboard-shaped TEST credentials (NOT real secrets; safe in TEST mode
+    // production while PAYMENT_MODE=TEST — see rule 7 in envValidation.js).
+    FLW_PUBLIC_KEY: 'FLWPUBK_TEST-0123456789abcdef0123456789abcdef',
+    FLW_SECRET_KEY: 'FLWSECK_TEST-0123456789abcdef0123456789abcdef',
     PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32),
     PAYMENT_ATTEMPT_TTL_MINUTES: 30,
     ...overrides,
@@ -188,6 +193,56 @@ describe('validateProductionConfig (production environment validation)', () => {
       const config = validProductionConfig({ PAYMENT_PROVIDER: 'mock' });
       const problems = validateProductionConfig(config, config);
       expect(problems).toContainEqual(expect.stringContaining('PAYMENT_PROVIDER=MOCK is not allowed in production'));
+    });
+  });
+
+  describe('Flutterwave credentials (Phase 12 Step 2)', () => {
+    test('accepts dashboard-shaped TEST keys in production while PAYMENT_MODE=TEST', () => {
+      const problems = validateProductionConfig(validProductionConfig(), validProductionConfig());
+      expect(problems).toEqual([]);
+    });
+
+    test('rejects missing FLW credentials in production with FLUTTERWAVE provider', () => {
+      const config = validProductionConfig({ FLW_PUBLIC_KEY: '', FLW_SECRET_KEY: '' });
+      const problems = validateProductionConfig(config, config);
+      expect(problems).toContainEqual(expect.stringContaining('FLW_PUBLIC_KEY is required in production'));
+      expect(problems).toContainEqual(expect.stringContaining('FLW_SECRET_KEY is required in production'));
+    });
+
+    test('rejects obvious placeholder FLW credentials', () => {
+      const config = validProductionConfig({
+        FLW_PUBLIC_KEY: 'replace_with_your_public_key',
+        FLW_SECRET_KEY: 'xxxxxxxxxxxxxxxx',
+      });
+      const problems = validateProductionConfig(config, config);
+      expect(problems).toContainEqual(expect.stringContaining('FLW_PUBLIC_KEY is set to an obvious placeholder'));
+      expect(problems).toContainEqual(expect.stringContaining('FLW_SECRET_KEY is set to an obvious placeholder'));
+    });
+
+    test('rejects TEST keys when PAYMENT_MODE=LIVE', () => {
+      const config = validProductionConfig({ PAYMENT_MODE: 'LIVE' });
+      const problems = validateProductionConfig(config, config);
+      expect(problems).toContainEqual(expect.stringContaining('FLW_PUBLIC_KEY looks like a TEST key'));
+      expect(problems).toContainEqual(expect.stringContaining('FLW_SECRET_KEY looks like a TEST key'));
+    });
+
+    test('ACCEPTS TEST keys in LIVE mode check only via _TEST- marker — non-TEST LIVE keys pass', () => {
+      const config = validProductionConfig({
+        PAYMENT_MODE: 'LIVE',
+        FLW_PUBLIC_KEY: 'FLWPUBK-0123456789abcdef0123456789',
+        FLW_SECRET_KEY: 'FLWSECK-0123456789abcdef0123456789',
+      });
+      const problems = validateProductionConfig(config, config);
+      expect(problems).toEqual([]);
+    });
+
+    test('does not enforce FLW credentials when provider is not FLUTTERWAVE', () => {
+      // MOCK is separately rejected; a hypothetical other provider (e.g.
+      // MTN_MOMO) must not be blocked by FLW rules — check via a provider the
+      // schema allows besides MOCK/FLUTTERWAVE.
+      const config = validProductionConfig({ PAYMENT_PROVIDER: 'MTN_MOMO', FLW_PUBLIC_KEY: '', FLW_SECRET_KEY: '' });
+      const problems = validateProductionConfig(config, config);
+      expect(problems).toEqual([]);
     });
   });
 

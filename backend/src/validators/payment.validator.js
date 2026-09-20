@@ -11,10 +11,15 @@ const orderLanguageSchema = z
   .optional()
   .default('en');
 
-// Initiation body: the client may specify purpose (COMMITMENT or BALANCE).
-// Financially meaningful values (amount, currency, status, providerRef, etc.)
-// are stripped by the transform (server is authoritative). Payment outcomes
-// come ONLY from signed provider webhooks — never from this endpoint.
+// Initiation body: the client may specify purpose (COMMITMENT or BALANCE)
+// and an OPTIONAL, NON-authoritative payment method (Phase 12 Step 2).
+// The method is a rail hint (MTN vs Airtel mobile money); the server keeps
+// exclusively deciding amount, currency, order and purpose. Financially
+// meaningful values (amount, currency, status, providerRef, etc.) are
+// stripped by the transform (server is authoritative). Payment outcomes come
+// ONLY from signed provider webhooks — never from this endpoint.
+const PAYMENT_METHODS = ['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD'];
+
 const initiatePaymentSchema = {
   params: z.object({
     id: uuidSchema,
@@ -22,6 +27,7 @@ const initiatePaymentSchema = {
   body: z
     .object({
       purpose: z.enum(['COMMITMENT', 'BALANCE']).optional(),
+      method: z.enum(PAYMENT_METHODS).optional(),
       language: orderLanguageSchema,
       // Mass-assignment protection: always stripped (incl. dev/test levers)
       mockOutcome: z.unknown().optional(),
@@ -39,6 +45,7 @@ const initiatePaymentSchema = {
     })
     .transform((body) => ({
       purpose: body.purpose,
+      method: body.method,
       language: body.language,
     })),
 };

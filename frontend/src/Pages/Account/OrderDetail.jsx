@@ -203,6 +203,15 @@ const OrderDetail = () => {
         setActionMessage(
           `✓ ${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
         );
+        // Flutterwave UG mobile money: the provider hosts a confirmation page
+        // (customer authorizes there; outcome still arrives via webhook and is
+        // picked up by the existing polling below). CARD redirect-return flow
+        // is NOT implemented yet — do not treat this as card support.
+        const checkoutUrl = res.data?.checkoutUrl;
+        if (checkoutUrl) {
+          window.location.href = checkoutUrl;
+          return;
+        }
         await fetchOrderDetails();
       }
     } catch (err) {

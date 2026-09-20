@@ -116,11 +116,64 @@ function validateProductionConfig(config, rawEnv = {}) {
     problems.push('PAYMENT_PROVIDER=MOCK is not allowed in production.');
   }
 
+  // 7. Flutterwave: production (or any LIVE mode) requires REAL credentials.
+  // Placeholder strings from docs/examples are rejected, as are degenerate
+  // values. Real dashboard-issued TEST keys (FLWPUBK_TEST-…/FLWSECK_TEST-…)
+  // remain acceptable in production while PAYMENT_MODE=TEST (sandbox), but
+  // are rejected when PAYMENT_MODE=LIVE. Only variable NAMES are reported.
+  const provider = String(config.PAYMENT_PROVIDER || '').toUpperCase();
+  const mode = String(config.PAYMENT_MODE || 'TEST').toUpperCase();
+  if (provider === 'FLUTTERWAVE' && (mode === 'LIVE' || config.NODE_ENV === 'production')) {
+    const flwCreds = [
+      { name: 'FLW_PUBLIC_KEY', value: String(config.FLW_PUBLIC_KEY || '') },
+      { name: 'FLW_SECRET_KEY', value: String(config.FLW_SECRET_KEY || '') },
+    ];
+    for (const { name, value } of flwCreds) {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        problems.push(
+          `${name} is required in production when PAYMENT_PROVIDER=FLUTTERWAVE (no default is allowed).`
+        );
+      } else if (looksLikeFlutterwavePlaceholder(trimmed)) {
+        problems.push(
+          `${name} is set to an obvious placeholder/dummy value and is rejected in production.`
+        );
+      }
+    }
+    if (mode === 'LIVE') {
+      if (String(config.FLW_PUBLIC_KEY || '').includes('_TEST-')) {
+        problems.push(
+          'PAYMENT_MODE=LIVE is configured but FLW_PUBLIC_KEY looks like a TEST key (contains "_TEST-").'
+        );
+      }
+      if (String(config.FLW_SECRET_KEY || '').includes('_TEST-')) {
+        problems.push(
+          'PAYMENT_MODE=LIVE is configured but FLW_SECRET_KEY looks like a TEST key (contains "_TEST-").'
+        );
+      }
+    }
+  }
+
   return problems;
+}
+
+// Placeholder/dummy shapes for Flutterwave keys: documented example tokens
+// ("placeholder", "example", "dummy", "replace", runs of the same character)
+// and degenerate values. NOTE: real dashboard-issued TEST keys contain
+// "_TEST-" and are NOT placeholders — the TEST/LIVE mismatch is checked
+// separately below.
+const FLW_PLACEHOLDER_PATTERN = /(placeholder|example|dummy|replace|xxxxx)/i;
+
+function looksLikeFlutterwavePlaceholder(value) {
+  if (!value || value.length < 8) return true;
+  if (FLW_PLACEHOLDER_PATTERN.test(value)) return true;
+  const unique = new Set(value.toLowerCase()).size;
+  return unique <= 2; // e.g. "xxxxxxxx", "0000000000"
 }
 
 module.exports = {
   validateProductionConfig,
+  looksLikeFlutterwavePlaceholder,
   PRODUCTION_MIN_SECRET_LENGTH,
   PRODUCTION_REQUIRED_RAW,
   PRODUCTION_FORBIDDEN_VALUES,

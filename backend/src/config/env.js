@@ -33,6 +33,13 @@ const envSchema = z.object({
 
   // Payment
   PAYMENT_PROVIDER: z.enum(['MOCK', 'FLUTTERWAVE', 'MTN_MOMO', 'AIRTEL_MONEY']).default('MOCK'),
+  // TEST (sandbox) | LIVE. Real credentials are only required in production
+  // (validated in config/envValidation.js); tests never need them.
+  PAYMENT_MODE: z.enum(['TEST', 'LIVE']).default('TEST'),
+  // Flutterwave credentials. Empty defaults keep development/test running
+  // without any real credentials (tests must never call the real API).
+  FLW_PUBLIC_KEY: z.string().default(''),
+  FLW_SECRET_KEY: z.string().default(''),
   PAYMENT_WEBHOOK_SECRET: z.string().default('ufm_mock_webhook_secret_2026'),
   PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
 

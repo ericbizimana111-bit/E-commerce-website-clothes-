@@ -28,6 +28,10 @@ async function initiatePayment(req, res, next) {
         order: formatOrder(result.order, req.body?.language || 'EN', { includeHistory: false }),
         reused: result.reused || undefined,
         balance: result.balance || undefined,
+        // Phase 12 Step 2: provider-hosted confirmation/redirect URL when the
+        // adapter returns one (e.g. Flutterwave UG mobile money). The frontend
+        // only navigates; success is still decided server-side via webhook.
+        checkoutUrl: result.initiation?.checkoutUrl || undefined,
       },
     });
   } catch (error) {
