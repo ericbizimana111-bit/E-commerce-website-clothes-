@@ -23,6 +23,18 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
+/**
+ * Input-time normalization: preserve trailing hyphens so admins can type
+ * "fresh-" while composing "fresh-fruits". The strict slug is produced by
+ * slugify() on submit.
+ */
+function normalizeSlugInput(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-');
+}
+
 export default function CategoryFormModal({ category, onClose, onSaved }) {
   const isEdit = Boolean(category?.id);
   const [slug, setSlug] = useState(category?.slug || '');
@@ -57,8 +69,9 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
 
   const validate = () => {
     const errors = {};
-    if (!slug.trim()) errors.slug = 'Slug is required.';
-    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug.trim())) {
+    const finalSlug = slugify(slug.trim());
+    if (!finalSlug) errors.slug = 'Slug is required.';
+    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
       errors.slug = 'Lowercase letters/numbers separated by hyphens only.';
     }
     const named = LANGUAGES.filter((l) => translations[l.code]?.name?.trim());
@@ -80,7 +93,7 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
     setSubmitting(true);
     try {
       const payload = {
-        slug: slug.trim(),
+        slug: slugify(slug.trim()),
         translations: LANGUAGES.filter((l) => translations[l.code]?.name?.trim()).map((l) => ({
           language: l.code,
           name: translations[l.code].name.trim(),
@@ -130,7 +143,7 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
                 id="cat-slug"
                 type="text"
                 value={slug}
-                onChange={(e) => setSlug(slugify(e.target.value))}
+                onChange={(e) => setSlug(normalizeSlugInput(e.target.value))}
                 placeholder="matooke-tubers"
                 disabled={submitting}
               />

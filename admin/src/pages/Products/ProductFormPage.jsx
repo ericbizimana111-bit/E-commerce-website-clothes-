@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ImagePlus, Save, Star, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import { DetailSkeleton } from '../../components/ui/loaders';
@@ -9,13 +9,18 @@ import './ProductFormPage.css';
 
 /**
  * Product create/edit.
- * Contract (verified against backend validators):
- *  - POST /api/admin/products   { categoryId, slug, priceUgx, stockQuantity?, unit?, sku?, isActive?, translations:[{language,name,description?}] }
- *  - PUT  /api/admin/products/:id  (same, all optional except present fields must be valid)
- *  - slug: lowercase alphanumeric with hyphens; priceUgx integer UGX; quantity >= 0
+ * Contract (verified against backend validators/routes):
+ *  - POST /api/admin/catalog/products            { categoryId, slug, priceUgx, stockQuantity?, unit?, sku?, isActive?, translations:[{language,name,description?}] }
+ *  - GET  /api/admin/catalog/products/:id        -> { success, data: { ...product, category, translations, images } }
+ *  - PUT  /api/admin/catalog/products/:id        (partial update; untouched fields preserved server-side)
+ *  - POST /api/admin/catalog/products/:id/images (multipart "image" file; JPEG/PNG/WebP/GIF, max 5MB)
+ *  - PUT  /api/admin/catalog/products/:id/images { images: [{ imageUrl, altText?, isPrimary?, sortOrder? }] }
+ *  - DELETE /api/admin/catalog/products/:id/images/:imageId
+ *  - slug: lowercase alphanumeric with hyphens; priceUgx integer UGX
  *  - languages: en, lg, fr, sw; at least one translation required on create
  * Prices/stock are entered as integers and sent as integers — no client-side
- * financial arithmetic; the backend remains authoritative.
+ * financial arithmetic; the backend remains authoritative. Stock on edit is
+ * intentionally NOT editable here: inventory restock/adjust owns it.
  */
 
 const LANGUAGES = [
@@ -36,11 +41,28 @@ const EMPTY_FORM = {
   translations: { en: { name: '', description: '' }, lg: { name: '', description: '' }, fr: { name: '', description: '' }, sw: { name: '', description: '' } },
 };
 
+const PLACEHOLDER = '/img-placeholder.svg';
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // must match backend limit (5 MB)
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
 function slugify(value) {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Input-time normalization: lowercase and map invalid characters to hyphens,
+ * but PRESERVE trailing hyphens so admins can type "fresh-" while composing
+ * "fresh-matooke" (slugify's trailing strip made hyphens untypable).
+ * The strict slug form is produced by slugify() on submit.
+ */
+function normalizeSlugInput(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-{2,}/g, '-');
 }
 
 export default function ProductFormPage() {
@@ -52,10 +74,15 @@ export default function ProductFormPage() {
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [images, setImages] = useState([]);
+  // Pending image picked on CREATE (uploaded right after the product exists)
+  const [pendingImage, setPendingImage] = useState(null); // { file, previewUrl }
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState(null);
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState(null);
   const [validation, setValidation] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     api
@@ -68,10 +95,9 @@ export default function ProductFormPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      // GET /api/admin/catalog/products?search=<slug> is list-level; the admin API has
-      // no single-product endpoint, so pull the list page and locate the row.
-      const res = await api.get(`/admin/catalog/products?page=1&limit=100&search=${encodeURIComponent(id)}`);
-      const product = (res?.items || []).find((p) => String(p.id) === String(id));
+      // GET /api/admin/catalog/products/:id — single-product admin endpoint.
+      const res = await api.get(`/admin/catalog/products/${id}`);
+      const product = res?.data;
       if (!product) {
         throw new Error('Product not found.');
       }
@@ -90,7 +116,7 @@ export default function ProductFormPage() {
         isActive: Boolean(product.isActive),
         translations: { ...EMPTY_FORM.translations, ...translations },
       });
-      setImages(product.images || []);
+      setImages(Array.isArray(product.images) ? product.images : []);
     } catch (err) {
       setLoadError(err.message || 'Unable to load product.');
     } finally {
@@ -101,6 +127,13 @@ export default function ProductFormPage() {
   useEffect(() => {
     if (isEdit) load();
   }, [isEdit, load]);
+
+  // Revoke object URLs for the pending preview when it changes/unmounts.
+  useEffect(() => {
+    return () => {
+      if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
+    };
+  }, [pendingImage]);
 
   const setField = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -115,8 +148,9 @@ export default function ProductFormPage() {
 
   const validate = () => {
     const errors = {};
-    if (!form.slug.trim()) errors.slug = 'Slug is required.';
-    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug.trim())) {
+    const finalSlug = slugify(form.slug.trim());
+    if (!finalSlug) errors.slug = 'Slug is required.';
+    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
       errors.slug = 'Slug must be lowercase letters/numbers separated by hyphens.';
     }
     if (!form.categoryId) errors.categoryId = 'Select a category.';
@@ -136,6 +170,98 @@ export default function ProductFormPage() {
     return Object.keys(errors).length === 0;
   };
 
+  /** Client-side mirror of the backend image validation (immediate feedback; the backend re-validates everything). */
+  const pickImage = (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = ''; // allow re-picking the same file after a fix
+    setImageError(null);
+    if (!file) return;
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('Unsupported file type. Use JPEG, PNG, WebP, or GIF.');
+      return;
+    }
+    if (file.size === 0) {
+      setImageError('The selected file is empty.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('Image is larger than the 5 MB limit.');
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    if (isEdit) {
+      uploadImage(file);
+    } else {
+      setPendingImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return { file, previewUrl };
+      });
+    }
+  };
+
+  /** Upload a file to an existing (or newly created) product via multipart POST. */
+  const uploadImage = async (file, productId = id) => {
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      const data = new FormData();
+      data.append('image', file);
+      await api.post(`/admin/catalog/products/${productId}/images`, data);
+      showToast('Image uploaded.', { type: 'success' });
+      if (String(productId) === String(id)) await load();
+      return true;
+    } catch (err) {
+      setImageError(err.message || 'Image upload failed.');
+      showToast(err.message || 'Image upload failed.', { type: 'error' });
+      return false;
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  /** Remove an image (edit mode). Backend deletes the row; file cleanup is reference-checked server-side. */
+  const removeImage = async (image) => {
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      await api.delete(`/admin/catalog/products/${id}/images/${image.id}`);
+      showToast('Image removed.', { type: 'success' });
+      await load();
+    } catch (err) {
+      setImageError(err.message || 'Failed to remove image.');
+      showToast(err.message || 'Failed to remove image.', { type: 'error' });
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  /** Make an image primary by re-sending the full ordered set (existing PUT endpoint). */
+  const makePrimary = async (image) => {
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      const ordered = [
+        { imageUrl: image.imageUrl, altText: image.altText || undefined, isPrimary: true, sortOrder: 0 },
+        ...images
+          .filter((img) => img.id !== image.id)
+          .map((img, index) => ({
+            imageUrl: img.imageUrl,
+            altText: img.altText || undefined,
+            isPrimary: false,
+            sortOrder: index + 1,
+          })),
+      ];
+      await api.put(`/admin/catalog/products/${id}/images`, { images: ordered });
+      showToast('Primary image updated.', { type: 'success' });
+      await load();
+    } catch (err) {
+      setImageError(err.message || 'Failed to update the primary image.');
+      showToast(err.message || 'Failed to update the primary image.', { type: 'error' });
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -144,7 +270,7 @@ export default function ProductFormPage() {
     setSubmitting(true);
     try {
       const payload = {
-        slug: form.slug.trim(),
+        slug: slugify(form.slug.trim()),
         categoryId: Number(form.categoryId),
         priceUgx: Math.round(Number(form.priceUgx)),
         isActive: form.isActive,
@@ -158,17 +284,30 @@ export default function ProductFormPage() {
         payload.stockQuantity = Math.round(Number(form.stockQuantity));
       }
       if (form.unit.trim()) payload.unit = form.unit.trim();
-      if (form.sku.trim()) payload.sku = form.sku.trim();
+      // Send sku explicitly (null allowed) so admins can also CLEAR a SKU.
+      payload.sku = form.sku.trim() || null;
 
+      let createdId = null;
       if (isEdit) {
-        // PUT /api/admin/products/:id
+        // PUT /api/admin/catalog/products/:id — partial update; untouched fields are preserved server-side.
         await api.put(`/admin/catalog/products/${id}`, payload);
         showToast('Product updated successfully.', { type: 'success' });
       } else {
-        // POST /api/admin/products
-        await api.post('/admin/catalog/products', payload);
+        // POST /api/admin/catalog/products
+        const res = await api.post('/admin/catalog/products', payload);
+        createdId = res?.data?.id || null;
         showToast('Product created successfully.', { type: 'success' });
       }
+
+      // Upload the image chosen during CREATE now that the product exists.
+      if (!isEdit && pendingImage?.file) {
+        if (createdId) {
+          await uploadImage(pendingImage.file, createdId);
+        } else {
+          setImageError('Product was created but its ID was missing from the response; the image was not uploaded.');
+        }
+      }
+
       navigate('/products');
     } catch (err) {
       showToast(err.message || 'Save failed. Check the form and try again.', { type: 'error' });
@@ -211,7 +350,7 @@ export default function ProductFormPage() {
                 id="pf-slug"
                 type="text"
                 value={form.slug}
-                onChange={(e) => setField('slug', slugify(e.target.value))}
+                onChange={(e) => setField('slug', normalizeSlugInput(e.target.value))}
                 placeholder="fresh-green-matooke"
                 disabled={submitting}
               />
@@ -349,15 +488,108 @@ export default function ProductFormPage() {
           ))}
         </fieldset>
 
-        {isEdit && images.length > 0 && (
-          <fieldset>
-            <legend>Images ({images.length})</legend>
-            <p className="field-hint">
-              Images are managed through the backend image API. Current primary:{' '}
-              {images.find((i) => i.isPrimary)?.imageUrl || images[0]?.imageUrl || 'none'}
-            </p>
-          </fieldset>
-        )}
+        <fieldset>
+          <legend>Images</legend>
+          <p className="field-hint">
+            {isEdit
+              ? 'Upload adds the image to this product immediately. The primary image is what customers see first.'
+              : 'Pick an image to attach — it is uploaded right after the product is created. JPEG, PNG, WebP, or GIF up to 5 MB.'}
+          </p>
+
+          {imageError && (
+            <div className="alert alert--error" role="alert" style={{ marginBottom: 12 }}>
+              <span>{imageError}</span>
+            </div>
+          )}
+
+          <div className="product-form__images">
+            {(isEdit ? images : []).map((img) => (
+              <div key={img.id} className="product-form__image-card">
+                <img
+                  src={img.imageUrl}
+                  alt={img.altText || 'Product image'}
+                  className="product-form__image-thumb"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = PLACEHOLDER;
+                  }}
+                />
+                {img.isPrimary && (
+                  <span className="product-form__image-primary" title="Primary image">
+                    <Star size={11} aria-hidden="true" /> Primary
+                  </span>
+                )}
+                <div className="product-form__image-actions">
+                  {!img.isPrimary && (
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      onClick={() => makePrimary(img)}
+                      disabled={imageBusy || submitting}
+                      aria-label={`Set image ${img.id} as primary`}
+                    >
+                      <Star size={12} aria-hidden="true" />
+                      Set primary
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => removeImage(img)}
+                    disabled={imageBusy || submitting}
+                    aria-label={`Remove image ${img.id}`}
+                  >
+                    <Trash2 size={12} aria-hidden="true" />
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {!isEdit && pendingImage && (
+              <div className="product-form__image-card">
+                <img
+                  src={pendingImage.previewUrl}
+                  alt="Selected product image preview"
+                  className="product-form__image-thumb"
+                />
+                <span className="product-form__image-primary" title="Will be the primary image">
+                  <Star size={11} aria-hidden="true" /> Primary
+                </span>
+                <div className="product-form__image-actions">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => {
+                      URL.revokeObjectURL(pendingImage.previewUrl);
+                      setPendingImage(null);
+                    }}
+                    disabled={submitting}
+                  >
+                    <Trash2 size={12} aria-hidden="true" />
+                    Discard
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="product-form__image-upload">
+              <input
+                ref={fileInputRef}
+                id="pf-image"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={pickImage}
+                disabled={imageBusy || submitting}
+                aria-label="Choose product image"
+              />
+              <label htmlFor="pf-image" className="btn btn--secondary btn--sm product-form__image-label">
+                <ImagePlus size={13} aria-hidden="true" />
+                {imageBusy ? 'Working…' : isEdit ? 'Upload image' : 'Choose image'}
+              </label>
+            </div>
+          </div>
+        </fieldset>
 
         <div className="product-form__actions">
           <Link to="/products" className="btn btn--secondary">

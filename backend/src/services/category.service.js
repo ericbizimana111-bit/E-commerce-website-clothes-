@@ -235,7 +235,7 @@ async function updateCategory(id, data, adminId = null, ipAddress = null) {
     const updatePayload = {};
     if (data.slug) updatePayload.slug = data.slug.trim().toLowerCase();
     if (data.displayOrder !== undefined) updatePayload.displayOrder = data.displayOrder;
-    if (data.imageUrl !== undefined) updatePayload.imageUrl = data.imageUrl;
+    if (data.imageUrl !== undefined) updatePayload.imageUrl = data.imageUrl || null;
     if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
 
     if (Array.isArray(data.translations) && data.translations.length > 0) {

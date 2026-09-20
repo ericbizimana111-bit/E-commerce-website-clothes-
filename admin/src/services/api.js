@@ -53,9 +53,13 @@ async function request(endpoint, options = {}) {
     ? endpoint
     : `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
+  // FormData (multipart upload) is passed through untouched: the browser sets
+  // the multipart boundary Content-Type, and the body must not be JSON-encoded.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const headers = {
     Accept: 'application/json',
-    ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...(options.body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     ...options.headers,
   };
@@ -65,7 +69,7 @@ async function request(endpoint, options = {}) {
     response = await fetch(url, {
       ...options,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: options.body === undefined ? undefined : isFormData ? options.body : JSON.stringify(options.body),
     });
   } catch {
     throw new ApiError(
