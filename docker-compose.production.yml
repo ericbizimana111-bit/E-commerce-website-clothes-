@@ -1,0 +1,108 @@
+# ── UgaMarket — production compose stack ─────────────────────────────────────
+# Topology:
+#   Internet → web (nginx :80 customer / :8080 admin, TLS terminates here)
+#                → backend:4000 (internal only)
+#                     → postgres:5432 (internal only, persistent volume)
+#                     → uploads volume (persistent product images)
+#
+# Usage:
+#   cp .env.production.example .env.production   # then fill in REAL secrets
+#   docker compose --env-file .env.production -f docker-compose.production.yml config
+#   docker compose --env-file .env.production -f docker-compose.production.yml build
+#   docker compose --env-file .env.production -f docker-compose.production.yml up -d
+#
+# Migrations are an EXPLICIT deployment operation (never run at app startup):
+#   docker compose --env-file .env.production -f docker-compose.production.yml \
+#     --profile tools run --rm migrate
+#
+# This stack creates its OWN fresh PostgreSQL volume. It does NOT connect to
+# or modify any existing local development database.
+
+name: ugamarket-production
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required in .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # No published ports: PostgreSQL is reachable ONLY inside the compose network.
+    networks:
+      - internal
+
+  backend:
+    build: ./backend
+    image: ugamarket-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    volumes:
+      # Persistent uploaded product images — survive container replacement.
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${PORT:-4000}/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # No published ports: the reverse proxy is the single public entry point.
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    image: ugamarket-web:latest
+    restart: unless-stopped
+    ports:
+      # Customer web — public entry point. In production, TLS terminates here
+      # (see deploy/nginx.conf for the 443 placeholder).
+      - "80:80"
+      # Admin web — bound to localhost only by default; map to the admin
+      # domain/front-end load balancer in production.
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # Explicit, one-off migration operation (NEVER runs automatically):
+  #   docker compose --env-file .env.production -f docker-compose.production.yml \
+  #     --profile tools run --rm migrate
+  migrate:
+    image: ugamarket-backend:latest
+    profiles: ["tools"]
+    env_file:
+      - .env.production
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  internal:
+    driver: bridge

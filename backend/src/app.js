@@ -27,6 +27,11 @@ const notificationRoutes = require('./routes/notification.routes');
 
 const app = express();
 
+// Trust exactly one proxy hop (the production reverse proxy) so rate limiting
+// and audit logs see real client IPs from X-Forwarded-For instead of the
+// proxy address. Harmless in local development (no proxy in front).
+app.set('trust proxy', 1);
+
 // 1. Security Headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },

@@ -3,8 +3,8 @@ const env = require('./src/config/env');
 const prisma = require('./src/config/db');
 const logger = require('./src/utils/logger');
 
-const server = app.listen(env.PORT, () => {
-  logger.info(`🚀 Uganda Food Marketplace API running on port ${env.PORT} [${env.NODE_ENV}]`);
+const server = app.listen(env.PORT, env.HOST, () => {
+  logger.info(`🚀 Uganda Food Marketplace API running on ${env.HOST}:${env.PORT} [${env.NODE_ENV}]`);
   logger.info(`📍 Connected to PostgreSQL via Prisma`);
 });
 

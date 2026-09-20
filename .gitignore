@@ -1,0 +1,10 @@
+# Production environment files (never commit real secrets)
+.env.production
+
+# TLS certificates / private keys are deployment-specific — never commit
+deploy/certs/
+*.pem
+*.key
+
+# Docker runtime artifacts (volumes live outside the repository)
+docker-compose.override.yml

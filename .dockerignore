@@ -1,0 +1,29 @@
+# Root context is used by deploy/web.Dockerfile (customer + admin builds).
+# Dependencies are installed inside the images.
+**/node_modules
+
+# Never bake environment files, secrets or certificates into images.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+deploy/certs
+
+# Git / editor / OS noise
+.git
+.kilo
+**/.DS_Store
+**/Thumbs.db
+
+# Prior build outputs are rebuilt inside the images.
+**/build
+**/dist
+
+# Backend has its own build context (./backend) — excluded here to keep the
+# web build context small.
+backend
+
+# Logs and coverage
+**/*.log
+**/coverage

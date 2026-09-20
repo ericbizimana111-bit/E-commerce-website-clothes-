@@ -1,0 +1,27 @@
+# Dependencies are installed inside the image — never copy from the host.
+node_modules
+
+# Never bake environment files or secrets into images.
+.env
+.env.*
+!.env.example
+
+# Git / CI artifacts
+.git
+.gitignore
+
+# Development-only artifacts (not needed at runtime)
+tests
+docs
+scripts
+coverage
+*.log
+
+# Uploaded product images are PERSISTENT DATA: they are excluded from the
+# image and must be provided at runtime as a volume mount over /app/uploads.
+# The Dockerfile creates an empty /app/uploads/images owned by `node`.
+uploads
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
