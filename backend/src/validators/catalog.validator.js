@@ -28,6 +28,19 @@ const slugParamSchema = {
   }),
 };
 
+const imageIdParamSchema = {
+  params: z.object({
+    id: z.coerce
+      .number({ invalid_type_error: 'ID must be a number' })
+      .int('ID must be an integer')
+      .positive('ID must be a positive integer'),
+    imageId: z.coerce
+      .number({ invalid_type_error: 'Image ID must be a number' })
+      .int('Image ID must be an integer')
+      .positive('Image ID must be a positive integer'),
+  }),
+};
+
 const translationItemSchema = z.object({
   language: languageEnum,
   name: z.string({ required_error: 'Translation name is required' }).trim().min(1, 'Name cannot be empty').max(200),
@@ -62,6 +75,16 @@ const imageItemSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(10000).optional(),
 });
 
+// Optional variant for category.imageUrl: empty/null is allowed, but a
+// provided value must still be a safe http(s) URL or /images/ app path.
+const optionalSafeImageUrlSchema = z
+  .union([z.string(), z.null()])
+  .optional()
+  .refine(
+    (val) => val === undefined || val === null || val === '' || safeImageUrlSchema.safeParse(val).success,
+    'Image URL must be an absolute http(s) URL or a relative /images/ path (no traversal)'
+  );
+
 // Category Validators
 const createCategorySchema = {
   body: z.object({
@@ -72,7 +95,7 @@ const createCategorySchema = {
       .max(100)
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens (e.g. fresh-produce)'),
     displayOrder: z.coerce.number().int().min(0).optional().default(0),
-    imageUrl: z.string().trim().optional().nullable(),
+    imageUrl: optionalSafeImageUrlSchema,
     isActive: z.boolean().optional().default(true),
     translations: z
       .array(translationItemSchema)
@@ -94,7 +117,7 @@ const updateCategorySchema = {
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
       .optional(),
     displayOrder: z.coerce.number().int().min(0).optional(),
-    imageUrl: z.string().trim().optional().nullable(),
+    imageUrl: optionalSafeImageUrlSchema,
     isActive: z.boolean().optional(),
     translations: z
       .array(translationItemSchema)
@@ -236,6 +259,7 @@ const publicCategoryQuerySchema = {
 module.exports = {
   idParamSchema,
   slugParamSchema,
+  imageIdParamSchema,
   createCategorySchema,
   updateCategorySchema,
   toggleCategoryActiveSchema,
