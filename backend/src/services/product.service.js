@@ -3,6 +3,7 @@ const { AppError } = require('../middleware/errorHandler');
 const { normalizeLanguage, resolveTranslation } = require('../utils/translation');
 const { formatLocalizedCategory } = require('./category.service');
 const { logAudit } = require('./audit.service');
+const imageService = require('./image.service');
 
 /**
  * Format product entity for public responses with localized translation and structured availability
@@ -510,6 +511,151 @@ async function updateProduct(id, data, adminId = null, ipAddress = null) {
 }
 
 /**
+ * Admin: Get a single product with full detail (category, translations, images).
+ * Backs GET /api/admin/catalog/products/:id so the admin edit form can load
+ * reliably by ID (the list search endpoint only matches text fields).
+ */
+async function getProductByIdForAdmin(id) {
+  const productId = parseInt(id, 10);
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: {
+      category: {
+        include: { translations: true },
+      },
+      translations: true,
+      images: {
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { id: 'asc' }],
+      },
+    },
+  });
+
+  if (!product) {
+    throw new AppError(`Product with ID ${id} not found`, 404);
+  }
+
+  return product;
+}
+
+/**
+ * Admin: Upload and attach an image file to a product.
+ * Validates the buffer (MIME allowlist + magic bytes), stores it under a
+ * server-generated safe filename, and persists the ProductImage reference.
+ */
+async function uploadProductImage(id, file, { altText = null, isPrimary = false } = {}, adminId = null, ipAddress = null) {
+  const productId = parseInt(id, 10);
+  const product = await prisma.product.findUnique({ where: { id: productId }, include: { images: true } });
+  if (!product) {
+    throw new AppError(`Product with ID ${id} not found`, 404);
+  }
+
+  if (!file || !file.buffer || file.size === 0) {
+    throw new AppError('No image file received. Send multipart/form-data with an "image" field', 400);
+  }
+
+  // Validates MIME allowlist, 5 MB limit, and real file signature; generates a
+  // safe random filename. Throws 400 AppError on any violation.
+  const publicUrl = imageService.saveImageFile(file.buffer, file.mimetype);
+
+  const existingImages = product.images;
+  const makePrimary = isPrimary === true || isPrimary === 'true' || existingImages.length === 0;
+  const replacedPrimary = existingImages.find((img) => img.isPrimary);
+
+  const created = await prisma.$transaction(async (tx) => {
+    if (makePrimary) {
+      await tx.productImage.updateMany({
+        where: { productId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    const row = await tx.productImage.create({
+      data: {
+        productId,
+        imageUrl: publicUrl,
+        altText: altText && String(altText).trim() ? String(altText).trim().slice(0, 255) : null,
+        sortOrder: existingImages.length,
+        isPrimary: makePrimary,
+      },
+    });
+
+    // Product.imageUrl is the denormalized primary-image reference used by
+    // legacy consumers; keep it in sync with the primary ProductImage.
+    if (makePrimary) {
+      await tx.product.update({ where: { id: productId }, data: { imageUrl: publicUrl } });
+    }
+
+    return row;
+  });
+
+  await logAudit({
+    adminId,
+    action: 'PRODUCT_IMAGE_UPLOAD',
+    entityName: 'Product',
+    entityId: productId,
+    details: { imageUrl: publicUrl, isPrimary: makePrimary },
+    ipAddress,
+  });
+
+  // Reference-counted best-effort cleanup of a replaced primary file.
+  if (makePrimary && replacedPrimary && replacedPrimary.imageUrl !== publicUrl) {
+    await imageService.cleanupOrphanedImageFile(replacedPrimary.imageUrl);
+  }
+
+  return created;
+}
+
+/**
+ * Admin: Remove a product image. Deletes the DB row; the backing file is only
+ * unlinked when no other product/category references it.
+ */
+async function deleteProductImage(id, imageId, adminId = null, ipAddress = null) {
+  const productId = parseInt(id, 10);
+  const imgId = parseInt(imageId, 10);
+
+  const image = await prisma.productImage.findUnique({ where: { id: imgId } });
+  if (!image || image.productId !== productId) {
+    throw new AppError(`Image with ID ${imageId} not found for product ${id}`, 404);
+  }
+
+  const removed = await prisma.$transaction(async (tx) => {
+    await tx.productImage.delete({ where: { id: imgId } });
+
+    // If we removed the primary image, promote the first remaining image so
+    // the product always has a deterministic primary, and keep the denormalized
+    // Product.imageUrl reference in sync.
+    if (image.isPrimary) {
+      const nextPrimary = await tx.productImage.findFirst({
+        where: { productId },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      });
+      if (nextPrimary) {
+        await tx.productImage.update({ where: { id: nextPrimary.id }, data: { isPrimary: true } });
+        await tx.product.update({ where: { id: productId }, data: { imageUrl: nextPrimary.imageUrl } });
+      } else {
+        await tx.product.update({ where: { id: productId }, data: { imageUrl: null } });
+      }
+    }
+
+    return image;
+  });
+
+  await logAudit({
+    adminId,
+    action: 'PRODUCT_IMAGE_DELETE',
+    entityName: 'Product',
+    entityId: productId,
+    details: { imageId: imgId, imageUrl: image.imageUrl },
+    ipAddress,
+  });
+
+  // Best-effort cleanup: only deletes provably orphaned local files.
+  await imageService.cleanupOrphanedImageFile(image.imageUrl);
+
+  return removed;
+}
+
+/**
  * Admin: Toggle product active status
  */
 async function toggleProductActive(id, isActive, adminId = null, ipAddress = null) {
@@ -590,8 +736,11 @@ module.exports = {
   getPublicProductBySlug,
   getPublicProductById,
   listAdminProducts,
+  getProductByIdForAdmin,
   createProduct,
   updateProduct,
   toggleProductActive,
   setProductImages,
+  uploadProductImage,
+  deleteProductImage,
 };

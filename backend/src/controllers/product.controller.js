@@ -51,6 +51,18 @@ async function listAdminProducts(req, res, next) {
   }
 }
 
+async function getAdminProductById(req, res, next) {
+  try {
+    const product = await productService.getProductByIdForAdmin(req.params.id);
+    res.json({
+      success: true,
+      data: product,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function createProduct(req, res, next) {
   try {
     const product = await productService.createProduct(req.body, req.admin?.id, req.ip);
@@ -118,6 +130,7 @@ module.exports = {
   getPublicProductBySlug,
   getPublicProductById,
   listAdminProducts,
+  getAdminProductById,
   createProduct,
   updateProduct,
   toggleProductActive,
