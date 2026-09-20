@@ -13,6 +13,13 @@ export default defineConfig({
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
+      // Backend-served product/category images (GET /images/...) so admin
+      // previews resolve in dev exactly like they do behind the production
+      // reverse proxy that fronts the backend origin.
+      '/images': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
     },
   },
   test: {
