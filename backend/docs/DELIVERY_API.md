@@ -1,4 +1,4 @@
-# UgaFresh Delivery & Fulfillment API (Phase 7)
+# UgaMarket Delivery & Fulfillment API (Phase 7)
 
 Backend fulfillment infrastructure for `HOME_DELIVERY` and `PICKUP_STATION` orders, built on top of the Phase 5 order lifecycle and Phase 6 payment infrastructure.
 

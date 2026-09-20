@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react';
 
 // UgaMarket Operations Console (admin).
 // Dev proxy forwards /api to the shared UgaMarket backend (same source of
-// truth as the customer frontend). In production, VITE_API_URL is used.
+// truth as the customer frontend). In production, VITE_API_URL (a PUBLIC,
+// non-secret build-time variable) points at the backend API base; when unset
+// the client falls back to same-origin '/api' behind the reverse proxy.
 export default defineConfig({
   plugins: [react()],
   server: {

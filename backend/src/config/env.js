@@ -44,12 +44,31 @@ const envSchema = z.object({
   COMMITMENT_MIN_AMOUNT: z.coerce.number().default(5000),
 });
 
+const { validateProductionConfig } = require('./envValidation');
+
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error('❌ Environment configuration validation failed:');
   console.error(JSON.stringify(parsed.error.format(), null, 2));
   process.exit(1);
+}
+
+// Environment-aware production hardening: production startup fails fast on
+// missing or unsafe security configuration (see config/envValidation.js for
+// the exact rules). Development and test keep their practical defaults so
+// existing workflows and the test suite are unaffected. Messages identify
+// variable names only — secret values are never printed.
+if (parsed.data.NODE_ENV === 'production') {
+  const problems = validateProductionConfig(parsed.data, process.env);
+  if (problems.length > 0) {
+    console.error('❌ Production environment configuration is invalid:');
+    for (const problem of problems) {
+      console.error(`  - ${problem}`);
+    }
+    console.error('Fix the environment configuration and restart. Secret values are never shown.');
+    process.exit(1);
+  }
 }
 
 module.exports = parsed.data;
