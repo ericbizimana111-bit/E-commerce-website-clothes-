@@ -53,6 +53,9 @@
 }
 
 .um-trust-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.8rem;
   color: #CBD5E1;
   background: rgba(255, 255, 255, 0.06);
@@ -107,6 +110,12 @@
   gap: 0.5rem;
   font-size: 0.85rem;
   color: #94A3B8;
+}
+
+.um-footer-contact-info div {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* Bottom */

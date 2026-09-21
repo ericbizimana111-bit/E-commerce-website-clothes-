@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext';
+import { AlertTriangle, ShieldCheck, Lock, Leaf, MapPin, CreditCard, Zap } from 'lucide-react';
 import './LoginSignup.css';
 
-// Official UgaMarket brand asset (frontend/public/logo.png)
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
 
 const LoginSignup = () => {
@@ -23,14 +23,12 @@ const LoginSignup = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If already authenticated, redirect
   useEffect(() => {
     if (isAuthenticated) {
       navigate(redirectUrl, { replace: true });
     }
   }, [isAuthenticated, navigate, redirectUrl]);
 
-  // If search query changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     setIsLogin(params.get('signup') !== 'true');
@@ -40,7 +38,6 @@ const LoginSignup = () => {
     e.preventDefault();
     setError('');
 
-    // Phone format basic check
     const cleanPhone = phone.trim();
     if (!cleanPhone.startsWith('07') && !cleanPhone.startsWith('+2567')) {
       setError('Please enter a valid Uganda phone number (e.g. 0770000000 or +256770000000)');
@@ -85,7 +82,43 @@ const LoginSignup = () => {
 
   return (
     <div className="um-auth-page">
-      <div className="container">
+      {/* Brand panel — visible on desktop only */}
+      <div className="um-auth-brand-panel">
+        <div className="um-auth-brand-inner">
+          <div className="um-auth-brand-logo">
+            <Leaf size={30} strokeWidth={1.5} />
+            <span>UgaMarket</span>
+          </div>
+          <h2 className="um-auth-brand-title">Uganda's Fresh Food Marketplace</h2>
+          <p className="um-auth-brand-tagline">
+            Farm-fresh produce from Ugandan farmers to your table — transparent, fair, and quality-checked.
+          </p>
+          <div className="um-auth-brand-perks">
+            <div className="um-auth-brand-perk">
+              <span className="um-auth-brand-perk-icon"><ShieldCheck size={15} strokeWidth={1.75} /></span>
+              <span>Inspect before paying the balance</span>
+            </div>
+            <div className="um-auth-brand-perk">
+              <span className="um-auth-brand-perk-icon"><Zap size={15} strokeWidth={1.75} /></span>
+              <span>Only 30% deposit to place your order</span>
+            </div>
+            <div className="um-auth-brand-perk">
+              <span className="um-auth-brand-perk-icon"><MapPin size={15} strokeWidth={1.75} /></span>
+              <span>Free pickup at nearby stations</span>
+            </div>
+            <div className="um-auth-brand-perk">
+              <span className="um-auth-brand-perk-icon"><CreditCard size={15} strokeWidth={1.75} /></span>
+              <span>MTN &amp; Airtel Mobile Money</span>
+            </div>
+          </div>
+          <p className="um-auth-brand-quote">
+            "Connecting Ugandan farmers with families who value freshness."
+          </p>
+        </div>
+      </div>
+
+      {/* Form panel */}
+      <div className="um-auth-form-panel">
         <div className="um-auth-card card">
           <div className="um-auth-header">
             <Link to="/" className="um-auth-logo">
@@ -107,7 +140,8 @@ const LoginSignup = () => {
 
           {error && (
             <div className="alert alert-error">
-              <span>⚠️ {error}</span>
+              <AlertTriangle size={16} strokeWidth={1.75} />
+              <span>{error}</span>
             </div>
           )}
 
@@ -181,14 +215,11 @@ const LoginSignup = () => {
           <div className="um-auth-footer">
             {isLogin ? (
               <p>
-                Don’t have an account yet?{' '}
+                Don&apos;t have an account yet?{' '}
                 <button
                   type="button"
                   className="um-auth-switch-btn"
-                  onClick={() => {
-                    setIsLogin(false);
-                    setError('');
-                  }}
+                  onClick={() => { setIsLogin(false); setError(''); }}
                 >
                   Create one here
                 </button>
@@ -199,10 +230,7 @@ const LoginSignup = () => {
                 <button
                   type="button"
                   className="um-auth-switch-btn"
-                  onClick={() => {
-                    setIsLogin(true);
-                    setError('');
-                  }}
+                  onClick={() => { setIsLogin(true); setError(''); }}
                 >
                   Login here
                 </button>
@@ -211,8 +239,8 @@ const LoginSignup = () => {
           </div>
 
           <div className="um-auth-trust-box">
-            <span>🇺🇬 Verified Ugandan Customer Marketplace</span>
-            <span>🔒 Secure password hashing & JWT token sessions</span>
+            <span><ShieldCheck size={13} strokeWidth={1.75} /> Verified Ugandan Customer Marketplace</span>
+            <span><Lock size={13} strokeWidth={1.75} /> Secure password hashing &amp; JWT token sessions</span>
           </div>
         </div>
       </div>

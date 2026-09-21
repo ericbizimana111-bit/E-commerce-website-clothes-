@@ -13,8 +13,16 @@
   gap: 1rem;
 }
 
-.um-empty-icon {
-  font-size: 3.5rem;
+.um-empty-cart-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
 }
 
 .um-empty-cart h2 {
@@ -337,6 +345,12 @@
   color: var(--slate);
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.um-summary-guarantees > div {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* Responsive */

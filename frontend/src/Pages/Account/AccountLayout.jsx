@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { Package, MapPin, Bell, ShoppingCart, LogOut } from 'lucide-react';
 import './Account.css';
 
 const AccountLayout = () => {
@@ -41,7 +42,7 @@ const AccountLayout = () => {
                   `um-account-nav-link ${isActive ? 'um-account-nav-link--active' : ''}`
                 }
               >
-                📦 {t('orders')}
+                <Package size={16} strokeWidth={1.75} /> {t('orders')}
               </NavLink>
 
               <NavLink
@@ -50,7 +51,7 @@ const AccountLayout = () => {
                   `um-account-nav-link ${isActive ? 'um-account-nav-link--active' : ''}`
                 }
               >
-                📍 {t('addresses')}
+                <MapPin size={16} strokeWidth={1.75} /> {t('addresses')}
               </NavLink>
 
               <NavLink
@@ -59,17 +60,17 @@ const AccountLayout = () => {
                   `um-account-nav-link ${isActive ? 'um-account-nav-link--active' : ''}`
                 }
               >
-                🔔 {t('notifications')}
+                <Bell size={16} strokeWidth={1.75} /> {t('notifications')}
               </NavLink>
 
               <div className="um-account-nav-divider" />
 
               <Link to="/catalog" className="um-account-nav-link">
-                🛒 Food Catalog
+                <ShoppingCart size={16} strokeWidth={1.75} /> Food Catalog
               </Link>
 
               <Link to="/pickup-stations" className="um-account-nav-link">
-                📍 Pickup Stations
+                <MapPin size={16} strokeWidth={1.75} /> Pickup Stations
               </Link>
 
               <button
@@ -77,7 +78,7 @@ const AccountLayout = () => {
                 onClick={logout}
                 className="um-account-nav-link um-account-nav-link--danger"
               >
-                🚪 {t('logout')}
+                <LogOut size={16} strokeWidth={1.75} /> {t('logout')}
               </button>
             </nav>
           </aside>

@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { Check, AlertTriangle, Info, X } from 'lucide-react';
 import './Toast.css';
 
 /**
@@ -47,7 +48,7 @@ export const ToastProvider = ({ children }) => {
             role="status"
           >
             <span className="um-toast-icon" aria-hidden="true">
-              {toast.type === 'success' ? '✓' : toast.type === 'error' ? '⚠' : 'ℹ'}
+              {toast.type === 'success' ? <Check size={15} strokeWidth={2.5} /> : toast.type === 'error' ? <AlertTriangle size={15} strokeWidth={1.75} /> : <Info size={15} strokeWidth={1.75} />}
             </span>
             <span className="um-toast-message">{toast.message}</span>
             <button
@@ -56,7 +57,7 @@ export const ToastProvider = ({ children }) => {
               onClick={() => dismissToast(toast.id)}
               aria-label="Dismiss notification"
             >
-              ×
+              <X size={14} strokeWidth={2} />
             </button>
           </div>
         ))}

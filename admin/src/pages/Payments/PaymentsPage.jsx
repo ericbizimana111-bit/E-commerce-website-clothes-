@@ -116,13 +116,13 @@ export default function PaymentsPage() {
             <tbody>
               {orders.map((o) => (
                 <tr key={o.id}>
-                  <td className="mono">{o.orderNumber}</td>
-                  <td>{o.customer?.fullName || '—'}</td>
-                  <td>{formatUGX(o.pricing?.totalUgx)}</td>
-                  <td>
+                  <td data-label="Order" className="mono">{o.orderNumber}</td>
+                  <td data-label="Customer">{o.customer?.fullName || '—'}</td>
+                  <td data-label="Total">{formatUGX(o.pricing?.totalUgx)}</td>
+                  <td data-label="Status">
                     <StatusBadge status={o.status} />
                   </td>
-                  <td>
+                  <td data-label="">
                     <button
                       type="button"
                       className="btn btn--secondary btn--sm"
@@ -228,14 +228,14 @@ export default function PaymentsPage() {
                       const meta = getPaymentStatusMeta(p.status);
                       return (
                         <tr key={p.id}>
-                          <td>{p.purpose === 'BALANCE' ? 'Balance' : 'Commitment'}</td>
-                          <td className="mono">{p.transactionRef}</td>
-                          <td>{p.provider}</td>
-                          <td>{formatUGX(p.amountUgx)}</td>
-                          <td>
+                          <td data-label="Purpose">{p.purpose === 'BALANCE' ? 'Balance' : 'Commitment'}</td>
+                          <td data-label="Reference" className="mono">{p.transactionRef}</td>
+                          <td data-label="Provider">{p.provider}</td>
+                          <td data-label="Amount">{formatUGX(p.amountUgx)}</td>
+                          <td data-label="Status">
                             <span className={`badge ${TONE_CLASS[meta.tone]}`}>{meta.label}</span>
                           </td>
-                          <td>{formatDateTime(p.createdAt)}</td>
+                          <td data-label="Created">{formatDateTime(p.createdAt)}</td>
                         </tr>
                       );
                     })}

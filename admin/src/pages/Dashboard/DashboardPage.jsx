@@ -170,7 +170,7 @@ export default function DashboardPage() {
           ) : (
             <div className="kpi-grid">
               {kpis.map((kpi) => (
-                <div key={kpi.label} className="kpi-card">
+                <div key={kpi.label} className={`kpi-card kpi-card--accent-${kpi.tone}`}>
                   <span className={`kpi-card__icon kpi-card__icon--${kpi.tone}`}>
                     <kpi.icon size={18} aria-hidden="true" />
                   </span>
@@ -206,18 +206,18 @@ export default function DashboardPage() {
                     <tbody>
                       {recentOrders.map((order) => (
                         <tr key={order.id}>
-                          <td>
+                          <td data-label="Order">
                             <Link to={`/orders/${order.id}`} className="mono">
                               {order.orderNumber}
                             </Link>
                             <div className="dash-table__sub">{formatDateTime(order.createdAt)}</div>
                           </td>
-                          <td>{order.customer?.fullName || '—'}</td>
-                          <td>{formatUGX(order.pricing?.totalUgx)}</td>
-                          <td>
+                          <td data-label="Customer">{order.customer?.fullName || '—'}</td>
+                          <td data-label="Total">{formatUGX(order.pricing?.totalUgx)}</td>
+                          <td data-label="Status">
                             <StatusBadge status={order.status} />
                           </td>
-                          <td>
+                          <td data-label="">
                             <Link
                               to={`/orders/${order.id}`}
                               className="dash-table__open"

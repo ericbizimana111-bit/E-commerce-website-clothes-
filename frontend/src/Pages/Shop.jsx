@@ -5,10 +5,20 @@ import { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
 import { ProductGridSkeleton, CategoryGridSkeleton } from '../Components/Skeletons/Skeletons';
 import { useLanguage } from '../Context/LanguageContext';
+import {
+  Leaf, Zap, ShieldCheck, Home, ShoppingBasket, CreditCard,
+  Truck, MapPin, Clock, ShoppingCart, AlertCircle, Package,
+} from 'lucide-react';
 import './Shop.css';
 
-const HeroImage = '/hero-produce.svg';
 const CatPlaceholder = '/img-placeholder.svg';
+
+const HERO_ITEMS = [
+  { icon: Leaf,          name: 'Matooke Clusters',  unit: 'per bunch',  price: 'UGX 12,000' },
+  { icon: Package,       name: 'Local Rice (5 kg)',  unit: 'per bag',    price: 'UGX 18,500' },
+  { icon: Zap,           name: 'Sukuma Wiki Bundle', unit: 'per bundle', price: 'UGX 4,000'  },
+  { icon: ShoppingBasket,name: 'Mixed Beans (2 kg)', unit: 'per pack',   price: 'UGX 9,000'  },
+];
 
 const Shop = () => {
   const { t, currentLang, getLocalizedField } = useLanguage();
@@ -24,8 +34,6 @@ const Shop = () => {
       try {
         setLoading(true);
         setError(false);
-        // GET /api/categories and GET /api/products return `data` (array);
-        // GET /api/pickup-stations returns `data.stations` (see pickupStation.routes.js).
         const [catRes, prodRes, stationRes] = await Promise.allSettled([
           apiClient.get(`/categories?lang=${currentLang}`),
           apiClient.get(`/products?limit=8&lang=${currentLang}`),
@@ -42,10 +50,7 @@ const Shop = () => {
           if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
             setStations(stationRes.value.data.stations.slice(0, 4));
           }
-          if (
-            catRes.status === 'rejected' &&
-            prodRes.status === 'rejected'
-          ) {
+          if (catRes.status === 'rejected' && prodRes.status === 'rejected') {
             setError(true);
           }
         }
@@ -58,9 +63,7 @@ const Shop = () => {
     };
 
     loadHomeData();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [currentLang]);
 
   return (
@@ -70,41 +73,49 @@ const Shop = () => {
         <div className="um-hero-container">
           <div className="um-hero-content">
             <div className="um-hero-badge">
-              <span className="um-badge-icon">🌿</span>
+              <Leaf size={14} strokeWidth={2} />
               <span>Farm Fresh Produce Direct to Your Door</span>
             </div>
             <h1 className="um-hero-title">
-              Uganda’s Fresh Food Marketplace, <span className="um-highlight">home to home.</span>
+              Uganda's Fresh Food Marketplace, <span className="um-highlight">home to home.</span>
             </h1>
             <p className="um-hero-description">
               Order fresh matooke, beans, local rice, fresh greens, and farm produce sourced straight from Ugandan farmers. Inspect your food on delivery and pay the balance only after quality check.
             </p>
             <div className="um-hero-actions">
               <Link to="/catalog" className="btn btn-primary btn-lg">
-                🛒 {t('startShopping')}
+                <ShoppingCart size={18} strokeWidth={1.75} />
+                {t('startShopping')}
               </Link>
               <Link to="/pickup-stations" className="btn btn-secondary btn-lg">
-                📍 {t('pickupStation')}s
+                <MapPin size={18} strokeWidth={1.75} />
+                {t('pickupStation')}s
               </Link>
             </div>
 
             <div className="um-hero-perks">
               <div className="um-perk-item">
-                <span className="um-perk-icon">⚡</span>
+                <div className="um-perk-icon">
+                  <Zap size={18} strokeWidth={1.75} />
+                </div>
                 <div>
                   <strong>Small Commitment Deposit</strong>
                   <span>Secure your harvest order early</span>
                 </div>
               </div>
               <div className="um-perk-item">
-                <span className="um-perk-icon">🛡️</span>
+                <div className="um-perk-icon">
+                  <ShieldCheck size={18} strokeWidth={1.75} />
+                </div>
                 <div>
                   <strong>Quality Guarantee</strong>
                   <span>Inspect before paying the balance</span>
                 </div>
               </div>
               <div className="um-perk-item">
-                <span className="um-perk-icon">🏡</span>
+                <div className="um-perk-icon">
+                  <Home size={18} strokeWidth={1.75} />
+                </div>
                 <div>
                   <strong>Home or Pickup</strong>
                   <span>Convenient collection points</span>
@@ -113,19 +124,33 @@ const Shop = () => {
             </div>
           </div>
 
-          <div className="um-hero-image-pane">
-            <div className="um-hero-image-card">
-              <img
-                src={HeroImage}
-                alt="Fresh Ugandan farm produce"
-                className="um-hero-img"
-              />
-              <div className="um-hero-floating-badge">
-                <div className="um-floating-circle">UGX</div>
-                <div>
-                  <strong>Fresh Matooke Clusters</strong>
-                  <span>Sourced directly from Ugandan farms</span>
+          <div className="um-hero-visual-pane">
+            <div className="um-hero-visual-card">
+              <div className="um-hvc-header">
+                <div className="um-hvc-status">
+                  <span className="um-hvc-dot" />
+                  Live Harvest Market
                 </div>
+                <span className="um-hvc-badge">Open Now</span>
+              </div>
+              <div className="um-hvc-items">
+                {HERO_ITEMS.map((item) => (
+                  <div key={item.name} className="um-hvc-row">
+                    <span className="um-hvc-icon"><item.icon size={16} strokeWidth={1.75} /></span>
+                    <div className="um-hvc-info">
+                      <strong>{item.name}</strong>
+                      <span>{item.unit}</span>
+                    </div>
+                    <span className="um-hvc-price">{item.price}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="um-hvc-footer">
+                <div className="um-hvc-stat"><strong>500+</strong><span>Farms</span></div>
+                <div className="um-hvc-divider" />
+                <div className="um-hvc-stat"><strong>30%</strong><span>Deposit</span></div>
+                <div className="um-hvc-divider" />
+                <div className="um-hvc-stat"><strong>MTN/Airtel</strong><span>Mobile Pay</span></div>
               </div>
             </div>
           </div>
@@ -136,7 +161,7 @@ const Shop = () => {
       <section className="um-how-it-works">
         <div className="container">
           <div className="um-section-header">
-            <span className="um-section-subtitle">Transparent & Fair Food Commerce</span>
+            <span className="um-section-subtitle">Transparent &amp; Fair Food Commerce</span>
             <h2 className="um-section-title">{t('howItWorks')}</h2>
             <p className="um-section-desc">
               We built UgaMarket so customers never have to worry about food quality or fake payments.
@@ -146,14 +171,18 @@ const Shop = () => {
           <div className="um-steps-grid">
             <div className="um-step-card">
               <div className="um-step-number">01</div>
-              <div className="um-step-icon">🧺</div>
+              <div className="um-step-icon">
+                <ShoppingBasket size={28} strokeWidth={1.5} />
+              </div>
               <h3>{t('howStep1Title')}</h3>
               <p>{t('howStep1Desc')}</p>
             </div>
 
             <div className="um-step-card um-step-card--highlight">
               <div className="um-step-number">02</div>
-              <div className="um-step-icon">💳</div>
+              <div className="um-step-icon um-step-icon--accent">
+                <CreditCard size={28} strokeWidth={1.5} />
+              </div>
               <h3>{t('howStep2Title')}</h3>
               <p>{t('howStep2Desc')}</p>
               <span className="um-step-badge">Commitment Deposit</span>
@@ -161,7 +190,9 @@ const Shop = () => {
 
             <div className="um-step-card">
               <div className="um-step-number">03</div>
-              <div className="um-step-icon">🚚</div>
+              <div className="um-step-icon">
+                <Truck size={28} strokeWidth={1.5} />
+              </div>
               <h3>{t('howStep3Title')}</h3>
               <p>{t('howStep3Desc')}</p>
               <span className="um-step-badge">Balance on Fulfillment</span>
@@ -189,20 +220,13 @@ const Shop = () => {
                 const catName = getLocalizedField(cat, 'name') || cat.name;
                 const image = resolveImageUrl(cat.imageUrl) || CatPlaceholder;
                 return (
-                  <Link
-                    key={cat.id}
-                    to={`/catalog?category=${cat.slug}`}
-                    className="um-cat-card"
-                  >
+                  <Link key={cat.id} to={`/catalog?category=${cat.slug}`} className="um-cat-card">
                     <div className="um-cat-img-wrapper">
                       <img
                         src={image}
                         alt={catName}
                         className="um-cat-img"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = CatPlaceholder;
-                        }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = CatPlaceholder; }}
                       />
                     </div>
                     <div className="um-cat-info">
@@ -228,7 +252,7 @@ const Shop = () => {
               <h2 className="um-section-title">Featured Farm Harvests</h2>
             </div>
             <Link to="/catalog" className="btn btn-secondary">
-              View All Products →
+              View All Products &rarr;
             </Link>
           </div>
 
@@ -236,6 +260,7 @@ const Shop = () => {
             <ProductGridSkeleton count={8} />
           ) : error && featuredProducts.length === 0 ? (
             <div className="um-empty-state">
+              <AlertCircle size={32} strokeWidth={1.5} style={{ margin: '0 auto 0.75rem' }} />
               Could not load products. Please check your connection and refresh.
             </div>
           ) : featuredProducts.length === 0 ? (
@@ -269,11 +294,16 @@ const Shop = () => {
               <div className="um-stations-cards">
                 {stations.map((s) => (
                   <div key={s.id} className="um-station-preview-card">
-                    <div className="um-station-pin">📍</div>
+                    <div className="um-station-pin">
+                      <MapPin size={18} strokeWidth={1.75} />
+                    </div>
                     <div>
                       <strong>{s.name}</strong>
                       <p>{s.addressText || s.district}</p>
-                      <span className="um-station-hours">🕒 {s.operatingHours || 'Contact station for hours'}</span>
+                      <span className="um-station-hours">
+                        <Clock size={12} strokeWidth={2} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                        {s.operatingHours || 'Contact station for hours'}
+                      </span>
                     </div>
                   </div>
                 ))}

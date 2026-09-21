@@ -1,13 +1,136 @@
+/* ═══════════════════════════════════════════════
+   LOGIN / SIGNUP — SPLIT PANEL LAYOUT
+   ═══════════════════════════════════════════════ */
+
 .um-auth-page {
-  padding: 3.5rem 0 5rem;
-  min-height: 80vh;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
 }
 
+/* ── Brand Panel (left, desktop only) ── */
+.um-auth-brand-panel {
+  background: linear-gradient(160deg, #1C5233 0%, #0F3D22 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.um-auth-brand-panel::before {
+  content: '';
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  top: -100px;
+  right: -100px;
+  pointer-events: none;
+}
+
+.um-auth-brand-panel::after {
+  content: '';
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  bottom: -55px;
+  left: -55px;
+  pointer-events: none;
+}
+
+.um-auth-brand-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  width: 100%;
+}
+
+.um-auth-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #FFFFFF;
+  margin-bottom: 2rem;
+}
+
+.um-auth-brand-logo span {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.um-auth-brand-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  letter-spacing: -0.5px;
+}
+
+.um-auth-brand-tagline {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.65;
+  margin-bottom: 2rem;
+}
+
+.um-auth-brand-perks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+.um-auth-brand-perk {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.um-auth-brand-perk-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.um-auth-brand-quote {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.52);
+  font-style: italic;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  line-height: 1.5;
+}
+
+/* ── Form Panel (right) ── */
+.um-auth-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  background: var(--bg);
+  overflow-y: auto;
+}
+
+/* ── Card inside form panel ── */
 .um-auth-card {
-  max-width: 480px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 460px;
   padding: 2.5rem;
 }
 
@@ -87,4 +210,31 @@
   font-size: 0.75rem;
   color: var(--slate);
   text-align: center;
+}
+
+.um-auth-trust-box span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .um-auth-page {
+    grid-template-columns: 1fr;
+  }
+  .um-auth-brand-panel {
+    display: none;
+  }
+  .um-auth-form-panel {
+    min-height: 100vh;
+    padding: 2.5rem 1rem;
+  }
+}
+
+@media (max-width: 500px) {
+  .um-auth-form-panel { padding: 2rem 0.75rem; }
+  .um-auth-card { padding: 1.5rem 1.25rem; }
+  .um-auth-header h2 { font-size: 1.35rem; }
 }

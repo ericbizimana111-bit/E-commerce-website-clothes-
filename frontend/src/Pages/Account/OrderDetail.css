@@ -392,3 +392,35 @@
     text-align: left;
   }
 }
+
+@media (max-width: 600px) {
+  .um-order-table-head { display: none; }
+  .um-order-table-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    padding: 0.85rem 0;
+  }
+}
+
+@media (max-width: 500px) {
+  .um-action-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .um-method-options {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .um-method-btn {
+    width: 100%;
+    text-align: center;
+    padding: 0.65rem 1rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .um-step-label { font-size: 0.7rem; }
+  .um-stepper-box { padding: 1rem; }
+  .um-order-title-wrap h2 { font-size: 1.25rem; }
+}

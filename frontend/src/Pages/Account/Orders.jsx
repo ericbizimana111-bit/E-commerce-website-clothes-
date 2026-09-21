@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
+import { Package, AlertTriangle, Truck, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 import './Orders.css';
 
 const STATUS_BADGES = {
@@ -36,7 +37,6 @@ const Orders = () => {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        // GET /api/orders -> { success, items: [...], pagination: {...} } (order.controller spreads listCustomerOrders)
         const res = await apiClient.get(`/orders?page=${page}&limit=10&lang=${currentLang || 'en'}`);
         if (isMounted && Array.isArray(res?.items)) {
           setOrders(res.items);
@@ -51,9 +51,7 @@ const Orders = () => {
     };
 
     fetchOrders();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [currentLang, page]);
 
   if (loading) {
@@ -71,7 +69,8 @@ const Orders = () => {
     return (
       <div className="card um-subview-card">
         <div className="alert alert-error">
-          <span>⚠️ {error}</span>
+          <AlertTriangle size={16} strokeWidth={1.75} />
+          <span>{error}</span>
         </div>
       </div>
     );
@@ -80,9 +79,11 @@ const Orders = () => {
   if (orders.length === 0) {
     return (
       <div className="card um-subview-card um-empty-orders">
-        <span className="um-empty-orders-icon">📦</span>
+        <div className="um-empty-orders-icon">
+          <Package size={40} strokeWidth={1.25} />
+        </div>
         <h3>No Orders Yet</h3>
-        <p>You haven’t placed any orders yet. Fresh harvests are waiting for you!</p>
+        <p>You haven&apos;t placed any orders yet. Fresh harvests are waiting for you!</p>
         <Link to="/catalog" className="btn btn-primary">
           Explore Food Catalog
         </Link>
@@ -123,8 +124,10 @@ const Orders = () => {
               <div className="um-order-card-body">
                 <div className="um-order-detail-col">
                   <span className="um-order-col-label">Fulfillment</span>
-                  <strong>
-                    {order.fulfillment?.method === 'HOME_DELIVERY' ? '🚚 Doorstep Delivery' : '📍 Station Pickup'}
+                  <strong className="um-order-fulfillment">
+                    {order.fulfillment?.method === 'HOME_DELIVERY'
+                      ? <><Truck size={14} strokeWidth={1.75} /> Doorstep Delivery</>
+                      : <><MapPin size={14} strokeWidth={1.75} /> Station Pickup</>}
                   </strong>
                 </div>
 
@@ -147,7 +150,7 @@ const Orders = () => {
                     to={`/account/orders/${order.id}`}
                     className="btn btn-secondary btn-sm um-view-order-btn"
                   >
-                    View & Track →
+                    View &amp; Track &rarr;
                   </Link>
                 </div>
               </div>
@@ -156,7 +159,6 @@ const Orders = () => {
         })}
       </div>
 
-      {/* Pagination */}
       {pagination.totalPages > 1 && (
         <div className="um-pagination" style={{ marginTop: '1.25rem' }}>
           <button
@@ -164,7 +166,7 @@ const Orders = () => {
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            ← Previous
+            <ChevronLeft size={14} strokeWidth={2} /> Previous
           </button>
           <span style={{ alignSelf: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
             Page {pagination.page} of {pagination.totalPages}
@@ -174,7 +176,7 @@ const Orders = () => {
             disabled={page >= pagination.totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Next →
+            Next <ChevronRight size={14} strokeWidth={2} />
           </button>
         </div>
       )}

@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
 import { ProductGridSkeleton } from '../Components/Skeletons/Skeletons';
 import { useLanguage } from '../Context/LanguageContext';
+import { Search, X, AlertTriangle, ShoppingBasket, ChevronLeft, ChevronRight } from 'lucide-react';
 import './ProductCatalog.css';
 
 const ProductCatalog = () => {
@@ -155,7 +156,7 @@ const ProductCatalog = () => {
                 className="form-input"
               />
               <button type="submit" className="btn btn-primary btn-sm">
-                🔍 {t('filter')}
+                <Search size={14} strokeWidth={2} /> {t('filter')}
               </button>
             </form>
 
@@ -200,7 +201,7 @@ const ProductCatalog = () => {
                 onClick={handleResetFilters}
                 className="btn btn-sm btn-secondary um-reset-btn"
               >
-                ✕ {t('reset')}
+                <X size={14} strokeWidth={2} /> {t('reset')}
               </button>
             )}
           </div>
@@ -235,14 +236,15 @@ const ProductCatalog = () => {
           <ProductGridSkeleton count={12} />
         ) : error ? (
           <div className="alert alert-error">
-            <span>⚠️ {error}</span>
+            <AlertTriangle size={16} strokeWidth={1.75} />
+            <span>{error}</span>
             <button onClick={fetchProducts} className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }}>
               Retry
             </button>
           </div>
         ) : products.length === 0 ? (
           <div className="um-no-products card">
-            <span className="um-no-products-icon">🧺</span>
+            <div className="um-no-products-icon"><ShoppingBasket size={40} strokeWidth={1.25} /></div>
             <h3>No products found matching your criteria</h3>
             <p>Try clearing your search or adjusting your price filters.</p>
             <button onClick={handleResetFilters} className="btn btn-primary">
@@ -265,7 +267,7 @@ const ProductCatalog = () => {
                   disabled={pageParam <= 1}
                   onClick={() => updateFilter({ page: (pageParam - 1).toString() })}
                 >
-                  ← Previous
+                  <ChevronLeft size={14} strokeWidth={2} /> Previous
                 </button>
 
                 <div className="um-page-numbers">
@@ -285,7 +287,7 @@ const ProductCatalog = () => {
                   disabled={pageParam >= pagination.totalPages}
                   onClick={() => updateFilter({ page: (pageParam + 1).toString() })}
                 >
-                  Next →
+                  Next <ChevronRight size={14} strokeWidth={2} />
                 </button>
               </div>
             )}

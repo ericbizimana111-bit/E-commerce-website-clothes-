@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
+import { BadgeDollarSign, MapPin, Clock, Phone } from 'lucide-react';
 import './PickupStations.css';
 
 const PickupStations = () => {
@@ -56,21 +57,21 @@ const PickupStations = () => {
         {/* Benefits Banner */}
         <div className="um-stations-benefits card">
           <div className="um-benefit-item">
-            <span className="um-benefit-icon">🆓</span>
+            <div className="um-benefit-icon"><BadgeDollarSign size={20} strokeWidth={1.75} /></div>
             <div>
               <strong>Free Collection</strong>
               <span>Avoid home delivery fees by collecting your order yourself</span>
             </div>
           </div>
           <div className="um-benefit-item">
-            <span className="um-benefit-icon">📍</span>
+            <div className="um-benefit-icon"><MapPin size={20} strokeWidth={1.75} /></div>
             <div>
               <strong>Convenient Locations</strong>
               <span>Verified neighborhood hubs you can visit on your normal route</span>
             </div>
           </div>
           <div className="um-benefit-item">
-            <span className="um-benefit-icon">🕒</span>
+            <div className="um-benefit-icon"><Clock size={20} strokeWidth={1.75} /></div>
             <div>
               <strong>Clear Opening Hours</strong>
               <span>Each station lists its hours and contact number</span>
@@ -116,7 +117,7 @@ const PickupStations = () => {
             {filtered.map((station) => (
               <div key={station.id} className="um-station-item-card card">
                 <div className="um-station-item-head">
-                  <div className="um-station-pin-icon">📍</div>
+                  <div className="um-station-pin-icon"><MapPin size={20} strokeWidth={1.75} /></div>
                   <div>
                     <h3 className="um-station-item-title">{station.name}</h3>
                     <span className="um-station-item-district">
@@ -133,11 +134,11 @@ const PickupStations = () => {
                     <strong>Address:</strong> {station.addressText}
                   </p>
                   <p className="um-station-item-hours">
-                    <strong>🕒 Operating Hours:</strong> {station.operatingHours || 'Contact station for hours'}
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={14} strokeWidth={1.75} /> Operating Hours:</strong> {station.operatingHours || 'Contact station for hours'}
                   </p>
                   {station.contactPhone && (
                     <p className="um-station-item-phone">
-                      <strong>📞 Station Contact:</strong> {station.contactPhone}
+                      <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Phone size={14} strokeWidth={1.75} /> Station Contact:</strong> {station.contactPhone}
                     </p>
                   )}
                 </div>

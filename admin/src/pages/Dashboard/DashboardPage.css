@@ -1,5 +1,23 @@
 .dash-greeting {
-  margin-bottom: 18px;
+  background: linear-gradient(135deg, var(--brand-primary-soft) 0%, #F4F9F6 60%, var(--surface) 100%);
+  border: 1px solid rgba(28, 82, 51, 0.13);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-greeting::after {
+  content: '';
+  position: absolute;
+  right: -24px;
+  top: -24px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(28, 82, 51, 0.07);
+  pointer-events: none;
 }
 
 .dash-greeting h1 {
@@ -30,9 +48,17 @@
   border-bottom: 1px solid var(--border);
 }
 
+.dash-table tbody tr {
+  transition: background 0.1s ease;
+}
+
 .dash-table tbody td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
+}
+
+.dash-table tbody tr:hover td {
+  background: var(--surface-muted);
 }
 
 .dash-table tbody tr:last-child td {
@@ -94,4 +120,46 @@
 .dash-alert a {
   font-size: 12.5px;
   text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .dash-table thead { display: none; }
+  .dash-table,
+  .dash-table tbody,
+  .dash-table tr,
+  .dash-table td { display: block; width: 100%; }
+  .dash-table tbody tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 10px;
+    padding: 6px 0;
+  }
+  .dash-table tbody tr:last-child { margin-bottom: 0; }
+  .dash-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 14px;
+    border-bottom: 1px dashed var(--border);
+    text-align: right;
+  }
+  .dash-table tbody tr td:last-child { border-bottom: none; }
+  .dash-table tbody td::before {
+    content: attr(data-label);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .dash-table tbody td[data-label=""] {
+    justify-content: flex-end;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }

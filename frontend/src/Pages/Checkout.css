@@ -434,3 +434,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 500px) {
+  .um-checkout-page { padding: 1.5rem 0 4rem; }
+  .um-checkout-step { padding: 1.25rem; }
+  .um-step-heading h3 { font-size: 1rem; }
+  .um-tab-btn { padding: 1rem; }
+  .um-review-row { flex-direction: column; gap: 0.15rem; }
+  .um-checkout-security { font-size: 0.7rem; }
+}

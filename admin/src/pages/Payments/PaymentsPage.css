@@ -50,3 +50,47 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
+
+@media (max-width: 760px) {
+  .payments-table thead { display: none; }
+  .payments-table,
+  .payments-table tbody,
+  .payments-table tr,
+  .payments-table td { display: block; width: 100%; }
+  .payments-table tbody tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 10px;
+    padding: 6px 0;
+  }
+  .payments-table tbody tr:last-child { margin-bottom: 0; }
+  .payments-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 14px;
+    border-bottom: 1px dashed var(--border);
+    text-align: right;
+    word-break: break-all;
+  }
+  .payments-table tbody tr td:last-child { border-bottom: none; }
+  .payments-table tbody td::before {
+    content: attr(data-label);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+    white-space: nowrap;
+    flex-shrink: 0;
+    word-break: normal;
+  }
+  .payments-table tbody td[data-label=""] {
+    justify-content: flex-end;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}

@@ -40,7 +40,15 @@
 }
 
 .um-benefit-icon {
-  font-size: 1.8rem;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .um-benefit-item strong {
@@ -92,7 +100,15 @@
 }
 
 .um-station-pin-icon {
-  font-size: 1.5rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .um-station-item-title {
@@ -126,4 +142,13 @@
     grid-template-columns: 1fr;
     gap: 1rem;
   }
+}
+
+@media (max-width: 400px) {
+  .um-stations-title { font-size: 1.75rem; }
+  .um-stations-grid {
+    grid-template-columns: 1fr;
+  }
+  .um-station-item-card { padding: 1rem; }
+  .um-stations-page { padding: 1.5rem 0 4rem; }
 }

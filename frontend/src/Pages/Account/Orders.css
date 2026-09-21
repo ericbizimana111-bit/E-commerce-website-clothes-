@@ -18,8 +18,22 @@
 }
 
 .um-empty-orders-icon {
-  font-size: 3rem;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 0.5rem;
+}
+
+.um-order-fulfillment {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
 }
 
 .um-orders-count-badge {

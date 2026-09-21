@@ -5,6 +5,7 @@ import { useAuth } from '../Context/AuthContext';
 import { useCart } from '../Context/CartContext';
 import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
+import { AlertTriangle, Truck, MapPin, Clock, Check, Lock, ShieldCheck } from 'lucide-react';
 import './Checkout.css';
 
 /**
@@ -281,7 +282,8 @@ const Checkout = () => {
 
         {errorMessage && (
           <div className="alert alert-error" role="alert">
-            <span>⚠️ {errorMessage}</span>
+            <AlertTriangle size={16} strokeWidth={1.75} />
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -316,7 +318,7 @@ const Checkout = () => {
                   className={`um-tab-btn ${fulfillmentMethod === 'HOME_DELIVERY' ? 'um-tab-btn--active' : ''}`}
                   onClick={() => setFulfillmentMethod('HOME_DELIVERY')}
                 >
-                  <span className="um-tab-icon">🚚</span>
+                  <span className="um-tab-icon"><Truck size={20} strokeWidth={1.75} /></span>
                   <div>
                     <strong>{t('homeDelivery')}</strong>
                     <span>Direct to your doorstep</span>
@@ -328,7 +330,7 @@ const Checkout = () => {
                   className={`um-tab-btn ${fulfillmentMethod === 'PICKUP_STATION' ? 'um-tab-btn--active' : ''}`}
                   onClick={() => setFulfillmentMethod('PICKUP_STATION')}
                 >
-                  <span className="um-tab-icon">📍</span>
+                  <span className="um-tab-icon"><MapPin size={20} strokeWidth={1.75} /></span>
                   <div>
                     <strong>{t('pickupStation')}</strong>
                     <span>Collect at a secure neighborhood station</span>
@@ -482,9 +484,9 @@ const Checkout = () => {
                           onChange={() => setSelectedStationId(station.id.toString())}
                         />
                         <div className="um-station-body">
-                          <strong>📍 {station.name}</strong>
+                          <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={14} strokeWidth={1.75} /> {station.name}</strong>
                           <p>{station.addressText}, {station.district}</p>
-                          <span className="um-station-hrs">🕒 {station.operatingHours || 'Contact station for hours'}</span>
+                          <span className="um-station-hrs" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={13} strokeWidth={1.75} /> {station.operatingHours || 'Contact station for hours'}</span>
                         </div>
                       </label>
                     ))}
@@ -557,8 +559,8 @@ const Checkout = () => {
                   <strong className="um-review-total-ugx">{formatOrPending(displayTotal)}</strong>
                 </div>
                 {preview && !previewLoading && (
-                  <p className="um-review-server-note" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-                    ✓ Final amounts confirmed by UgaMarket
+                  <p className="um-review-server-note" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Check size={13} strokeWidth={2.5} /> Final amounts confirmed by UgaMarket
                   </p>
                 )}
               </div>
@@ -605,8 +607,8 @@ const Checkout = () => {
               </button>
 
               <div className="um-checkout-security">
-            <span>🔒 Checkout secured by UgaMarket</span>
-            <span>🛡️ Inspect quality before paying the balance</span>
+                <span><Lock size={13} strokeWidth={1.75} /> Checkout secured by UgaMarket</span>
+                <span><ShieldCheck size={13} strokeWidth={1.75} /> Inspect quality before paying the balance</span>
               </div>
             </div>
           </div>

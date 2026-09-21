@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
+import { X, Plus, AlertTriangle } from 'lucide-react';
 
 /**
  * Addresses — UgaMarket — home to home.
@@ -93,7 +94,9 @@ const Addresses = () => {
             setMessage(null);
           }}
         >
-          {showAddForm ? '✕ Close Form' : '+ Add New Address'}
+          {showAddForm
+            ? <><X size={14} strokeWidth={2} /> Close Form</>
+            : <><Plus size={14} strokeWidth={2} /> Add New Address</>}
         </button>
       </div>
 
@@ -105,7 +108,8 @@ const Addresses = () => {
 
       {error && (
         <div className="alert alert-error" role="alert">
-          <span>⚠️ {error}</span>
+          <AlertTriangle size={16} strokeWidth={1.75} />
+          <span>{error}</span>
         </div>
       )}
 

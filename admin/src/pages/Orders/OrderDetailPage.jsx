@@ -219,13 +219,13 @@ export default function OrderDetailPage() {
               <tbody>
                 {(order.items || []).map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td data-label="Product">
                       {item.productName}
                       {item.unit && <div className="order-items-table__unit">per {item.unit}</div>}
                     </td>
-                    <td>{formatUGX(item.unitPriceUgx)}</td>
-                    <td>{item.quantity}</td>
-                    <td>{formatUGX(item.lineTotalUgx)}</td>
+                    <td data-label="Unit Price">{formatUGX(item.unitPriceUgx)}</td>
+                    <td data-label="Qty">{item.quantity}</td>
+                    <td data-label="Line Total">{formatUGX(item.lineTotalUgx)}</td>
                   </tr>
                 ))}
               </tbody>

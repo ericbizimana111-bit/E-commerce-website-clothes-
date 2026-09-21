@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
+import { AlertTriangle } from 'lucide-react';
 
 const Notifications = () => {
   const { t } = useLanguage();
@@ -11,7 +12,6 @@ const Notifications = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      // GET /api/notifications -> { data: { notifications: [...] } }
       const res = await apiClient.get('/notifications');
       if (Array.isArray(res?.data?.notifications)) {
         setNotifications(res.data.notifications);
@@ -48,7 +48,8 @@ const Notifications = () => {
 
       {error && (
         <div className="alert alert-error">
-          <span>⚠️ {error}</span>
+          <AlertTriangle size={16} strokeWidth={1.75} />
+          <span>{error}</span>
         </div>
       )}
 

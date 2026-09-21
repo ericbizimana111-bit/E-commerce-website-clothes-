@@ -5,6 +5,7 @@ import ProductCard from '../Components/ProductCard/ProductCard';
 import { useCart } from '../Context/CartContext';
 import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
+import { Circle, ShieldCheck, ShoppingCart, Check, MapPin, Leaf } from 'lucide-react';
 import './Product.css';
 
 const DEFAULT_IMAGE = '/img-placeholder.svg';
@@ -198,12 +199,12 @@ export const Product = () => {
             <div className="um-detail-meta-row">
               <div className="um-detail-stock">
                 {isAvailable ? (
-                  <span className="badge badge-success">
-                    ● In Stock ({stock} {product.unit || 'units'} available)
+                  <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Circle size={6} fill="currentColor" strokeWidth={0} /> In Stock ({stock} {product.unit || 'units'} available)
                   </span>
                 ) : (
-                  <span className="badge badge-danger">
-                    ● Out of Stock
+                  <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Circle size={6} fill="currentColor" strokeWidth={0} /> Out of Stock
                   </span>
                 )}
               </div>
@@ -235,8 +236,8 @@ export const Product = () => {
                   <span className="um-callout-val">Remaining balance</span>
                 </div>
               </div>
-              <p className="um-callout-hint">
-                🛡️ You only pay the remaining balance after inspecting fresh food quality at your door or pickup station. Exact amounts are confirmed at checkout by the UgaMarket server.
+              <p className="um-callout-hint" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                <ShieldCheck size={15} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: '2px' }} /> You only pay the remaining balance after inspecting fresh food quality at your door or pickup station. Exact amounts are confirmed at checkout by the UgaMarket server.
               </p>
             </div>
 
@@ -274,7 +275,7 @@ export const Product = () => {
                   disabled={!isAvailable || cartLoading}
                   className="btn btn-primary btn-lg um-detail-add-btn"
                 >
-                  🛒 {addedNotice ? 'Added to Cart!' : `Add ${quantity} to Cart`}
+                  <ShoppingCart size={18} strokeWidth={1.75} /> {addedNotice ? 'Added to Cart!' : `Add ${quantity} to Cart`}
                 </button>
                 <Link to="/cart" className="btn btn-secondary btn-lg">
                   View Cart
@@ -283,7 +284,7 @@ export const Product = () => {
 
               {addedNotice && (
                 <div className="alert alert-success">
-                  ✓ Produce successfully added to your cart!{' '}
+                  <Check size={15} strokeWidth={2.5} /> Produce successfully added to your cart!{' '}
                   <Link to="/cart" style={{ textDecoration: 'underline', fontWeight: 600 }}>
                     Proceed to Cart →
                   </Link>
@@ -296,9 +297,9 @@ export const Product = () => {
               <h3>Produce Information</h3>
               <p>{description || 'Fresh agricultural produce sourced directly from local Ugandan farmers. Grown naturally with sustainable farm practices.'}</p>
               <div className="um-detail-features">
-                <div>🛡️ <strong>Inspect First:</strong> Pay the balance only after checking your produce</div>
-                <div>📍 <strong>Your Choice:</strong> Doorstep delivery or pickup station collection</div>
-                <div>🌱 <strong>Farm Sourced:</strong> From verified Ugandan farmers</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><ShieldCheck size={15} strokeWidth={1.75} /> <strong>Inspect First:</strong> Pay the balance only after checking your produce</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><MapPin size={15} strokeWidth={1.75} /> <strong>Your Choice:</strong> Doorstep delivery or pickup station collection</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Leaf size={15} strokeWidth={1.75} /> <strong>Farm Sourced:</strong> From verified Ugandan farmers</div>
               </div>
             </div>
           </div>

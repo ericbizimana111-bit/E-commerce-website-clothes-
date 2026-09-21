@@ -5,9 +5,9 @@ import { useLanguage } from '../../Context/LanguageContext';
 import { useToast } from '../Toast/Toast';
 import { formatUGX } from '../../utils/currency';
 import { resolveImageUrl } from '../../api/client';
+import { Check, Plus, Circle } from 'lucide-react';
 import './ProductCard.css';
 
-// Local license-safe placeholder; used when a product has no image or it fails to load.
 const PLACEHOLDER = '/img-placeholder.svg';
 
 const ProductCard = ({ product }) => {
@@ -19,7 +19,6 @@ const ProductCard = ({ product }) => {
   const [imageFailed, setImageFailed] = useState(false);
 
   const name = getLocalizedField(product, 'name') || product.name || 'Fresh Produce';
-  // Backend formatLocalizedProduct exposes `price` (integer UGX); keep a safe fallback.
   const price = product.priceUgx ?? product.price ?? 0;
   const stock = product.availability?.stockQuantity ?? product.stockQuantity ?? 0;
   const inStock = product.availability?.inStock ?? stock > 0;
@@ -74,11 +73,11 @@ const ProductCard = ({ product }) => {
           </span>
           {isAvailable ? (
             <span className="um-prod-stock-badge in-stock">
-              ● {t('inStock')}
+              <Circle size={6} fill="currentColor" strokeWidth={0} /> {t('inStock')}
             </span>
           ) : (
             <span className="um-prod-stock-badge out-stock">
-              ● {t('outOfStock')}
+              <Circle size={6} fill="currentColor" strokeWidth={0} /> {t('outOfStock')}
             </span>
           )}
         </div>
@@ -99,7 +98,13 @@ const ProductCard = ({ product }) => {
             onClick={handleAdd}
             disabled={!isAvailable || isAdding || loading}
           >
-            {added ? '✓ Added' : isAdding ? 'Adding...' : `+ ${t('addToCart')}`}
+            {added ? (
+              <><Check size={14} strokeWidth={2.5} /> Added</>
+            ) : isAdding ? (
+              'Adding...'
+            ) : (
+              <><Plus size={14} strokeWidth={2.5} /> {t('addToCart')}</>
+            )}
           </button>
         </div>
       </div>

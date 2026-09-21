@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { ShoppingCart, MapPin } from 'lucide-react';
 
 const HowItWorks = () => {
-
   return (
     <div className="container" style={{ padding: '3rem 0 5rem' }}>
       <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
         <div style={{ textAlign: 'center' }}>
           <span className="badge badge-success" style={{ marginBottom: '0.75rem' }}>
-            Fair & Transparent Marketplace
+            Fair &amp; Transparent Marketplace
           </span>
           <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--dark)' }}>
             How UgaMarket Works
@@ -57,7 +57,7 @@ const HowItWorks = () => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--dark)', marginBottom: '0.35rem' }}>
-                Inspect Produce & Pay the Balance
+                Inspect Produce &amp; Pay the Balance
               </h3>
               <p style={{ color: 'var(--slate)', lineHeight: 1.6 }}>
                 Your order is safely dispatched to your doorstep in Kampala or your preferred pickup station. When your produce arrives, inspect the freshness and quality firsthand. Once satisfied, complete the remaining balance on your phone.
@@ -66,7 +66,6 @@ const HowItWorks = () => {
           </div>
         </div>
 
-        {/* Call to action */}
         <div className="card" style={{ padding: '2rem', textAlign: 'center', background: 'linear-gradient(135deg, #1C5233, #16A34A)', color: '#FFFFFF' }}>
           <h2 style={{ fontSize: '1.8rem', color: '#FFFFFF', marginBottom: '0.5rem' }}>
             Ready to experience fresh food shopping?
@@ -74,12 +73,12 @@ const HowItWorks = () => {
           <p style={{ opacity: 0.9, marginBottom: '1.5rem' }}>
             Taste the difference of true Ugandan soil, harvested fresh and delivered home to home.
           </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/catalog" className="btn btn-accent btn-lg">
-              🛒 Browse Food Catalog
+              <ShoppingCart size={18} strokeWidth={1.75} /> Browse Food Catalog
             </Link>
             <Link to="/pickup-stations" className="btn btn-secondary btn-lg" style={{ background: '#FFFFFF', color: 'var(--primary)' }}>
-              📍 View Pickup Stations
+              <MapPin size={18} strokeWidth={1.75} /> View Pickup Stations
             </Link>
           </div>
         </div>

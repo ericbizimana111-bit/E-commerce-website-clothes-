@@ -157,12 +157,12 @@ export default function CustomersPage() {
                 <tbody>
                   {rows.map((c) => (
                     <tr key={c.id}>
-                      <td>{c.fullName}</td>
-                      <td className="mono">{c.phone}</td>
-                      <td>{c.email || <span className="text-muted">—</span>}</td>
-                      <td>{c.orderCount ?? 0}</td>
-                      <td>{formatDateTime(c.createdAt)}</td>
-                      <td>
+                      <td data-label="Name">{c.fullName}</td>
+                      <td data-label="Phone" className="mono">{c.phone}</td>
+                      <td data-label="Email">{c.email || <span className="text-muted">—</span>}</td>
+                      <td data-label="Orders">{c.orderCount ?? 0}</td>
+                      <td data-label="Joined">{formatDateTime(c.createdAt)}</td>
+                      <td data-label="">
                         <button
                           type="button"
                           className="btn btn--secondary btn--sm"
@@ -228,12 +228,12 @@ export default function CustomersPage() {
                   <tbody>
                     {selected.orders.map((o) => (
                       <tr key={o.id}>
-                        <td className="mono">{o.orderNumber}</td>
-                        <td>
+                        <td data-label="Order" className="mono">{o.orderNumber}</td>
+                        <td data-label="Status">
                           <StatusBadge status={o.status} />
                         </td>
-                        <td>{formatDateTime(o.createdAt)}</td>
-                        <td>
+                        <td data-label="Placed">{formatDateTime(o.createdAt)}</td>
+                        <td data-label="">
                           <Link
                             to={`/orders/${o.id}`}
                             className="btn btn--secondary btn--sm"

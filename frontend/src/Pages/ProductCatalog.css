@@ -164,7 +164,14 @@
 }
 
 .um-no-products-icon {
-  font-size: 3rem;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 0.5rem;
 }
 
@@ -222,4 +229,26 @@
 .um-page-btn--active:hover {
   background: var(--primary-hover);
   color: #FFFFFF;
+}
+
+@media (max-width: 500px) {
+  .um-filter-search {
+    min-width: 0;
+    width: 100%;
+  }
+  .um-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .um-filter-price-form {
+    flex-wrap: wrap;
+  }
+  .um-price-input {
+    width: 90px !important;
+  }
+  .um-reset-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+  .um-catalog-title { font-size: 1.75rem; }
 }

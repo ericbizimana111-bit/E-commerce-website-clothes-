@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../../api/client';
+import { Leaf, ShieldCheck, Wallet, MapPin, Phone, Mail } from 'lucide-react';
 import './Footer.css';
 
 // Official UgaMarket brand asset (frontend/public/logo.png)
@@ -57,9 +58,9 @@ const Footer = () => {
               Direct-from-farm Ugandan food marketplace. Delivering fresh matooke, cereals, beans, and fresh harvest to homes and local pickup stations across Uganda.
             </p>
             <div className="um-footer-trust-badges">
-              <span className="um-trust-pill">🇺🇬 Local Ugandan Farmers</span>
-              <span className="um-trust-pill">🛡️ Quality Inspection on Fulfillment</span>
-              <span className="um-trust-pill">💵 Small Deposit First, Balance at Fulfillment</span>
+              <span className="um-trust-pill"><Leaf size={13} strokeWidth={1.75} /> Local Ugandan Farmers</span>
+              <span className="um-trust-pill"><ShieldCheck size={13} strokeWidth={1.75} /> Quality Inspection on Fulfillment</span>
+              <span className="um-trust-pill"><Wallet size={13} strokeWidth={1.75} /> Small Deposit First, Balance at Fulfillment</span>
             </div>
           </div>
 
@@ -98,9 +99,9 @@ const Footer = () => {
               <li><Link to="/pickup-stations">Find a Pickup Station</Link></li>
             </ul>
             <div className="um-footer-contact-info">
-              <div>📍 Kampala, Uganda</div>
-              <div>📞 +256 700 123 456</div>
-              <div>✉️ support@ugamarket.ug</div>
+              <div><MapPin size={13} strokeWidth={1.75} /> Kampala, Uganda</div>
+              <div><Phone size={13} strokeWidth={1.75} /> +256 700 123 456</div>
+              <div><Mail size={13} strokeWidth={1.75} /> support@ugamarket.ug</div>
             </div>
           </div>
         </div>

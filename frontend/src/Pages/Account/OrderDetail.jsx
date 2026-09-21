@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
+import { AlertTriangle, ArrowLeft, Check, XCircle, Info, CheckCircle, Truck, MapPin, Phone, Clock, Loader } from 'lucide-react';
 import './OrderDetail.css';
 
 /**
@@ -203,7 +204,7 @@ const OrderDetail = () => {
         const payment = res.data?.payment;
         const msg = res.message || 'Payment initiated successfully';
         setActionMessage(
-          `✓ ${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
+          `${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
         );
         // Flutterwave hosted checkout (mobile money confirmation page / card
         // payment link): redirect the customer. The webhook delivers the
@@ -258,10 +259,11 @@ const OrderDetail = () => {
     return (
       <div className="card um-subview-card">
         <div className="alert alert-error" role="alert">
-          <span>⚠️ {errorMessage}</span>
+          <AlertTriangle size={16} strokeWidth={1.75} />
+          <span>{errorMessage}</span>
         </div>
-        <Link to="/account/orders" className="btn btn-secondary" style={{ width: 'fit-content' }}>
-          ← Back to Orders
+        <Link to="/account/orders" className="btn btn-secondary" style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <ArrowLeft size={14} strokeWidth={1.75} /> Back to Orders
         </Link>
       </div>
     );
@@ -296,8 +298,8 @@ const OrderDetail = () => {
       {/* Header */}
       <div className="um-order-detail-header">
         <div>
-          <Link to="/account/orders" className="um-back-link">
-            ← Back to All Orders
+          <Link to="/account/orders" className="um-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <ArrowLeft size={14} strokeWidth={1.75} /> Back to All Orders
           </Link>
           <div className="um-order-title-wrap">
             <h2>Order {order.orderNumber}</h2>
@@ -330,14 +332,16 @@ const OrderDetail = () => {
 
       {errorMessage && (
         <div className="alert alert-error" role="alert">
-          <span>⚠️ {errorMessage}</span>
+          <AlertTriangle size={16} strokeWidth={1.75} />
+          <span>{errorMessage}</span>
         </div>
       )}
 
       {activePayment && (
         <div className="alert alert-info" role="status" style={{ background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1E3A8A' }}>
+          <Loader size={16} strokeWidth={1.75} />
           <span>
-            ⏳ A payment of {formatUGX(activePayment.amountUgx)} ({activePayment.purpose === 'BALANCE' ? 'balance' : 'commitment'}) is awaiting provider verification.
+            A payment of {formatUGX(activePayment.amountUgx)} ({activePayment.purpose === 'BALANCE' ? 'balance' : 'commitment'}) is awaiting provider verification.
             This page updates automatically once the UgaMarket server confirms it.
           </span>
         </div>
@@ -357,7 +361,7 @@ const OrderDetail = () => {
                   className={`um-lifecycle-step ${isPassed ? 'um-step--completed' : ''} ${isCurrent ? 'um-step--active' : ''}`}
                 >
                   <div className="um-step-marker">
-                    {isPassed && !isCurrent ? '✓' : idx + 1}
+                    {isPassed && !isCurrent ? <Check size={14} strokeWidth={2.5} /> : idx + 1}
                   </div>
                   <span className="um-step-label">
                     {!isHomeDelivery && step.key === 'IN_TRANSIT'
@@ -373,7 +377,8 @@ const OrderDetail = () => {
         </div>
       ) : (
         <div className="alert alert-error" role="alert">
-          <span>❌ This order was cancelled. If you believe this is a mistake, please contact UgaMarket support.</span>
+          <XCircle size={16} strokeWidth={1.75} />
+          <span>This order was cancelled. If you believe this is a mistake, please contact UgaMarket support.</span>
         </div>
       )}
 
@@ -485,8 +490,9 @@ const OrderDetail = () => {
 
       {balanceBeforeFulfillment && (
         <div className="alert alert-info" role="status" style={{ background: '#F8FAFC', borderColor: 'var(--border)', color: 'var(--slate)' }}>
+          <Info size={16} strokeWidth={1.75} />
           <span>
-            💡 Your remaining balance of <strong>{formatUGX(balanceDueUgx)}</strong> becomes payable once your order is{' '}
+            Your remaining balance of <strong>{formatUGX(balanceDueUgx)}</strong> becomes payable once your order is{' '}
             {isHomeDelivery ? 'delivered' : 'picked up'}.
           </span>
         </div>
@@ -494,13 +500,15 @@ const OrderDetail = () => {
 
       {paymentInfo?.isFullyPaid && order.status !== 'COMPLETED' && (
         <div className="alert alert-success" role="status">
-          <span>✓ All payments complete — the UgaMarket server is finalizing your order.</span>
+          <Check size={16} strokeWidth={2} />
+          <span>All payments complete — the UgaMarket server is finalizing your order.</span>
         </div>
       )}
 
       {order.status === 'COMPLETED' && (
         <div className="alert alert-success" role="status">
-          <span>🎉 This order is complete. Thank you for shopping with UgaMarket — home to home!</span>
+          <CheckCircle size={16} strokeWidth={1.75} />
+          <span>This order is complete. Thank you for shopping with UgaMarket — home to home!</span>
         </div>
       )}
 
@@ -537,7 +545,7 @@ const OrderDetail = () => {
           <h4>Fulfillment Details</h4>
           {isHomeDelivery ? (
             <div className="um-fulfillment-info">
-              <span className="badge badge-info">🚚 Home Delivery</span>
+              <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Truck size={13} strokeWidth={1.75} /> Home Delivery</span>
               {order.fulfillment.address ? (
                 <div className="um-addr-box">
                   <strong>{order.fulfillment.address.title || 'Delivery Address'}</strong>
@@ -553,7 +561,7 @@ const OrderDetail = () => {
             </div>
           ) : (
             <div className="um-fulfillment-info">
-              <span className="badge badge-success">📍 Pickup Station</span>
+              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={13} strokeWidth={1.75} /> Pickup Station</span>
               {order.fulfillment?.station ? (
                 <div className="um-station-info-box">
                   <strong>{order.fulfillment.station.name}</strong>
@@ -561,9 +569,9 @@ const OrderDetail = () => {
                     {order.fulfillment.station.addressText}
                     {order.fulfillment.station.district ? `, ${order.fulfillment.station.district}` : ''}
                   </p>
-                  <span>🕒 {order.fulfillment.station.operatingHours || 'Contact station for hours'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={13} strokeWidth={1.75} /> {order.fulfillment.station.operatingHours || 'Contact station for hours'}</span>
                   {order.fulfillment.station.contactPhone && (
-                    <span>📞 {order.fulfillment.station.contactPhone}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Phone size={13} strokeWidth={1.75} /> {order.fulfillment.station.contactPhone}</span>
                   )}
                 </div>
               ) : (
@@ -647,7 +655,7 @@ const OrderDetail = () => {
                 <small>{formatUGX(order.pricing?.commitmentUgx || 0)}</small>
               </div>
               {commitmentStatus === 'SUCCESS' ? (
-                <span className="badge badge-success">✓ Paid</span>
+                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Check size={12} strokeWidth={2.5} /> Paid</span>
               ) : PAYMENT_STATUS_BADGES[commitmentStatus] ? (
                 <span className={`badge badge-${PAYMENT_STATUS_BADGES[commitmentStatus].type}`}>
                   {PAYMENT_STATUS_BADGES[commitmentStatus].label}
@@ -663,7 +671,7 @@ const OrderDetail = () => {
                 <small>{formatUGX(order.pricing?.remainingBalanceUgx || 0)}</small>
               </div>
               {balanceStatus === 'SUCCESS' || balanceStatus === 'NOT_REQUIRED' ? (
-                <span className="badge badge-success">{balanceStatus === 'NOT_REQUIRED' ? '✓ Nothing Due' : '✓ Paid'}</span>
+                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Check size={12} strokeWidth={2.5} /> {balanceStatus === 'NOT_REQUIRED' ? 'Nothing Due' : 'Paid'}</span>
               ) : PAYMENT_STATUS_BADGES[balanceStatus] ? (
                 <span className={`badge badge-${PAYMENT_STATUS_BADGES[balanceStatus].type}`}>
                   {PAYMENT_STATUS_BADGES[balanceStatus].label}
