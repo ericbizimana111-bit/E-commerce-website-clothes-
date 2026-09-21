@@ -8,8 +8,11 @@ async function initiatePayment(req, res, next) {
   try {
     // Ownership + eligibility + authoritative amount are enforced in the service.
     // The body carries no financially meaningful fields (validator strips them).
+    // `method` is a NON-authoritative rail hint (MTN vs Airtel mobile money);
+    // the server still decides amount/currency/order/purpose exclusively.
     const purpose = req.body?.purpose;
-    const result = await paymentService.initiatePayment(req.user.id, req.params.id, { purpose });
+    const method = req.body?.method;
+    const result = await paymentService.initiatePayment(req.user.id, req.params.id, { purpose, method });
 
     const isBalance = result.payment.purpose === 'BALANCE';
     const prefix = isBalance ? 'Balance payment' : 'Commitment payment';

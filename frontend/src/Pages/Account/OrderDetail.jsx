@@ -116,6 +116,7 @@ const OrderDetail = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState(null);
   const pollTimerRef = useRef(null);
 
   const fetchOrderDetails = useCallback(async () => {
@@ -194,6 +195,7 @@ const OrderDetail = () => {
     try {
       const res = await apiClient.post(`/orders/${id}/payment`, {
         purpose,
+        ...(paymentMethod ? { method: paymentMethod } : {}),
         language: currentLang || 'en'
       });
 
@@ -203,10 +205,9 @@ const OrderDetail = () => {
         setActionMessage(
           `✓ ${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
         );
-        // Flutterwave UG mobile money: the provider hosts a confirmation page
-        // (customer authorizes there; outcome still arrives via webhook and is
-        // picked up by the existing polling below). CARD redirect-return flow
-        // is NOT implemented yet — do not treat this as card support.
+        // Flutterwave hosted checkout (mobile money confirmation page / card
+        // payment link): redirect the customer. The webhook delivers the
+        // outcome; card payments also redirect back via /api/payments/return.
         const checkoutUrl = res.data?.checkoutUrl;
         if (checkoutUrl) {
           window.location.href = checkoutUrl;
@@ -218,6 +219,7 @@ const OrderDetail = () => {
       setErrorMessage(err.message || 'Payment initiation failed');
     } finally {
       setActionLoading(false);
+      setPaymentMethod(null);
     }
   };
 
@@ -383,11 +385,43 @@ const OrderDetail = () => {
             <p>
               Please pay <strong>{formatUGX(order.pricing?.commitmentUgx)}</strong> to confirm your order so our farmers can start preparing your fresh produce.
             </p>
+            <div className="um-method-select">
+              <p className="um-method-label">Choose payment method:</p>
+              <div className="um-method-options">
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'MTN_MOBILE_MONEY' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('MTN_MOBILE_MONEY')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'MTN_MOBILE_MONEY'}
+                >
+                  MTN Mobile Money
+                </button>
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'AIRTEL_MONEY' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('AIRTEL_MONEY')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'AIRTEL_MONEY'}
+                >
+                  Airtel Money
+                </button>
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'CARD' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('CARD')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'CARD'}
+                >
+                  Card / Visa / MasterCard
+                </button>
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => handleInitiatePayment('COMMITMENT')}
-            disabled={actionLoading || !!activePayment}
+            disabled={actionLoading || !!activePayment || !paymentMethod}
             className="btn btn-primary btn-lg"
           >
             {actionLoading ? 'Initiating...' : `Pay Deposit (${formatUGX(order.pricing?.commitmentUgx)})`}
@@ -403,11 +437,43 @@ const OrderDetail = () => {
               Your produce has been {isHomeDelivery ? 'delivered' : 'ready for pickup and collected'}! After verifying quality, pay the remaining balance of{' '}
               <strong>{balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx)}</strong>.
             </p>
+            <div className="um-method-select">
+              <p className="um-method-label">Choose payment method:</p>
+              <div className="um-method-options">
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'MTN_MOBILE_MONEY' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('MTN_MOBILE_MONEY')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'MTN_MOBILE_MONEY'}
+                >
+                  MTN Mobile Money
+                </button>
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'AIRTEL_MONEY' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('AIRTEL_MONEY')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'AIRTEL_MONEY'}
+                >
+                  Airtel Money
+                </button>
+                <button
+                  type="button"
+                  className={`um-method-btn${paymentMethod === 'CARD' ? ' um-method-btn--active' : ''}`}
+                  onClick={() => setPaymentMethod('CARD')}
+                  disabled={actionLoading}
+                  aria-pressed={paymentMethod === 'CARD'}
+                >
+                  Card / Visa / MasterCard
+                </button>
+              </div>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => handleInitiatePayment('BALANCE')}
-            disabled={actionLoading || !!activePayment}
+            disabled={actionLoading || !!activePayment || !paymentMethod}
             className="btn btn-accent btn-lg"
           >
             {actionLoading

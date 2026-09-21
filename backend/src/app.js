@@ -24,6 +24,7 @@ const adminDeliveryRoutes = require('./routes/adminDelivery.routes');
 const pickupStationRoutes = require('./routes/pickupStation.routes');
 const addressRoutes = require('./routes/address.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const adminCustomerRoutes = require('./routes/adminCustomer.routes');
 
 const app = express();
 
@@ -113,6 +114,9 @@ app.use('/api/admin/deliveries', adminDeliveryRoutes);
 app.use('/api/pickup-stations', pickupStationRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
+
+// 10f. Admin customer visibility (ADMIN/SUPER_ADMIN; no DISPATCHER access)
+app.use('/api/admin/customers', adminCustomerRoutes);
 
 // 11. 404 Handler for undefined routes
 app.use((req, res, next) => {

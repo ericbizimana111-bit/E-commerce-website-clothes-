@@ -12,8 +12,8 @@
  *   - AIRTEL_MONEY      → network "AIRTEL"
  *   Networks are taken EXPLICITLY from the caller; phone-prefix inference is
  *   deliberately NOT used (number portability makes prefixes unreliable).
- *   CARD is intentionally NOT implemented: the full hosted-checkpoint /
- *   redirect-return flow is deferred (see "CARD" note in initiatePayment).
+ *   CARD → hosted-checkout via POST /v3/payments; customer redirected to
+ *   FLW_RETURN_URL; webhook is the canonical result channel (Phase 14).
  *
  * API (v3, verified against developer.flutterwave.com and the official
  * flutterwave-node-v3 SDK sources):
@@ -241,24 +241,81 @@ module.exports = {
   isProduction: true, // real provider — allowed (and expected) in production
 
   /**
-   * Create a provider-side charge attempt for Uganda mobile money.
+   * Create a provider-side charge attempt.
    *
    * payment: {
    *   transactionRef, providerRef?, amountUgx, currency, purpose,
-   *   method,        ← explicit MTN_MOBILE_MONEY | AIRTEL_MONEY (from request)
-   *   customer: { fullName?, email?|null, phoneE164 }
+   *   method,        ← MTN_MOBILE_MONEY | AIRTEL_MONEY | CARD (from request)
+   *   customer: { fullName?, email, phoneE164 }
    * }
    *
    * Returns one of:
    *   { ok:true, providerRef, checkoutUrl?, outcome, resultCode, raw }   (initiated)
    *   { ok:false, outcome:'FAILED', resultCode, failureMessage, httpStatus? } (provider refused/unreachable)
    *
-   * CARD: accepted at the validation layer but NOT implemented here — the
-   * hosted-checkout redirect-return flow is deferred to the next slice (the
-   * method must not silently pretend card support is complete).
+   * CARD: uses the standard payment-link endpoint (POST /v3/payments) which
+   * returns a hosted-checkout URL. The customer is redirected there; on
+   * completion Flutterwave redirects to FLW_RETURN_URL and sends a webhook.
    */
   async initiatePayment({ payment } = {}) {
     assertConfigured();
+
+    // CARD: hosted checkout via POST /v3/payments (payment link)
+    if (payment.method === 'CARD') {
+      if (!payment.customer || !payment.customer.email) {
+        return {
+          ok: false,
+          outcome: 'FAILED',
+          resultCode: 'INVALID_REFERENCE',
+          failureMessage: 'Customer email is required for card payments',
+        };
+      }
+      if (!env.FLW_RETURN_URL) {
+        return {
+          ok: false,
+          outcome: 'FAILED',
+          resultCode: 'CONFIGURATION_ERROR',
+          failureMessage: 'Card payment return URL is not configured (FLW_RETURN_URL)',
+        };
+      }
+      const paymentLinkBody = {
+        tx_ref: payment.transactionRef,
+        amount: payment.amountUgx,
+        currency: payment.currency || 'UGX',
+        redirect_url: env.FLW_RETURN_URL,
+        customer: {
+          email: payment.customer.email,
+          phonenumber: payment.customer.phoneE164 || undefined,
+          name: payment.customer.fullName || undefined,
+        },
+        customizations: {
+          title: 'UgaMarket',
+          description: `Order payment – ${payment.purpose || 'COMMITMENT'}`,
+          logo: '',
+        },
+      };
+      try {
+        const response = await flwRequest('POST', '/v3/payments', { body: paymentLinkBody });
+        if (!response || response.status !== 'success' || !response.data?.link) {
+          return {
+            ok: false,
+            outcome: 'FAILED',
+            resultCode: 'PROVIDER_ERROR',
+            failureMessage: 'Card payment provider did not return a checkout link',
+          };
+        }
+        return {
+          ok: true,
+          providerRef: null, // established later via webhook/verification
+          checkoutUrl: response.data.link,
+          outcome: 'PENDING',
+          resultCode: 'NONE',
+          raw: { status: response.status, message: response.message },
+        };
+      } catch (error) {
+        return toFailureResult(error);
+      }
+    }
 
     const network = NETWORK_BY_METHOD[payment.method];
     if (!network) {
@@ -266,7 +323,7 @@ module.exports = {
         ok: false,
         outcome: 'FAILED',
         resultCode: 'INVALID_REFERENCE',
-        failureMessage: `Unsupported payment method for Flutterwave mobile money: ${payment.method || '(none)'}`,
+        failureMessage: `Unsupported payment method for Flutterwave: ${payment.method || '(none)'}`,
       };
     }
 

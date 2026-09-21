@@ -324,6 +324,56 @@
   color: var(--muted);
 }
 
+/* Mobile money network selector */
+.um-method-select {
+  margin-top: 0.85rem;
+}
+
+.um-method-label {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: #92400E;
+  margin-bottom: 0.5rem;
+}
+
+.um-balance-action-banner .um-method-label {
+  color: #14532D;
+}
+
+.um-method-options {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.um-method-btn {
+  padding: 0.45rem 1.1rem;
+  border: 2px solid #D1D5DB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #374151;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.um-method-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.um-method-btn--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #FFFFFF;
+}
+
+.um-method-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 860px) {
   .um-order-info-grid {
     grid-template-columns: 1fr;

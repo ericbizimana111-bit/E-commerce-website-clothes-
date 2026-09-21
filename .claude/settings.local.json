@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(npx jest *)",
+      "Bash(git stash *)",
+      "Bash(npm test *)",
+      "Bash(npx vitest *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d[k] for k in ['scripts','dependencies','devDependencies'] if k in d}, indent=2\\)\\)\")",
+      "Bash(npx react-scripts *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

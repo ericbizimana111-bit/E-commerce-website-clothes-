@@ -1,137 +1,256 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Eye, Search, Users } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
-import { formatUGX, formatDateTime } from '../../utils/format';
+import { formatDateTime } from '../../utils/format';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { EmptyState } from '../../components/ui/states';
+import Pagination from '../../components/ui/Pagination';
+import { TableSkeleton } from '../../components/ui/loaders';
+import { EmptyState, ErrorState } from '../../components/ui/states';
 import './CustomersPage.css';
 
-/**
- * Customer visibility.
- * Backend gap (verified): there is no admin customers endpoint
- * (no GET /api/admin/customers). Customer data appears only as `customer`
- * on admin orders (list search matches phone/email; detail includes user).
- * This page therefore provides honest lookup-by-search through the orders
- * endpoint and renders customer profiles derived from real order data.
- * Nothing is fabricated; the gap is reported in the Phase 10 notes.
- */
 export default function CustomersPage() {
   const { showToast } = useToast();
-  const [query, setQuery] = useState('');
-  const [orders, setOrders] = useState([]);
-  const [searched, setSearched] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const search = async (e) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const search = searchParams.get('search') || '';
+
+  const [searchInput, setSearchInput] = useState(search);
+  const [rows, setRows] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Selected customer detail state
+  const [selected, setSelected] = useState(null); // { customer, orders, pagination }
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get(`/admin/orders?page=1&limit=50&search=${encodeURIComponent(q)}`);
-      setOrders(Array.isArray(res?.items) ? res.items : []);
-      setSearched(true);
-      if (!res?.items?.length) {
-        showToast('No orders matched — customer profiles come from order records.', { type: 'info' });
-      }
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', '20');
+      if (search.trim()) params.set('search', search.trim());
+
+      // GET /api/admin/customers -> { success, items, pagination }
+      const res = await api.get(`/admin/customers?${params.toString()}`);
+      setRows(Array.isArray(res?.items) ? res.items : []);
+      setPagination(res?.pagination || null);
     } catch (err) {
-      showToast(err.message || 'Search failed.', { type: 'error' });
+      setError(err.message || 'Unable to load customers.');
     } finally {
       setLoading(false);
     }
+  }, [page, search]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const updateParams = (updates) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, val]) => {
+      if (val) next.set(key, val);
+      else next.delete(key);
+    });
+    if (!('page' in updates)) next.delete('page');
+    setSearchParams(next);
   };
 
-  // Group orders by customer identity (phone is the backend identity key).
-  const byCustomer = new Map();
-  orders.forEach((o) => {
-    if (!o.customer) return;
-    const key = o.customer.phone || o.customer.email || o.customer.id;
-    if (!byCustomer.has(key)) {
-      byCustomer.set(key, { customer: o.customer, orders: [] });
+  const openDetail = async (customer) => {
+    setSelected(null);
+    setDetailLoading(true);
+    try {
+      // GET /api/admin/customers/:id -> { success, data: { customer, orders, pagination } }
+      const res = await api.get(`/admin/customers/${customer.id}`);
+      setSelected(res?.data || null);
+    } catch (err) {
+      showToast(err.message || 'Unable to load customer detail.', { type: 'error' });
+    } finally {
+      setDetailLoading(false);
     }
-    byCustomer.get(key).orders.push(o);
-  });
+  };
 
   return (
     <div>
       <PageHeader
         title="Customers"
-        description="Customer profiles derived from order records. The backend does not yet expose a dedicated customers endpoint."
+        description="Registered UgaMarket customers. Search by name, phone, or email."
       />
 
-      <div className="panel panel-pad">
-        <form className="customers-search" onSubmit={search}>
-          <div className="toolbar__search" style={{ maxWidth: 420 }}>
-            <Search size={15} aria-hidden="true" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Customer phone or email"
-              aria-label="Search customers by phone or email"
-            />
-          </div>
-          <button type="submit" className="btn btn--primary" disabled={loading}>
-            <Users size={14} aria-hidden="true" />
-            {loading ? 'Searching…' : 'Search'}
-          </button>
+      <div className="toolbar">
+        <form
+          className="toolbar__search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateParams({ search: searchInput.trim() });
+          }}
+        >
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by name, phone, or email"
+            aria-label="Search customers"
+          />
         </form>
+        {search && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => setSearchParams({})}
+          >
+            Clear search
+          </button>
+        )}
       </div>
 
-      {searched && byCustomer.size === 0 && (
-        <EmptyState
-          title="No customers found"
-          message="No order records match that phone or email."
-        />
+      {error ? (
+        <ErrorState message={error} onRetry={load} />
+      ) : (
+        <>
+          {loading ? (
+            <TableSkeleton rows={8} columns={4} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              title={search ? 'No customers found' : 'No customers yet'}
+              message={
+                search
+                  ? 'No customers match that search.'
+                  : 'Customers will appear here once they register.'
+              }
+              action={
+                search ? (
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    onClick={() => setSearchParams({})}
+                  >
+                    Clear search
+                  </button>
+                ) : null
+              }
+            />
+          ) : (
+            <div className="panel">
+              <table className="customers-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Orders</th>
+                    <th scope="col">Joined</th>
+                    <th scope="col" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((c) => (
+                    <tr key={c.id}>
+                      <td>{c.fullName}</td>
+                      <td className="mono">{c.phone}</td>
+                      <td>{c.email || <span className="text-muted">—</span>}</td>
+                      <td>{c.orderCount ?? 0}</td>
+                      <td>{formatDateTime(c.createdAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn--sm"
+                          onClick={() => openDetail(c)}
+                          aria-label={`View ${c.fullName}`}
+                        >
+                          <Eye size={13} aria-hidden="true" />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <Pagination pagination={pagination} onPageChange={(p) => updateParams({ page: String(p) })} />
+        </>
       )}
 
-      {[...byCustomer.entries()].map(([key, { customer, orders: custOrders }]) => (
-        <div key={key} className="panel panel-pad customers-card">
-          <div className="customers-card__head">
-            <div>
-              <h3>{customer.fullName || 'Unknown customer'}</h3>
-              <p className="text-muted">
-                {customer.phone}
-                {customer.email ? ` · ${customer.email}` : ''}
-              </p>
-            </div>
-            <span className="badge badge--info">
-              {custOrders.length} order{custOrders.length === 1 ? '' : 's'}
-            </span>
-          </div>
-          <table className="customers-card__table">
-            <thead>
-              <tr>
-                <th scope="col">Order</th>
-                <th scope="col">Placed</th>
-                <th scope="col">Total</th>
-                <th scope="col">Status</th>
-                <th scope="col" aria-label="Open" />
-              </tr>
-            </thead>
-            <tbody>
-              {custOrders.map((o) => (
-                <tr key={o.id}>
-                  <td className="mono">{o.orderNumber}</td>
-                  <td>{formatDateTime(o.createdAt)}</td>
-                  <td>{formatUGX(o.pricing?.totalUgx)}</td>
-                  <td>
-                    <StatusBadge status={o.status} />
-                  </td>
-                  <td>
-                    <Link to={`/orders/${o.id}`} className="btn btn--secondary btn--sm">
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Customer detail panel */}
+      {(detailLoading || selected) && (
+        <div className="panel panel-pad customers-detail" style={{ marginTop: 16 }}>
+          {detailLoading ? (
+            <p className="text-muted">Loading customer detail…</p>
+          ) : selected ? (
+            <>
+              <div className="customers-detail__head">
+                <div>
+                  <h3>{selected.customer.fullName}</h3>
+                  <p className="text-muted">
+                    {selected.customer.phone}
+                    {selected.customer.email ? ` · ${selected.customer.email}` : ''}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <span className="badge badge--info">
+                    {selected.pagination?.total ?? 0} order
+                    {(selected.pagination?.total ?? 0) !== 1 ? 's' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setSelected(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {selected.orders.length === 0 ? (
+                <EmptyState title="No orders" message="This customer has not placed any orders yet." />
+              ) : (
+                <table className="customers-table" style={{ marginTop: 12 }}>
+                  <thead>
+                    <tr>
+                      <th scope="col">Order</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Placed</th>
+                      <th scope="col" aria-label="Open" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selected.orders.map((o) => (
+                      <tr key={o.id}>
+                        <td className="mono">{o.orderNumber}</td>
+                        <td>
+                          <StatusBadge status={o.status} />
+                        </td>
+                        <td>{formatDateTime(o.createdAt)}</td>
+                        <td>
+                          <Link
+                            to={`/orders/${o.id}`}
+                            className="btn btn--secondary btn--sm"
+                            aria-label={`Open order ${o.orderNumber}`}
+                          >
+                            Open order
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          ) : null}
         </div>
-      ))}
+      )}
     </div>
   );
 }

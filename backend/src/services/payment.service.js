@@ -15,7 +15,7 @@ const logger = require('../utils/logger');
 // fail initiation with a clear business error rather than faking support.
 const PROVIDER_METHOD_SUPPORT = {
   MOCK: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD']),
-  FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']), // CARD: deferred slice
+  FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD']),
 };
 
 // Provider initiation result fields that may be surfaced to the frontend.
@@ -252,6 +252,19 @@ function resolveCustomerIdentity(user, method) {
     if (!user.email) {
       throw new AppError(
         'A customer email address is required for mobile money payments. Add an email to your account and try again.',
+        422
+      );
+    }
+    return {
+      fullName: user.fullName || null,
+      email: user.email,
+      phoneE164: phone.normalized,
+    };
+  }
+  if (method === 'CARD') {
+    if (!user.email) {
+      throw new AppError(
+        'A customer email address is required for card payments. Add an email to your account and try again.',
         422
       );
     }
@@ -792,7 +805,13 @@ async function processWebhook(rawBody, headers) {
           resultCode: event.resultCode || 'SUCCESS',
           failureMessage: null,
           verifiedAt: event.occurredAt ? new Date(event.occurredAt) : new Date(),
-          payload: { providerEvent: { providerRef: event.providerRef, orderNumber: event.orderNumber, occurredAt: event.occurredAt } },
+          // Merge, don't replace: the initiation payload (method rail hint,
+          // checkoutUrl) stays available for auditing/reconciliation after
+          // the provider event lands.
+          payload: {
+            ...payment.payload,
+            providerEvent: { providerRef: event.providerRef, orderNumber: event.orderNumber, occurredAt: event.occurredAt },
+          },
         },
       });
 

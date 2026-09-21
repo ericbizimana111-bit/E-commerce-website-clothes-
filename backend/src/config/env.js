@@ -40,8 +40,15 @@ const envSchema = z.object({
   // without any real credentials (tests must never call the real API).
   FLW_PUBLIC_KEY: z.string().default(''),
   FLW_SECRET_KEY: z.string().default(''),
+  // Card payment redirect URL: Flutterwave redirects the customer here after
+  // hosted-checkout completion. Must be a public HTTPS URL in production.
+  // Not required for mobile money payments or the MOCK provider.
+  FLW_RETURN_URL: z.string().default(''),
   PAYMENT_WEBHOOK_SECRET: z.string().default('ufm_mock_webhook_secret_2026'),
   PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
+  // Frontend base URL: used by the return-URL handler to build the redirect
+  // target after card payment. Defaults to the CRA dev server.
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
 
   // Delivery Pricing
   DELIVERY_BASE_FEE: z.coerce.number().default(3000),

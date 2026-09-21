@@ -18,9 +18,11 @@
 const PREVIOUS_FLW_ENV = {
   FLW_PUBLIC_KEY: process.env.FLW_PUBLIC_KEY,
   FLW_SECRET_KEY: process.env.FLW_SECRET_KEY,
+  FLW_RETURN_URL: process.env.FLW_RETURN_URL,
 };
 process.env.FLW_PUBLIC_KEY = process.env.FLW_PUBLIC_KEY || 'FLWPUBK_TEST-dummy-public-key';
 process.env.FLW_SECRET_KEY = process.env.FLW_SECRET_KEY || 'FLWSECK_TEST-dummy-secret-key';
+process.env.FLW_RETURN_URL = process.env.FLW_RETURN_URL || 'http://localhost:4000/api/payments/return';
 
 const env = require('../src/config/env');
 
@@ -34,6 +36,16 @@ afterAll(() => {
     else process.env[key] = value;
   }
 });
+
+// A minimal success response for POST /v3/payments (card hosted checkout).
+function cardPaymentLinkResponse(overrides = {}) {
+  return {
+    status: 'success',
+    message: 'Hosted Link',
+    data: { link: 'https://checkout.flutterwave.com/v3/hosted/pay/testlink123' },
+    ...overrides,
+  };
+}
 
 // A minimal valid UG mobile-money initiation response (per Flutterwave docs:
 // no data.id / flw_ref — only meta.authorization.redirect).
@@ -419,11 +431,64 @@ describe('Phase 12 Step 2 — Flutterwave provider adapter', () => {
       expect(headers.Authorization).toContain(env.FLW_SECRET_KEY || '');
     });
 
-    test('CARD method is not implemented by the adapter (deferred slice)', async () => {
-      mockFetchSequence(() => Promise.resolve(new Response(JSON.stringify(chargeResponse()), { status: 200 })));
+    test('CARD uses POST /v3/payments (hosted checkout) and returns checkoutUrl from data.link', async () => {
+      const calls = mockFetchSequence(() =>
+        Promise.resolve(new Response(JSON.stringify(cardPaymentLinkResponse()), { status: 200 }))
+      );
+
+      const result = await provider.initiatePayment({ payment: basePayment({ method: 'CARD' }) });
+
+      expect(result.ok).toBe(true);
+      expect(result.checkoutUrl).toBe('https://checkout.flutterwave.com/v3/hosted/pay/testlink123');
+      expect(result.providerRef).toBeNull(); // established later via webhook
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toBe('https://api.flutterwave.com/v3/payments');
+      expect(calls[0].options.method).toBe('POST');
+      const body = JSON.parse(calls[0].options.body);
+      expect(body.tx_ref).toBe('PAY-test-0001');
+      expect(body.amount).toBe(1500);
+      expect(body.currency).toBe('UGX');
+      expect(body.redirect_url).toBe('http://localhost:4000/api/payments/return');
+      expect(body.customer.email).toBe('customer@example.com');
+    });
+
+    test('CARD with missing email → INVALID_REFERENCE (no fetch call)', async () => {
+      mockFetchSequence(() => Promise.resolve(new Response('{}', { status: 200 })));
+
+      const result = await provider.initiatePayment({
+        payment: basePayment({ method: 'CARD', customer: { fullName: 'X', email: null, phoneE164: '+256700000001' } }),
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.resultCode).toBe('INVALID_REFERENCE');
+      expect(result.failureMessage).toMatch(/email/i);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('CARD with unconfigured FLW_RETURN_URL → CONFIGURATION_ERROR (no fetch call)', async () => {
+      let isolatedProvider;
+      const saved = process.env.FLW_RETURN_URL;
+      delete process.env.FLW_RETURN_URL;
+      jest.isolateModules(() => {
+        isolatedProvider = require('../src/services/paymentProviders/flutterwaveProvider');
+      });
+      if (saved !== undefined) process.env.FLW_RETURN_URL = saved;
+
+      mockFetchSequence(() => Promise.resolve(new Response('{}', { status: 200 })));
+      const result = await isolatedProvider.initiatePayment({ payment: basePayment({ method: 'CARD' }) });
+      expect(result.ok).toBe(false);
+      expect(result.resultCode).toBe('CONFIGURATION_ERROR');
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test('CARD provider returns no data.link → PROVIDER_ERROR', async () => {
+      mockFetchSequence(() =>
+        Promise.resolve(new Response(JSON.stringify({ status: 'success', data: {} }), { status: 200 }))
+      );
+
       const result = await provider.initiatePayment({ payment: basePayment({ method: 'CARD' }) });
       expect(result.ok).toBe(false);
-      expect(global.fetch).not.toHaveBeenCalled();
+      expect(result.resultCode).toBe('PROVIDER_ERROR');
     });
 
     test('verifyWebhook never throws for adversarial inputs', () => {
