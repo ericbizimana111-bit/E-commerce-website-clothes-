@@ -1,108 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Bell, Check } from 'lucide-react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
-import { AlertTriangle } from 'lucide-react';
+import { friendlyError } from '../../utils/errors';
+import './Notifications.css';
 
 const Notifications = () => {
-  const { t } = useLanguage();
+  const { t, formatDateTime } = useLanguage();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const res = await apiClient.get('/notifications');
-      if (Array.isArray(res?.data?.notifications)) {
-        setNotifications(res.data.notifications);
-      }
-    } catch (err) {
-      console.error('Failed to load notifications', err);
-      setError(err.message || 'Could not load notifications');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchNotifications();
+    let mounted = true;
+    apiClient
+      .get('/notifications')
+      .then((res) => {
+        if (mounted && Array.isArray(res?.data?.notifications)) setNotifications(res.data.notifications);
+      })
+      .catch((err) => mounted && setError(friendlyError(err, t, 'notificationsLoadError')))
+      .finally(() => mounted && setLoading(false));
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const markAsRead = async (id) => {
     try {
       await apiClient.patch(`/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-    } catch (err) {
-      console.error('Failed to mark notification as read', err);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+    } catch {
+      /* the button stays available so the customer can retry */
     }
   };
 
+  const unread = notifications.filter((n) => !n.isRead).length;
+
   return (
-    <div className="card um-subview-card">
-      <div className="um-subview-header">
-        <h2>{t('notifications')}</h2>
-        <span className="badge badge-info">{notifications.filter((n) => !n.isRead).length} Unread</span>
+    <div className="panel account-card">
+      <div className="account-card__head">
+        <h2>{t('notificationsTitle')}</h2>
+        {unread > 0 && <span className="badge badge-info">{t('unreadCount', { count: unread })}</span>}
       </div>
 
       {error && (
-        <div className="alert alert-error">
-          <AlertTriangle size={16} strokeWidth={1.75} />
+        <div className="alert alert-error" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
       {loading ? (
-        <div className="um-subview-loading">
+        <div className="um-subview-loading" role="status">
           <div className="um-spinner" />
-          <p>Loading notifications...</p>
+          <p>{t('loading')}</p>
         </div>
       ) : notifications.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted)' }}>
-          <p>You have no notifications at this time.</p>
+        <div className="state-block">
+          <span className="state-block__icon">
+            <Bell size={34} strokeWidth={1.4} aria-hidden="true" />
+          </span>
+          <p>{t('noNotifications')}</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {notifications.map((notif) => (
-            <div
-              key={notif.id}
-              className="card"
-              style={{
-                padding: '1rem',
-                backgroundColor: notif.isRead ? 'var(--surface)' : '#F0FDF4',
-                borderColor: notif.isRead ? 'var(--border)' : '#BBF7D0',
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: '1rem'
-              }}
-            >
-              <div>
-                <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--dark)' }}>
-                  {notif.title || 'Marketplace Update'}
-                </strong>
-                <p style={{ fontSize: '0.85rem', color: 'var(--slate)', margin: '0.25rem 0' }}>
-                  {notif.message}
-                </p>
-                <small style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
-                  {new Date(notif.createdAt).toLocaleString()}
-                </small>
+        <ul className="notes">
+          {notifications.map((n) => (
+            <li key={n.id} className={`note ${n.isRead ? '' : 'note--unread'}`}>
+              <span className="note__dot" aria-hidden="true" />
+              <div className="note__body">
+                <strong>{n.title || t('marketplaceUpdate')}</strong>
+                <p>{n.message}</p>
+                <time dateTime={n.createdAt}>{formatDateTime(n.createdAt)}</time>
               </div>
-
-              {!notif.isRead && (
-                <button
-                  type="button"
-                  onClick={() => markAsRead(notif.id)}
-                  className="btn btn-sm btn-secondary"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px', whiteSpace: 'nowrap' }}
-                >
-                  Mark as Read
+              {!n.isRead && (
+                <button type="button" onClick={() => markAsRead(n.id)} className="btn btn-secondary btn-sm">
+                  <Check size={14} aria-hidden="true" /> {t('markAsRead')}
                 </button>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

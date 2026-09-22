@@ -1,11 +1,12 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Boxes,
   ClipboardList,
   LayoutDashboard,
+  LogOut,
   MapPin,
   Package,
-  ShieldCheck,
   ShoppingBag,
   Truck,
   Users,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth, hasRole, CATALOG_ROLES, OPERATIONS_ROLES } from '../../context/AuthContext';
 import { formatRole } from '../../utils/format';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import './Sidebar.css';
 
 const LOGO_SRC = '/logo.png';
@@ -44,6 +46,7 @@ const NAV_SECTIONS = [
     label: 'Fulfillment',
     items: [
       { to: '/deliveries', label: 'Deliveries', icon: Truck, roles: OPERATIONS_ROLES },
+      { to: '/stations', label: 'Pickup Stations', icon: MapPin, roles: CATALOG_ROLES },
     ],
   },
   {
@@ -60,7 +63,18 @@ export default function Sidebar({ open, onClose }) {
   const { role, admin, logout } = useAuth();
   const navigate = useNavigate();
 
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+
+  const initials = (admin?.fullName || 'A')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
   const handleLogout = () => {
+    setConfirmingLogout(false);
+    onClose();
     logout();
     navigate('/login', { replace: true });
   };
@@ -100,7 +114,7 @@ export default function Sidebar({ open, onClose }) {
                       }
                       onClick={onClose}
                     >
-                      <Icon size={17} aria-hidden="true" />
+                      <Icon size={18} aria-hidden="true" />
                       <span>{label}</span>
                     </NavLink>
                   );
@@ -108,20 +122,39 @@ export default function Sidebar({ open, onClose }) {
               </div>
             );
           })}
+        </nav>
 
-          <div className="sidebar__section">
-            <div className="sidebar__section-label">Account</div>
-            <div className="sidebar__user">
+        <div className="sidebar__footer">
+          <div className="sidebar__user">
+            <span className="sidebar__avatar" aria-hidden="true">
+              {initials}
+            </span>
+            <span className="sidebar__user-text">
               <span className="sidebar__user-name">{admin?.fullName || 'Admin'}</span>
               <span className="sidebar__user-role">{formatRole(role)}</span>
-            </div>
-            <button type="button" className="sidebar__link sidebar__logout" onClick={handleLogout}>
-              <ShieldCheck size={17} aria-hidden="true" />
-              <span>Sign out</span>
-            </button>
+            </span>
           </div>
-        </nav>
+          <button
+            type="button"
+            className="sidebar__logout"
+            onClick={() => setConfirmingLogout(true)}
+          >
+            <LogOut size={16} aria-hidden="true" />
+            <span>Sign out</span>
+          </button>
+        </div>
       </aside>
+
+      <ConfirmDialog
+        open={confirmingLogout}
+        title="Sign out?"
+        message="You will be signed out of the Operations Console and will need to sign in again to continue."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        danger
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmingLogout(false)}
+      />
     </>
   );
 }

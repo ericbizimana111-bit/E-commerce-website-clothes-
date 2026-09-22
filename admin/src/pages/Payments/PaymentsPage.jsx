@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import { formatUGX, formatDateTime, getPaymentStatusMeta } from '../../utils/format';
 import PageHeader from '../../components/ui/PageHeader';
+import SearchInput from '../../components/ui/SearchInput';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/states';
 import './PaymentsPage.css';
@@ -31,27 +32,35 @@ export default function PaymentsPage() {
   const [selected, setSelected] = useState(null); // { orderId, orderNumber }
   const [payment, setPayment] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [noMatch, setNoMatch] = useState(false);
+  const lookupSeq = useRef(0);
   const [loadingPayment, setLoadingPayment] = useState(false);
 
-  const lookup = async (e) => {
-    e.preventDefault();
-    const q = orderNumber.trim();
-    if (!q) return;
-    setLookingUp(true);
+  const lookup = async (term) => {
+    const q = term.trim();
+    const seq = ++lookupSeq.current; // ignore out-of-order responses
+    setOrderNumber(q);
     setSelected(null);
     setPayment(null);
+    setNoMatch(false);
+    if (!q) {
+      setOrders([]);
+      setLookingUp(false);
+      return;
+    }
+    setLookingUp(true);
     try {
       // GET /api/admin/orders?search=<orderNumber> (search matches orderNumber/phone/email)
       const res = await api.get(`/admin/orders?page=1&limit=10&search=${encodeURIComponent(q)}`);
+      if (seq !== lookupSeq.current) return;
       const items = Array.isArray(res?.items) ? res.items : [];
       setOrders(items);
-      if (items.length === 0) {
-        showToast('No orders matched that search.', { type: 'info' });
-      }
+      setNoMatch(items.length === 0);
     } catch (err) {
+      if (seq !== lookupSeq.current) return;
       showToast(err.message || 'Lookup failed.', { type: 'error' });
     } finally {
-      setLookingUp(false);
+      if (seq === lookupSeq.current) setLookingUp(false);
     }
   };
 
@@ -80,26 +89,27 @@ export default function PaymentsPage() {
       />
 
       <div className="panel panel-pad payments-lookup">
-        <form className="payments-lookup__form" onSubmit={lookup}>
-          <div className="toolbar__search" style={{ maxWidth: 420 }}>
-            <Search size={15} aria-hidden="true" />
-            <input
-              type="text"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="Order number, customer phone, or email"
-              aria-label="Search for an order to view payments"
-            />
-          </div>
-          <button type="submit" className="btn btn--primary" disabled={lookingUp}>
-            <Wallet size={14} aria-hidden="true" />
-            {lookingUp ? 'Searching…' : 'Find orders'}
-          </button>
-        </form>
+        <div className="payments-lookup__form">
+          <SearchInput
+            value={orderNumber}
+            onSearch={lookup}
+            placeholder="Order number, customer phone, or email"
+            label="Search for an order to view payments"
+          />
+          {lookingUp && (
+            <span className="text-muted" role="status">
+              Searching…
+            </span>
+          )}
+        </div>
         <p className="subtle-note">
           Payment records are per-order in the backend; this lookup is the supported access path.
         </p>
       </div>
+
+      {noMatch && !lookingUp && (
+        <EmptyState title="No orders found" message="No orders matched that search. Try an order number, phone, or email." />
+      )}
 
       {orders.length > 0 && !selected && (
         <div className="panel" style={{ marginTop: 14 }}>

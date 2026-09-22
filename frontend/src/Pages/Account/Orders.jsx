@@ -1,65 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, MapPin, Package, Truck } from 'lucide-react';
 import apiClient from '../../api/client';
+import Pagination from '../../Components/ui/Pagination';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
-import { Package, AlertTriangle, Truck, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
+import { friendlyError } from '../../utils/errors';
+import { orderStatusMeta } from '../../utils/statuses';
 import './Orders.css';
 
-const STATUS_BADGES = {
-  PENDING_PAYMENT: { label: 'Awaiting Commitment Deposit', type: 'warning' },
-  COMMITMENT_PAID: { label: 'Deposit Paid • Sourcing', type: 'info' },
-  CONFIRMED: { label: 'Confirmed', type: 'info' },
-  PREPARING: { label: 'Harvesting & Packing', type: 'info' },
-  READY_FOR_DELIVERY: { label: 'Ready for Dispatch', type: 'info' },
-  READY_FOR_PICKUP: { label: 'Ready for Pickup', type: 'success' },
-  OUT_FOR_DELIVERY: { label: 'Out for Delivery', type: 'warning' },
-  DELIVERED: { label: 'Delivered • Awaiting Balance', type: 'success' },
-  PICKED_UP: { label: 'Picked Up • Awaiting Balance', type: 'success' },
-  BALANCE_PAID: { label: 'Balance Paid', type: 'success' },
-  COMPLETED: { label: 'Completed', type: 'success' },
-  CANCELLED: { label: 'Cancelled', type: 'danger' },
-  PAYMENT_FAILED: { label: 'Payment Failed', type: 'danger' },
-  REFUNDED: { label: 'Refunded', type: 'neutral' }
-};
-
 const Orders = () => {
-  const { t, currentLang } = useLanguage();
+  const { t, currentLang, formatDateTime } = useLanguage();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const res = await apiClient.get(`/orders?page=${page}&limit=10&lang=${currentLang || 'en'}`);
-        if (isMounted && Array.isArray(res?.items)) {
-          setOrders(res.items);
-          if (res.pagination) setPagination(res.pagination);
-        }
-      } catch (err) {
-        console.error('Failed to fetch customer orders', err);
-        if (isMounted) setError(err.message || 'Could not load your orders');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    apiClient
+      .get(`/orders?page=${page}&limit=10&lang=${currentLang || 'en'}`)
+      .then((res) => {
+        if (!mounted) return;
+        setOrders(Array.isArray(res?.items) ? res.items : []);
+        if (res?.pagination) setPagination(res.pagination);
+      })
+      .catch((err) => mounted && setError(friendlyError(err, t, 'ordersLoadError')))
+      .finally(() => mounted && setLoading(false));
+    return () => {
+      mounted = false;
     };
-
-    fetchOrders();
-    return () => { isMounted = false; };
+    // `t` changes only with the language, already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLang, page]);
 
   if (loading) {
     return (
-      <div className="card um-subview-card">
-        <div className="um-subview-loading">
+      <div className="panel account-card">
+        <div className="um-subview-loading" role="status">
           <div className="um-spinner" />
-          <p>Loading your farm orders...</p>
+          <p>{t('loadingOrders')}</p>
         </div>
       </div>
     );
@@ -67,9 +50,9 @@ const Orders = () => {
 
   if (error) {
     return (
-      <div className="card um-subview-card">
-        <div className="alert alert-error">
-          <AlertTriangle size={16} strokeWidth={1.75} />
+      <div className="panel account-card">
+        <div className="alert alert-error" role="alert" style={{ marginBottom: 0 }}>
+          <AlertTriangle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       </div>
@@ -78,108 +61,68 @@ const Orders = () => {
 
   if (orders.length === 0) {
     return (
-      <div className="card um-subview-card um-empty-orders">
-        <div className="um-empty-orders-icon">
-          <Package size={40} strokeWidth={1.25} />
-        </div>
-        <h3>No Orders Yet</h3>
-        <p>You haven&apos;t placed any orders yet. Fresh harvests are waiting for you!</p>
+      <div className="panel account-card state-block">
+        <span className="state-block__icon">
+          <Package size={34} strokeWidth={1.4} aria-hidden="true" />
+        </span>
+        <h2>{t('noOrdersTitle')}</h2>
+        <p>{t('noOrdersDesc')}</p>
         <Link to="/catalog" className="btn btn-primary">
-          Explore Food Catalog
+          {t('exploreCatalog')}
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="card um-subview-card">
-      <div className="um-subview-header">
-        <h2>{t('orders')}</h2>
-        <span className="um-orders-count-badge">{pagination.total} {pagination.total === 1 ? 'order' : 'orders'}</span>
+    <div className="panel account-card">
+      <div className="account-card__head">
+        <h2>{t('orderHistory')}</h2>
+        <span className="badge badge-neutral">{t('ordersCount', { count: pagination.total })}</span>
       </div>
 
-      <div className="um-orders-list">
+      <ul className="orders">
         {orders.map((order) => {
-          const statusInfo = STATUS_BADGES[order.status] || { label: order.status, type: 'neutral' };
-          const dateStr = new Date(order.createdAt).toLocaleDateString('en-UG', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-
+          const status = orderStatusMeta(order.status, t);
+          const home = order.fulfillment?.method === 'HOME_DELIVERY';
           return (
-            <div key={order.id} className="um-order-card card">
-              <div className="um-order-card-header">
+            <li key={order.id} className="order">
+              <div className="order__top">
                 <div>
-                  <strong className="um-order-number">{order.orderNumber}</strong>
-                  <span className="um-order-date">{dateStr}</span>
+                  <strong className="order__no">{order.orderNumber}</strong>
+                  <span className="order__date">{formatDateTime(order.createdAt)}</span>
                 </div>
-                <span className={`badge badge-${statusInfo.type}`}>
-                  {statusInfo.label}
-                </span>
+                <span className={`badge badge-${status.tone}`}>{status.label}</span>
               </div>
 
-              <div className="um-order-card-body">
-                <div className="um-order-detail-col">
-                  <span className="um-order-col-label">Fulfillment</span>
-                  <strong className="um-order-fulfillment">
-                    {order.fulfillment?.method === 'HOME_DELIVERY'
-                      ? <><Truck size={14} strokeWidth={1.75} /> Doorstep Delivery</>
-                      : <><MapPin size={14} strokeWidth={1.75} /> Station Pickup</>}
-                  </strong>
+              <dl className="order__cols">
+                <div>
+                  <dt>{t('fulfillmentCol')}</dt>
+                  <dd>
+                    {home ? <Truck size={14} aria-hidden="true" /> : <MapPin size={14} aria-hidden="true" />}
+                    {home ? t('doorstepDelivery') : t('stationPickup')}
+                  </dd>
                 </div>
-
-                <div className="um-order-detail-col">
-                  <span className="um-order-col-label">{t('commitmentDeposit')}</span>
-                  <span className="um-order-deposit-val">
-                    {formatUGX(order.pricing?.commitmentUgx || 0)}
-                  </span>
+                <div>
+                  <dt>{t('commitmentDeposit')}</dt>
+                  <dd className="order__deposit">{formatUGX(order.pricing?.commitmentUgx || 0)}</dd>
                 </div>
-
-                <div className="um-order-detail-col">
-                  <span className="um-order-col-label">Total Amount</span>
-                  <span className="um-order-total-val">
-                    {formatUGX(order.pricing?.totalUgx || 0)}
-                  </span>
+                <div>
+                  <dt>{t('totalAmount')}</dt>
+                  <dd className="order__total">{formatUGX(order.pricing?.totalUgx || 0)}</dd>
                 </div>
-
-                <div className="um-order-action-col">
-                  <Link
-                    to={`/account/orders/${order.id}`}
-                    className="btn btn-secondary btn-sm um-view-order-btn"
-                  >
-                    View &amp; Track &rarr;
+                <div className="order__cta">
+                  <Link to={`/account/orders/${order.id}`} className="btn btn-secondary btn-sm">
+                    {t('viewAndTrack')} <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
                   </Link>
                 </div>
-              </div>
-            </div>
+              </dl>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
-      {pagination.totalPages > 1 && (
-        <div className="um-pagination" style={{ marginTop: '1.25rem' }}>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft size={14} strokeWidth={2} /> Previous
-          </button>
-          <span style={{ alignSelf: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <button
-            className="btn btn-secondary btn-sm"
-            disabled={page >= pagination.totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next <ChevronRight size={14} strokeWidth={2} />
-          </button>
-        </div>
-      )}
+      <Pagination page={page} totalPages={pagination.totalPages} onChange={setPage} />
     </div>
   );
 };

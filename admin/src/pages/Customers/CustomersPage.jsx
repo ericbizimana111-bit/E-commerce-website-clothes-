@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Eye, Search, Users } from 'lucide-react';
+import { Eye, Users } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import { formatDateTime } from '../../utils/format';
 import PageHeader from '../../components/ui/PageHeader';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
 import './CustomersPage.css';
@@ -18,7 +19,6 @@ export default function CustomersPage() {
   const page = parseInt(searchParams.get('page') || '1', 10);
   const search = searchParams.get('search') || '';
 
-  const [searchInput, setSearchInput] = useState(search);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,10 +27,6 @@ export default function CustomersPage() {
   // Selected customer detail state
   const [selected, setSelected] = useState(null); // { customer, orders, pagination }
   const [detailLoading, setDetailLoading] = useState(false);
-
-  useEffect(() => {
-    setSearchInput(search);
-  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,22 +84,12 @@ export default function CustomersPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateParams({ search: searchInput.trim() });
-          }}
-        >
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name, phone, or email"
-            aria-label="Search customers"
-          />
-        </form>
+        <SearchInput
+          value={search}
+          onSearch={(term) => updateParams({ search: term })}
+          placeholder="Search by name, phone, or email"
+          label="Search customers"
+        />
         {search && (
           <button
             type="button"

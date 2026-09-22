@@ -4,40 +4,15 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .pagination__info {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
 .pagination__controls {
   display: flex;
-  gap: 8px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-}
-
-.page-header__text h1 {
-  font-size: 20px;
-}
-
-.page-header__desc {
-  margin-top: 3px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.page-header__actions {
-  display: flex;
-  align-items: center;
   gap: 8px;
 }

@@ -1,31 +1,17 @@
 .dash-greeting {
-  background: linear-gradient(135deg, var(--brand-primary-soft) 0%, #F4F9F6 60%, var(--surface) 100%);
-  border: 1px solid rgba(28, 82, 51, 0.13);
+  background: var(--brand-primary-soft);
+  border: 1px solid #CFE5D8;
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 20px;
-  position: relative;
-  overflow: hidden;
-}
-
-.dash-greeting::after {
-  content: '';
-  position: absolute;
-  right: -24px;
-  top: -24px;
-  width: 110px;
-  height: 110px;
-  border-radius: 50%;
-  background: rgba(28, 82, 51, 0.07);
-  pointer-events: none;
+  padding: 22px 26px;
+  margin-bottom: 22px;
 }
 
 .dash-greeting h1 {
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .dash-greeting p {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
   margin-top: 3px;
 }

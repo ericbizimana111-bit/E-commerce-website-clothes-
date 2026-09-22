@@ -94,6 +94,39 @@ async function toggleCategoryActive(req, res, next) {
   }
 }
 
+/**
+ * POST /api/admin/catalog/categories/:id/image
+ * Multipart upload (field "image"); replaces the category image.
+ */
+async function uploadCategoryImage(req, res, next) {
+  try {
+    const category = await categoryService.uploadCategoryImage(req.params.id, req.file, req.admin?.id, req.ip);
+    res.status(201).json({
+      success: true,
+      message: 'Category image uploaded successfully',
+      data: category,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * DELETE /api/admin/catalog/categories/:id/image
+ */
+async function removeCategoryImage(req, res, next) {
+  try {
+    const category = await categoryService.removeCategoryImage(req.params.id, req.admin?.id, req.ip);
+    res.json({
+      success: true,
+      message: 'Category image removed successfully',
+      data: category,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listPublicCategories,
   getPublicCategoryBySlug,
@@ -102,4 +135,6 @@ module.exports = {
   createCategory,
   updateCategory,
   toggleCategoryActive,
+  uploadCategoryImage,
+  removeCategoryImage,
 };

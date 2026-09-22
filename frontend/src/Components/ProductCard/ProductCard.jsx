@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Check, Plus } from 'lucide-react';
 import { useCart } from '../../Context/CartContext';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useToast } from '../Toast/Toast';
 import { formatUGX } from '../../utils/currency';
 import { resolveImageUrl } from '../../api/client';
-import { Check, Plus, Circle } from 'lucide-react';
 import './ProductCard.css';
 
 const PLACEHOLDER = '/img-placeholder.svg';
@@ -17,15 +17,20 @@ const ProductCard = ({ product }) => {
   const [added, setAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const resetTimer = useRef(null);
 
-  const name = getLocalizedField(product, 'name') || product.name || 'Fresh Produce';
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
+
+  const name = getLocalizedField(product, 'name') || product.name || t('freshProduce');
   const price = product.priceUgx ?? product.price ?? 0;
   const stock = product.availability?.stockQuantity ?? product.stockQuantity ?? 0;
   const inStock = product.availability?.inStock ?? stock > 0;
   const isAvailable = inStock && stock > 0;
+  const lowStock = isAvailable && stock <= 5;
 
   const primaryImage = product.image || (product.images && product.images[0]?.imageUrl) || product.imageUrl;
   const imageUrl = resolveImageUrl(primaryImage) || PLACEHOLDER;
+  const categoryName = product.category ? getLocalizedField(product.category, 'name') || product.category.name : '';
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -37,78 +42,75 @@ const ProductCard = ({ product }) => {
     setIsAdding(false);
     if (res?.success) {
       setAdded(true);
-      showToast(`${name} added to cart`, { type: 'success' });
-      setTimeout(() => setAdded(false), 1800);
+      showToast(t('addedToCartToast', { name }), { type: 'success' });
+      resetTimer.current = setTimeout(() => setAdded(false), 1800);
     } else if (res?.error) {
       showToast(res.error, { type: 'error' });
     }
   };
 
   return (
-    <div className={`um-prod-card ${!isAvailable ? 'um-prod-card--out' : ''}`}>
-      <Link to={`/product/${product.id}`} className="um-prod-image-wrapper">
+    <article className={`pc ${!isAvailable ? 'pc--out' : ''}`}>
+      <Link to={`/product/${product.id}`} className="pc__media" tabIndex={-1}>
         <img
           src={imageFailed ? PLACEHOLDER : imageUrl}
           alt={name}
-          className="um-prod-image"
+          className="pc__img"
           loading="lazy"
           onError={() => setImageFailed(true)}
         />
-        {product.category && (
-          <span className="um-prod-cat-badge">
-            {getLocalizedField(product.category, 'name') || product.category.name}
-          </span>
-        )}
+        {categoryName && <span className="pc__cat">{categoryName}</span>}
         {!isAvailable && (
-          <div className="um-prod-out-overlay">
+          <span className="pc__overlay">
             <span>{t('outOfStock')}</span>
-          </div>
+          </span>
         )}
       </Link>
 
-      <div className="um-prod-body">
-        <div className="um-prod-meta">
-          <span className="um-prod-unit">
-            {product.unit ? `${t('unit')}: ${product.unit}` : 'Per item'}
-          </span>
+      <div className="pc__body">
+        <Link to={`/product/${product.id}`} className="pc__title">
+          {name}
+        </Link>
+
+        <div className="pc__price-row">
+          <span className="pc__price">{formatUGX(price)}</span>
+          {product.unit && <span className="pc__unit">{t('perUnit', { unit: product.unit })}</span>}
+        </div>
+
+        <div className="pc__meta">
           {isAvailable ? (
-            <span className="um-prod-stock-badge in-stock">
-              <Circle size={6} fill="currentColor" strokeWidth={0} /> {t('inStock')}
+            <span className={`pc__stock ${lowStock ? 'pc__stock--low' : 'pc__stock--ok'}`}>
+              <span className="pc__dot" aria-hidden="true" />
+              {t('inStock')}
             </span>
           ) : (
-            <span className="um-prod-stock-badge out-stock">
-              <Circle size={6} fill="currentColor" strokeWidth={0} /> {t('outOfStock')}
+            <span className="pc__stock pc__stock--out">
+              <span className="pc__dot" aria-hidden="true" />
+              {t('outOfStock')}
             </span>
           )}
         </div>
 
-        <Link to={`/product/${product.id}`} className="um-prod-title">
-          {name}
-        </Link>
-
-        <div className="um-prod-footer">
-          <div className="um-prod-price-box">
-            <span className="um-prod-price">{formatUGX(price)}</span>
-            {product.unit && <span className="um-prod-per">/{product.unit}</span>}
-          </div>
-
-          <button
-            type="button"
-            className={`btn btn-sm ${added ? 'btn-success' : 'btn-primary'} um-prod-add-btn`}
-            onClick={handleAdd}
-            disabled={!isAvailable || isAdding || loading}
-          >
-            {added ? (
-              <><Check size={14} strokeWidth={2.5} /> Added</>
-            ) : isAdding ? (
-              'Adding...'
-            ) : (
-              <><Plus size={14} strokeWidth={2.5} /> {t('addToCart')}</>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`btn btn-sm pc__add ${added ? 'pc__add--done' : 'btn-primary'}`}
+          onClick={handleAdd}
+          disabled={!isAvailable || isAdding || loading}
+        >
+          {added ? (
+            <>
+              <Check size={15} strokeWidth={2.5} aria-hidden="true" /> {t('added')}
+            </>
+          ) : isAdding ? (
+            t('adding')
+          ) : (
+            <>
+              <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> {t('addToCart')}
+            </>
+          )}
+        </button>
       </div>
-    </div>
+    </article>
   );
 };
 

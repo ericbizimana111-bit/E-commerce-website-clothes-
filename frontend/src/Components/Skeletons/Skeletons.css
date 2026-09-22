@@ -1,104 +1,71 @@
-/* ═══════════════════════════════════════════════
-   UGAMARKET SKELETON LOADERS
-   ═══════════════════════════════════════════════ */
-
 .um-skeleton {
-  background: linear-gradient(
-    100deg,
-    var(--surface-alt, #F1F5F9) 40%,
-    #E9EEF5 50%,
-    var(--surface-alt, #F1F5F9) 60%
-  );
-  background-size: 200% 100%;
-  animation: umShimmer 1.4s ease-in-out infinite;
-  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-alt);
+  border-radius: 6px;
+  animation: skel-pulse 1.4s ease-in-out infinite;
 }
 
-@keyframes umShimmer {
-  from {
-    background-position: 200% 0;
+@keyframes skel-pulse {
+  0%,
+  100% {
+    opacity: 1;
   }
-  to {
-    background-position: -200% 0;
+  50% {
+    opacity: 0.5;
   }
 }
 
-/* Respect users who prefer less motion */
-@media (prefers-reduced-motion: reduce) {
-  .um-skeleton {
-    animation: none;
-    background: var(--surface-alt, #F1F5F9);
-  }
-}
-
-/* Card-shaped skeletons */
 .um-skel-card {
-  background: var(--surface, #FFFFFF);
-  border: 1px solid var(--border, #E2E8F0);
-  border-radius: var(--radius, 12px);
   overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
-.um-skel-card-img,
-.um-skel-cat-img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
+.um-skel-card-img {
+  aspect-ratio: 1 / 1;
   border-radius: 0;
 }
 
 .um-skel-cat-img {
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
+  border-radius: 0;
 }
 
 .um-skel-card-body {
-  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 10px;
+  padding: 14px;
 }
 
 .um-skel-line {
   height: 12px;
-  border-radius: 999px;
 }
-
-.um-skel-line--meta {
-  width: 45%;
-  height: 10px;
-}
-
 .um-skel-line--title {
-  width: 85%;
-  height: 14px;
+  width: 90%;
 }
-
+.um-skel-line--title-short {
+  width: 60%;
+}
 .um-skel-line--price {
-  width: 38%;
-  height: 18px;
+  width: 45%;
+  height: 16px;
 }
-
 .um-skel-line--btn {
-  width: 34%;
-  height: 30px;
-  border-radius: var(--radius, 12px);
+  height: 36px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
 }
 
-.um-skel-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 0.4rem;
+.um-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 14px;
 }
 
-/* Screen-reader-only utility (also used by other components) */
-.um-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+@media (max-width: 640px) {
+  .um-cat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
 }

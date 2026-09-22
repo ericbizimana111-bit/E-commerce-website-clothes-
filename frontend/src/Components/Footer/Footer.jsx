@@ -1,120 +1,121 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import apiClient from '../../api/client';
-import { Leaf, ShieldCheck, Wallet, MapPin, Phone, Mail } from 'lucide-react';
+import { Leaf, Mail, MapPin, Phone, ShieldCheck, Wallet } from 'lucide-react';
+import { useLanguage } from '../../Context/LanguageContext';
+import useCategories from '../../utils/useCategories';
+import LanguageSwitcher from '../LanguageSwitcher/LanguageSwitcher';
 import './Footer.css';
 
-// Official UgaMarket brand asset (frontend/public/logo.png)
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
-
-// Fallback used only if the category API is unreachable — these slugs mirror
-// the backend seed so links remain valid (directive: no dead links).
-const FALLBACK_CATEGORIES = [
-  { id: 'f1', slug: 'matooke-tubers', name: 'Matooke & Tubers' },
-  { id: 'f2', slug: 'grains-cereals', name: 'Grains & Cereals' },
-  { id: 'f3', slug: 'fresh-vegetables', name: 'Fresh Greens & Vegetables' },
-  { id: 'f4', slug: 'fresh-fruits', name: 'Fresh Fruits' }
-];
+const PAYMENT_METHODS = ['MTN MoMo', 'Airtel Money', 'Visa', 'MasterCard'];
 
 const Footer = () => {
-  const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadCategories = async () => {
-      try {
-        // GET /api/categories -> [{ id, slug, name, ... }]
-        const res = await apiClient.get('/categories');
-        if (isMounted && Array.isArray(res?.data) && res.data.length > 0) {
-          setCategories(res.data.slice(0, 4));
-        }
-      } catch {
-        // Keep fallback slugs on failure; footer must always render.
-      }
-    };
-    loadCategories();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const { t, getLocalizedField } = useLanguage();
+  const { categories } = useCategories();
 
   return (
     <footer className="um-footer">
-      <div className="um-footer-container">
-        {/* Main Footer Grid */}
-        <div className="um-footer-grid">
-          {/* Brand Col */}
-          <div className="um-footer-brand">
-            <Link to="/" className="um-footer-logo">
-              <img
-                src={LOGO_SRC}
-                alt="UgaMarket — home to home"
-                className="um-footer-logo-img"
-                width="150"
-                height="42"
-              />
+      <div className="container">
+        <div className="um-footer__grid">
+          <div className="um-footer__brand">
+            <Link to="/" aria-label={t('brandName')}>
+              <img src={LOGO_SRC} alt="" className="um-footer__logo" width="150" height="44" />
             </Link>
-            <p className="um-footer-desc">
-              Direct-from-farm Ugandan food marketplace. Delivering fresh matooke, cereals, beans, and fresh harvest to homes and local pickup stations across Uganda.
-            </p>
-            <div className="um-footer-trust-badges">
-              <span className="um-trust-pill"><Leaf size={13} strokeWidth={1.75} /> Local Ugandan Farmers</span>
-              <span className="um-trust-pill"><ShieldCheck size={13} strokeWidth={1.75} /> Quality Inspection on Fulfillment</span>
-              <span className="um-trust-pill"><Wallet size={13} strokeWidth={1.75} /> Small Deposit First, Balance at Fulfillment</span>
-            </div>
+            <p>{t('footerDesc')}</p>
+            <ul className="um-footer__badges">
+              <li>
+                <Leaf size={14} aria-hidden="true" /> {t('footerBadgeFarmers')}
+              </li>
+              <li>
+                <ShieldCheck size={14} aria-hidden="true" /> {t('footerBadgeInspect')}
+              </li>
+              <li>
+                <Wallet size={14} aria-hidden="true" /> {t('footerBadgeDeposit')}
+              </li>
+            </ul>
           </div>
 
-          {/* Quick Links */}
-          <div className="um-footer-col">
-            <h4 className="um-footer-heading">Shop</h4>
-            <ul className="um-footer-links">
-              <li><Link to="/catalog">All Fresh Food</Link></li>
-              {categories.map((cat) => (
+          <nav className="um-footer__col" aria-label={t('footerShop')}>
+            <h4>{t('footerShop')}</h4>
+            <ul>
+              <li>
+                <Link to="/catalog">{t('footerAllFood')}</Link>
+              </li>
+              {categories.slice(0, 5).map((cat) => (
                 <li key={cat.id}>
-                  <Link to={`/catalog?category=${cat.slug}`}>{cat.name}</Link>
+                  <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`}>
+                    {getLocalizedField(cat, 'name') || cat.name}
+                  </Link>
                 </li>
               ))}
-              <li><Link to="/pickup-stations">Pickup Stations</Link></li>
+              <li>
+                <Link to="/pickup-stations">{t('pickupStations')}</Link>
+              </li>
             </ul>
-          </div>
+          </nav>
 
-          {/* Account & Support */}
-          <div className="um-footer-col">
-            <h4 className="um-footer-heading">Account</h4>
-            <ul className="um-footer-links">
-              <li><Link to="/login">Login</Link></li>
-              <li><Link to="/login?signup=true">Create Account</Link></li>
-              <li><Link to="/account/orders">My Orders</Link></li>
-              <li><Link to="/account/addresses">Saved Addresses</Link></li>
-              <li><Link to="/account/notifications">Notifications</Link></li>
+          <nav className="um-footer__col" aria-label={t('footerAccount')}>
+            <h4>{t('footerAccount')}</h4>
+            <ul>
+              <li>
+                <Link to="/login">{t('signIn')}</Link>
+              </li>
+              <li>
+                <Link to="/login?signup=true">{t('signup')}</Link>
+              </li>
+              <li>
+                <Link to="/account/orders">{t('footerMyOrders')}</Link>
+              </li>
+              <li>
+                <Link to="/account/addresses">{t('footerSavedAddresses')}</Link>
+              </li>
+              <li>
+                <Link to="/account/notifications">{t('notifications')}</Link>
+              </li>
             </ul>
-          </div>
+          </nav>
 
-          {/* Help */}
-          <div className="um-footer-col">
-            <h4 className="um-footer-heading">Customer Support</h4>
-            <ul className="um-footer-links">
-              <li><Link to="/how-it-works">How UgaMarket Works</Link></li>
-              <li><Link to="/how-it-works">Commitment Deposit Explained</Link></li>
-              <li><Link to="/pickup-stations">Find a Pickup Station</Link></li>
+          <div className="um-footer__col">
+            <h4>{t('footerSupport')}</h4>
+            <ul>
+              <li>
+                <Link to="/how-it-works">{t('howItWorks')}</Link>
+              </li>
+              <li>
+                <Link to="/how-it-works">{t('footerDepositExplained')}</Link>
+              </li>
+              <li>
+                <Link to="/pickup-stations">{t('footerFindStation')}</Link>
+              </li>
             </ul>
-            <div className="um-footer-contact-info">
-              <div><MapPin size={13} strokeWidth={1.75} /> Kampala, Uganda</div>
-              <div><Phone size={13} strokeWidth={1.75} /> +256 700 123 456</div>
-              <div><Mail size={13} strokeWidth={1.75} /> support@ugamarket.ug</div>
-            </div>
+            <address className="um-footer__contact">
+              <span>
+                <MapPin size={14} aria-hidden="true" /> {t('footerLocation')}
+              </span>
+              <a href="tel:+256700123456">
+                <Phone size={14} aria-hidden="true" /> +256 700 123 456
+              </a>
+              <a href="mailto:support@ugamarket.ug">
+                <Mail size={14} aria-hidden="true" /> support@ugamarket.ug
+              </a>
+            </address>
           </div>
         </div>
 
-        {/* Bottom Bar */}
-        <div className="um-footer-bottom">
-          <p>© {new Date().getFullYear()} UgaMarket — home to home. All rights reserved.</p>
-          <div className="um-footer-bottom-links">
-            <span>Prices displayed in UGX</span>
-            <span aria-hidden="true">•</span>
-            <span>Pay a small commitment deposit now</span>
-            <span aria-hidden="true">•</span>
-            <span>Inspect your order, then pay the balance</span>
+        <div className="um-footer__pay">
+          <span>{t('footerPayWith')}</span>
+          <ul>
+            {PAYMENT_METHODS.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="um-footer__bottom">
+          <p>{t('footerRights', { year: new Date().getFullYear() })}</p>
+          <div className="um-footer__bottom-right">
+            <span>{t('footerPricesUgx')}</span>
+            <LanguageSwitcher tone="light" />
           </div>
         </div>
       </div>

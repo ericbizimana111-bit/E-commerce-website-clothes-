@@ -1,0 +1,77 @@
+/* Shared drag-and-drop image picker */
+.dropzone {
+  position: relative;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dropzone:hover:not(.dropzone--disabled) {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+.dropzone--active {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+.dropzone--disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* Visually hidden but still keyboard-focusable; the label is the click target. */
+.dropzone__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.dropzone__input:focus-visible + .dropzone__label {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
+
+.dropzone__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone--disabled .dropzone__label {
+  cursor: progress;
+}
+
+.dropzone__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--brand-primary);
+  margin-bottom: 4px;
+}
+
+.dropzone__title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.dropzone__hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+

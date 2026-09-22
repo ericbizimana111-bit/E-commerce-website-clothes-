@@ -1,50 +1,49 @@
 import React from 'react';
+import { useLanguage } from '../../Context/LanguageContext';
 import './Skeletons.css';
 
-/**
- * UgaMarket — home to home | Skeleton loading components.
- * Communicate layout while API data loads — no blank screens.
- */
+/** Skeleton placeholders: keep the layout stable while API data loads. */
 
 export const SkeletonBox = ({ className = '', style }) => (
   <div className={`um-skeleton ${className}`} style={style} aria-hidden="true" />
 );
 
-/** Matches the ProductCard layout exactly */
+/** Mirrors the ProductCard layout so nothing jumps when data arrives. */
 export const ProductCardSkeleton = () => (
-  <div className="um-skel-card" role="status" aria-label="Loading product">
+  <div className="um-skel-card" aria-hidden="true">
     <SkeletonBox className="um-skel-card-img" />
     <div className="um-skel-card-body">
-      <SkeletonBox className="um-skel-line um-skel-line--meta" />
       <SkeletonBox className="um-skel-line um-skel-line--title" />
-      <div className="um-skel-card-footer">
-        <SkeletonBox className="um-skel-line um-skel-line--price" />
-        <SkeletonBox className="um-skel-line um-skel-line--btn" />
-      </div>
+      <SkeletonBox className="um-skel-line um-skel-line--title-short" />
+      <SkeletonBox className="um-skel-line um-skel-line--price" />
+      <SkeletonBox className="um-skel-line um-skel-line--btn" />
     </div>
-    <span className="um-visually-hidden">Loading products…</span>
-    <span className="um-visually-hidden" />
   </div>
 );
 
-export const ProductGridSkeleton = ({ count = 8 }) => (
-  <div className="um-products-grid">
-    {Array.from({ length: count }, (_, i) => (
-      <ProductCardSkeleton key={i} />
-    ))}
-  </div>
-);
+export const ProductGridSkeleton = ({ count = 8 }) => {
+  const { t } = useLanguage();
+  return (
+    <div className="um-products-grid" role="status" aria-label={t('productsLoadingLabel')}>
+      {Array.from({ length: count }, (_, i) => (
+        <ProductCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+};
 
-export const CategoryGridSkeleton = ({ count = 6 }) => (
-  <div className="um-cat-grid">
-    {Array.from({ length: count }, (_, i) => (
-      <div key={i} className="um-skel-card" role="status" aria-label="Loading category">
-        <SkeletonBox className="um-skel-cat-img" />
-        <div className="um-skel-card-body">
-          <SkeletonBox className="um-skel-line um-skel-line--title" />
-          <SkeletonBox className="um-skel-line um-skel-line--meta" />
+export const CategoryGridSkeleton = ({ count = 6 }) => {
+  const { t } = useLanguage();
+  return (
+    <div className="um-cat-grid" role="status" aria-label={t('categoryLoadingLabel')}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="um-skel-card" aria-hidden="true">
+          <SkeletonBox className="um-skel-cat-img" />
+          <div className="um-skel-card-body">
+            <SkeletonBox className="um-skel-line um-skel-line--title" />
+          </div>
         </div>
-      </div>
-    ))}
-  </div>
-);
+      ))}
+    </div>
+  );
+};

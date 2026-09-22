@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Navbar from './Components/Navbar/Navbar';
 import Footer from './Components/Footer/Footer';
 import MobileNav from './Components/MobileNav/MobileNav';
+import ScrollToTop from './Components/ui/ScrollToTop';
 import { ToastProvider } from './Components/Toast/Toast';
 import Shop from './Pages/Shop';
 import ProductCatalog from './Pages/ProductCatalog';
@@ -19,17 +20,19 @@ import OrderDetail from './Pages/Account/OrderDetail';
 import Addresses from './Pages/Account/Addresses';
 import Notifications from './Pages/Account/Notifications';
 import { useAuth } from './Context/AuthContext';
+import { useLanguage } from './Context/LanguageContext';
 
-// Protected Route Guard for Customer Account & Checkout
+// Protected route guard for the customer account area and checkout.
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
 
   if (loading) {
     return (
-      <div style={{ padding: '5rem', textAlign: 'center' }}>
-        <div className="um-spinner" style={{ margin: '0 auto' }} />
-        <p style={{ marginTop: '1rem', color: 'var(--muted)' }}>Checking authentication...</p>
+      <div className="um-loading-box" role="status" style={{ padding: '5rem 1rem' }}>
+        <div className="um-spinner" />
+        <p>{t('loading')}</p>
       </div>
     );
   }
@@ -46,51 +49,53 @@ function AppRoutes() {
   const isAuthPage = location.pathname === '/login';
 
   return (
-    <div className="um-app">
+    <div className={`um-app ${isAuthPage ? 'um-app--auth' : ''}`}>
+      <ScrollToTop />
       {!isAuthPage && <Navbar />}
-      <main className="um-main">
-        <Routes>
-          {/* Public customer routes */}
-          <Route path="/" element={<Shop />} />
-          <Route path="/catalog" element={<ProductCatalog />} />
-          <Route path="/product/:productId" element={<Product />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/pickup-stations" element={<PickupStations />} />
-          <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/login" element={<LoginSignup />} />
+      {/* Keyed by path so each page fades in on navigation. */}
+      <main className="um-main" id="main" key={location.pathname}>
+        <div className="um-page">
+          <Routes location={location}>
+            {/* Public customer routes */}
+            <Route path="/" element={<Shop />} />
+            <Route path="/catalog" element={<ProductCatalog />} />
+            <Route path="/product/:productId" element={<Product />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/pickup-stations" element={<PickupStations />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/login" element={<LoginSignup />} />
 
-          {/* Checkout (requires customer auth) */}
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute>
-                <Checkout />
-              </ProtectedRoute>
-            }
-          />
+            {/* Checkout (requires customer auth) */}
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <Checkout />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Account nested area (requires customer auth) */}
-          <Route
-            path="/account"
-            element={
-              <ProtectedRoute>
-                <AccountLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/account/orders" replace />} />
-            <Route path="orders" element={<Orders />} />
-            <Route path="orders/:id" element={<OrderDetail />} />
-            <Route path="addresses" element={<Addresses />} />
-            <Route path="notifications" element={<Notifications />} />
-          </Route>
+            {/* Account area (requires customer auth) */}
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="/account/orders" replace />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="orders/:id" element={<OrderDetail />} />
+              <Route path="addresses" element={<Addresses />} />
+              <Route path="notifications" element={<Notifications />} />
+            </Route>
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
       </main>
       {!isAuthPage && <Footer />}
-      {/* Thumb-reachable primary navigation on small screens */}
       {!isAuthPage && <MobileNav />}
     </div>
   );

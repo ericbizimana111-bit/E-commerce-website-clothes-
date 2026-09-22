@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { Save, Trash2, X } from 'lucide-react';
 import api from '../../services/api';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import ImageDropzone from '../../components/ui/ImageDropzone';
+import { validateImageFile } from '../../utils/imageFiles';
 import './CategoryFormModal.css';
 
 /**
@@ -35,13 +38,18 @@ function normalizeSlugInput(value) {
     .replace(/-{2,}/g, '-');
 }
 
-export default function CategoryFormModal({ category, onClose, onSaved }) {
+export default function CategoryFormModal({ category, onClose, onSaved, onImageChanged }) {
   const isEdit = Boolean(category?.id);
   const [slug, setSlug] = useState(category?.slug || '');
   const [displayOrder, setDisplayOrder] = useState(
     category?.displayOrder != null ? String(category.displayOrder) : '0',
   );
   const [imageUrl, setImageUrl] = useState(category?.imageUrl || '');
+  // Image picked while CREATING: uploaded right after the category exists.
+  const [pendingImage, setPendingImage] = useState(null); // { file, previewUrl }
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [translations, setTranslations] = useState(() => {
     const initial = {};
     (category?.translations || []).forEach((t) => {
@@ -62,6 +70,58 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
       document.body.style.overflow = previous;
     };
   }, []);
+
+  // Release the object URL of a discarded / replaced preview.
+  useEffect(() => {
+    return () => {
+      if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
+    };
+  }, [pendingImage]);
+
+  /** POST /api/admin/catalog/categories/:id/image (multipart "image"). */
+  const uploadImage = async (file, categoryId) => {
+    const data = new FormData();
+    data.append('image', file);
+    const res = await api.post(`/admin/catalog/categories/${categoryId}/image`, data);
+    return res?.data?.imageUrl || '';
+  };
+
+  const handleImageFiles = async (fileList) => {
+    const file = fileList?.[0];
+    if (!file) return;
+    const problem = validateImageFile(file);
+    setImageError(problem);
+    if (problem) return;
+
+    if (!isEdit) {
+      setPendingImage({ file, previewUrl: URL.createObjectURL(file) });
+      return;
+    }
+    setImageBusy(true);
+    try {
+      setImageUrl(await uploadImage(file, category.id));
+      onImageChanged?.();
+    } catch (err) {
+      setImageError(err.message || 'Image upload failed.');
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const removeImage = async () => {
+    setImageBusy(true);
+    setImageError(null);
+    try {
+      await api.delete(`/admin/catalog/categories/${category.id}/image`);
+      setImageUrl('');
+      onImageChanged?.();
+    } catch (err) {
+      setImageError(err.message || 'Failed to remove the image.');
+    } finally {
+      setImageBusy(false);
+      setConfirmRemove(false);
+    }
+  };
 
   const setTranslation = (lang, field, value) => {
     setTranslations((prev) => ({ ...prev, [lang]: { ...prev[lang], [field]: value } }));
@@ -101,13 +161,23 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
         })),
       };
       if (displayOrder !== '') payload.displayOrder = Math.round(Number(displayOrder));
-      if (imageUrl.trim()) payload.imageUrl = imageUrl.trim();
 
       if (isEdit) {
         await api.put(`/admin/catalog/categories/${category.id}`, payload);
         await onSaved('Category updated successfully.');
       } else {
-        await api.post('/admin/catalog/categories', payload);
+        const res = await api.post('/admin/catalog/categories', payload);
+        const createdId = res?.data?.id;
+        if (pendingImage?.file && createdId) {
+          try {
+            await uploadImage(pendingImage.file, createdId);
+          } catch (err) {
+            await onSaved(
+              `Category created, but the image could not be uploaded (${err.message || 'upload failed'}). Edit the category to try again.`,
+            );
+            return;
+          }
+        }
         await onSaved('Category created successfully.');
       }
     } catch (err) {
@@ -164,20 +234,54 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="form-field">
-            <label htmlFor="cat-image">Image URL (optional)</label>
-            <input
+          <fieldset className="cat-modal__image">
+            <legend>Image</legend>
+            {imageError && (
+              <div className="alert alert--error" role="alert" style={{ marginBottom: 10 }}>
+                <span>{imageError}</span>
+              </div>
+            )}
+
+            {(isEdit ? imageUrl : pendingImage?.previewUrl) && (
+              <div className="cat-modal__preview">
+                <img
+                  src={isEdit ? imageUrl : pendingImage.previewUrl}
+                  alt="Category"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/img-placeholder.svg';
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm cat-modal__remove"
+                  onClick={() => (isEdit ? setConfirmRemove(true) : setPendingImage(null))}
+                  disabled={imageBusy || submitting}
+                >
+                  <Trash2 size={13} aria-hidden="true" />
+                  {isEdit ? 'Remove' : 'Discard'}
+                </button>
+              </div>
+            )}
+
+            <ImageDropzone
               id="cat-image"
-              type="text"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://… or /images/…"
-              disabled={submitting}
+              inputLabel="Choose category image"
+              disabled={imageBusy || submitting}
+              progressText={imageBusy ? 'Uploading…' : null}
+              idleText={
+                (isEdit ? imageUrl : pendingImage)
+                  ? 'Drag a new image here to replace it, or click to browse'
+                  : 'Drag and drop an image here, or click to browse'
+              }
+              hint={
+                isEdit
+                  ? 'JPEG, PNG, WebP or GIF · up to 5 MB · uploaded immediately'
+                  : 'JPEG, PNG, WebP or GIF · up to 5 MB · uploaded when the category is created'
+              }
+              onFiles={handleImageFiles}
             />
-            <span className="field-hint">
-              Absolute http(s) URL or an app-relative /images/ path (backend-validated).
-            </span>
-          </div>
+          </fieldset>
 
           <div className="cat-modal__langs">
             {LANGUAGES.map((lang) => (
@@ -219,6 +323,17 @@ export default function CategoryFormModal({ category, onClose, onSaved }) {
           </div>
         </form>
       </div>
+
+      <ConfirmDialog
+        open={confirmRemove}
+        title="Remove this image?"
+        message="The category will show the placeholder picture on the storefront until a new image is uploaded."
+        confirmLabel="Remove image"
+        danger
+        busy={imageBusy}
+        onConfirm={removeImage}
+        onCancel={() => setConfirmRemove(false)}
+      />
     </div>
   );
 }

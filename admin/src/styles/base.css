@@ -20,7 +20,7 @@ body,
 body {
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text);
   background: var(--surface-muted);
   -webkit-font-smoothing: antialiased;
@@ -49,7 +49,6 @@ button {
 :focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */
@@ -57,11 +56,13 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 8px 14px;
-  font-size: 13px;
+  gap: 8px;
+  height: var(--control-height);
+  padding: 0 16px;
+  font-size: 13.5px;
   font-weight: 600;
-  border-radius: var(--radius-sm);
+  line-height: 1;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -98,7 +99,7 @@ button {
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: #991B1B;
+  background: #912018;
 }
 
 .btn--ghost {
@@ -112,8 +113,10 @@ button {
 }
 
 .btn--sm {
-  padding: 5px 10px;
-  font-size: 12px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
 }
 
 .btn--block {
@@ -124,12 +127,12 @@ button {
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
 .form-field label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-strong);
 }
@@ -139,46 +142,103 @@ button {
   color: var(--danger);
 }
 
-.form-field input,
+/* Modern controls: 40px tall, soft radius, clear focus state. */
+.form-field input:not([type='checkbox']):not([type='radio']),
 .form-field select,
-.form-field textarea {
-  padding: 8px 10px;
-  font-size: 13.5px;
+.form-field textarea,
+.toolbar select,
+.search-input input {
+  height: var(--control-height);
+  padding: 0 12px;
+  font-size: 14px;
   font-family: inherit;
   color: var(--text-strong);
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   width: 100%;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder,
+.search-input input::placeholder {
+  color: var(--text-faint);
+}
+
+.form-field input:not([type='checkbox']):not([type='radio']):hover:not(:disabled),
+.form-field select:hover:not(:disabled),
+.form-field textarea:hover:not(:disabled),
+.toolbar select:hover,
+.search-input input:hover {
+  border-color: #9AA8A3;
+}
+
+.form-field select,
+.toolbar select {
+  appearance: none;
+  padding-right: 36px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23556274' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.toolbar select {
+  width: auto;
+  min-width: 170px;
 }
 
 .form-field textarea {
+  height: auto;
+  padding: 10px 12px;
+  line-height: 1.5;
   resize: vertical;
-  min-height: 70px;
+  min-height: 84px;
 }
 
-.form-field input:focus,
+.form-field input[type='checkbox'],
+.form-field input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary);
+  cursor: pointer;
+}
+
+.form-field input:not([type='checkbox']):not([type='radio']):focus,
 .form-field select:focus,
-.form-field textarea:focus {
-  outline: none;
+.form-field textarea:focus,
+.toolbar select:focus,
+.search-input input:focus {
   border-color: var(--brand-primary);
-  box-shadow: 0 0 0 3px var(--brand-primary-soft);
+  background-color: #fff;
+  outline: 2px solid var(--brand-primary-soft);
+  outline-offset: 0;
+}
+
+.form-field input:disabled,
+.form-field select:disabled,
+.form-field textarea:disabled {
+  background-color: var(--surface-sunken);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 .form-field .field-error {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--danger);
 }
 
-.form-field .field-hint {
-  font-size: 12px;
+.form-field .field-hint,
+.field-hint {
+  font-size: 12.5px;
   color: var(--text-muted);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
 }
 
 @media (max-width: 640px) {
@@ -192,11 +252,10 @@ button {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .panel-pad {
-  padding: 18px 20px;
+  padding: 22px 24px;
 }
 
 /* ── Badges (semantic status pills) ──────────────────────── */
@@ -204,8 +263,8 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
-  font-size: 11.5px;
+  padding: 4px 10px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 999px;
   letter-spacing: 0.02em;
@@ -223,16 +282,16 @@ button {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 13.5px;
   border: 1px solid transparent;
 }
 
 .alert--error {
   background: var(--danger-soft);
   color: var(--danger);
-  border-color: #F3CFCF;
+  border-color: #F5CBC6;
 }
 
 .alert--info {

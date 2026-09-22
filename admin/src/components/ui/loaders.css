@@ -1,15 +1,14 @@
 .skel {
   display: block;
   height: 12px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--surface-sunken) 25%, #E2E7E5 50%, var(--surface-sunken) 75%);
-  background-size: 200% 100%;
-  animation: skel-shimmer 1.3s infinite;
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  animation: skel-pulse 1.4s ease-in-out infinite;
 }
 
-@keyframes skel-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+@keyframes skel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .skel-table {

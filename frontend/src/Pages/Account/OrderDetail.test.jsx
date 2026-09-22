@@ -20,9 +20,17 @@ jest.mock('../../api/client', () => ({
   default: { get: jest.fn(), post: jest.fn() },
 }));
 
-jest.mock('../../Context/LanguageContext', () => ({
-  useLanguage: () => ({ currentLang: 'en' }),
-}));
+// Real English dictionary, so the assertions below test the actual UI copy.
+jest.mock('../../Context/LanguageContext', () => {
+  const { translate } = require('../../i18n');
+  return {
+    useLanguage: () => ({
+      currentLang: 'en',
+      t: (key, params) => translate('en', key, params),
+      formatDateTime: (value) => new Date(value).toISOString(),
+    }),
+  };
+});
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 

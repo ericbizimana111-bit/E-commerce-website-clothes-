@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Eye, RefreshCw, Search } from 'lucide-react';
+import { Eye, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import { formatUGX, formatDateTime } from '../../utils/format';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
@@ -38,15 +39,10 @@ export default function OrdersPage() {
   const status = searchParams.get('status') || '';
   const fulfillment = searchParams.get('fulfillment') || '';
 
-  const [searchInput, setSearchInput] = useState(search);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    setSearchInput(search);
-  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -154,22 +150,12 @@ export default function OrdersPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateParams({ search: searchInput.trim() });
-          }}
-        >
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search order number, phone, or email"
-            aria-label="Search orders"
-          />
-        </form>
+        <SearchInput
+          value={search}
+          onSearch={(term) => updateParams({ search: term })}
+          placeholder="Search order number, phone, or email"
+          label="Search orders"
+        />
 
         <select
           value={status}

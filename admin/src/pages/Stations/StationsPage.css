@@ -1,0 +1,26 @@
+.stations-page__name {
+  display: block;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.stations-page__sub {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.stations-page__address {
+  display: block;
+  max-width: 260px;
+}
+
+.stations-page__actions-col {
+  text-align: right;
+}
+
+.stations-page__row-actions {
+  display: inline-flex;
+  gap: 6px;
+}

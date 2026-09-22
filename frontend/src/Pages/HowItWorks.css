@@ -1,0 +1,140 @@
+.hiw {
+  padding-block: clamp(24px, 4vw, 48px) 8px;
+}
+
+.hiw__head {
+  max-width: 720px;
+  margin: 0 auto clamp(24px, 4vw, 40px);
+  text-align: center;
+}
+
+.hiw__head .section-desc {
+  margin-inline: auto;
+}
+
+.hiw__steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.hiw__step {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(14px, 3vw, 24px);
+  padding: clamp(18px, 3vw, 28px);
+  transition: border-color var(--base) var(--ease), transform var(--base) var(--ease);
+}
+
+.hiw__step:hover {
+  border-color: var(--primary);
+  transform: translateX(6px);
+}
+
+.hiw__badge {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius);
+}
+
+.hiw__badge b {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.8rem;
+  color: #fff;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+}
+
+.hiw__step h2 {
+  margin-bottom: 6px;
+  font-size: 1.15rem;
+}
+
+.hiw__step p {
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.hiw__faq {
+  max-width: 860px;
+  margin: clamp(32px, 5vw, 56px) auto 0;
+}
+
+.hiw__faq .section-title {
+  margin-bottom: 16px;
+}
+
+.hiw__faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hiw__qa summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.hiw__qa summary::-webkit-details-marker {
+  display: none;
+}
+
+.hiw__qa summary svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform var(--base) var(--ease);
+}
+
+.hiw__qa[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.hiw__qa[open] {
+  border-color: var(--primary);
+}
+
+.hiw__qa p {
+  padding: 0 20px 18px;
+  color: var(--muted);
+  line-height: 1.7;
+  animation: page-in 0.3s var(--ease) both;
+}
+
+.hiw__cta {
+  max-width: 860px;
+  margin: clamp(32px, 5vw, 56px) auto 0;
+}
+
+@media (max-width: 560px) {
+  .hiw__step {
+    flex-direction: column;
+  }
+  .hiw__step:hover {
+    transform: none;
+  }
+}

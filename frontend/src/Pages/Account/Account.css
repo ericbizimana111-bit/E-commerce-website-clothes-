@@ -1,191 +1,179 @@
-.um-account-page {
-  padding: 2.5rem 0 5rem;
+.account {
+  padding-block: 24px 8px;
 }
 
-.um-account-header {
-  margin-bottom: 2rem;
+.account__head {
+  margin-bottom: 20px;
 }
 
-.um-account-title {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: var(--dark);
-}
-
-.um-account-subtitle {
-  color: var(--muted);
-  font-size: 0.95rem;
-  margin-top: 0.2rem;
-}
-
-.um-account-grid {
+.account__grid {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 2rem;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 
-/* Sidebar */
-.um-account-sidebar {
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.account__side {
+  position: sticky;
+  top: calc(var(--header-h) + 62px);
+  padding: 16px;
 }
 
-.um-account-user-card {
+.account__user {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  padding: 6px 6px 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
 
-.um-account-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.um-account-user-meta {
+.account__user > div {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.account__user strong {
+  color: var(--ink);
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.um-account-user-meta strong {
-  font-size: 0.95rem;
-  color: var(--dark);
-  white-space: nowrap;
+.account__user span,
+.account__user small {
+  font-size: 0.82rem;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.um-account-user-meta span {
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.um-account-user-meta small {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Nav links */
-.um-account-nav {
+.account__nav {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 2px;
 }
 
-.um-account-nav-link {
+.account__link {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--slate);
-  transition: var(--transition);
-  border: none;
-  background: transparent;
+  gap: 12px;
   width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 0.92rem;
+  font-weight: 600;
   text-align: left;
-  cursor: pointer;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease),
+    padding-left var(--fast) var(--ease);
 }
 
-.um-account-nav-link:hover {
+.account__link:hover {
   background: var(--surface-alt);
-  color: var(--primary);
+  padding-left: 18px;
 }
 
-.um-account-nav-link--active {
-  background: var(--primary-light);
+.account__link--active,
+.account__link--active:hover {
   color: var(--primary);
+  background: var(--primary-soft);
+  padding-left: 18px;
 }
 
-.um-account-nav-link--danger {
+.account__link--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.account__link--danger {
+  margin-top: 8px;
   color: var(--danger);
 }
 
-.um-account-nav-link--danger:hover {
-  background: var(--danger-light);
-  color: var(--danger);
+.account__link--danger:hover {
+  background: var(--danger-soft);
 }
 
-.um-account-nav-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 0.5rem 0;
+.account__content {
+  min-width: 0;
+  animation: page-in 0.35s var(--ease) both;
 }
 
-/* Content Area */
-.um-account-content {
-  min-height: 400px;
+/* Shared inner-card styles */
+.account-card {
+  padding: clamp(16px, 2.6vw, 26px);
 }
 
-.um-subview-card {
-  padding: 1.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.um-subview-header {
+.account-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
-.um-subview-header h2 {
-  font-size: 1.4rem;
-  color: var(--dark);
+.account-card__head h2 {
+  font-size: 1.2rem;
 }
 
-/* Responsive */
-@media (max-width: 860px) {
-  .um-account-grid {
+@media (max-width: 900px) {
+  .account__grid {
     grid-template-columns: 1fr;
   }
-}
-
-@media (max-width: 580px) {
-  .um-account-nav {
+  .account__side {
+    position: static;
+    padding: 12px;
+  }
+  .account__user {
+    padding-bottom: 12px;
+  }
+  /* Sections become a horizontal, swipeable tab row on phones. */
+  .account__nav {
     flex-direction: row;
     overflow-x: auto;
-    gap: 0;
-    padding-bottom: 0;
-    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 2px;
     scrollbar-width: none;
   }
-  .um-account-nav::-webkit-scrollbar { display: none; }
-  .um-account-nav-link {
+  .account__nav::-webkit-scrollbar {
+    display: none;
+  }
+  .account__link {
+    width: auto;
     flex-shrink: 0;
-    border-radius: 0;
-    border-bottom: 2px solid transparent;
-    padding: 0.65rem 0.9rem;
+    padding: 0 16px;
     white-space: nowrap;
-    font-size: 0.82rem;
+    background: var(--bg);
+    border-radius: 999px;
   }
-  .um-account-nav-link--active {
-    background: transparent;
-    border-bottom-color: var(--primary);
-    color: var(--primary);
+  .account__link:hover,
+  .account__link--active,
+  .account__link--active:hover {
+    padding-left: 16px;
   }
-  .um-account-nav-divider { display: none; }
-  .um-account-title { font-size: 1.6rem; }
+  .account__link--active::before {
+    display: none;
+  }
+  .account__link--active {
+    color: #fff;
+    background: var(--primary);
+  }
+  .account__link--extra {
+    display: none;
+  }
+  .account__link--danger {
+    margin-top: 0;
+  }
 }

@@ -22,6 +22,7 @@ const adminOrderRoutes = require('./routes/adminOrder.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const adminDeliveryRoutes = require('./routes/adminDelivery.routes');
 const pickupStationRoutes = require('./routes/pickupStation.routes');
+const adminPickupStationRoutes = require('./routes/adminPickupStation.routes');
 const addressRoutes = require('./routes/address.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const adminCustomerRoutes = require('./routes/adminCustomer.routes');
@@ -112,6 +113,7 @@ app.use('/api/admin/deliveries', adminDeliveryRoutes);
 
 // 10e. Customer Fulfillment & In-App notification routes
 app.use('/api/pickup-stations', pickupStationRoutes);
+app.use('/api/admin/pickup-stations', adminPickupStationRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 

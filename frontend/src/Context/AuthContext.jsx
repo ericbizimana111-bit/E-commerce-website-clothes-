@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const msg = err.message || 'Login failed. Please check your credentials.';
       setAuthError(msg);
-      return { success: false, error: msg };
+      return { success: false, error: msg, status: err.status };
     }
   };
 
@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const msg = err.message || 'Registration failed. Please check your details.';
       setAuthError(msg);
-      return { success: false, error: msg };
+      return { success: false, error: msg, status: err.status };
     }
   };
 

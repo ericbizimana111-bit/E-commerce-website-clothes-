@@ -1,114 +1,58 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, Check, CheckCircle, Clock, Info, Loader, MapPin, Phone, Truck, XCircle } from 'lucide-react';
 import apiClient from '../../api/client';
+import ConfirmDialog from '../../Components/ui/ConfirmDialog';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
-import { AlertTriangle, ArrowLeft, Check, XCircle, Info, CheckCircle, Truck, MapPin, Phone, Clock, Loader } from 'lucide-react';
+import { friendlyError } from '../../utils/errors';
+import { deliveryStatusLabel, lifecycleIndex, orderStatusMeta, paymentStatusMeta } from '../../utils/statuses';
 import './OrderDetail.css';
 
 /**
- * Order detail / tracking — UgaMarket — home to home.
+ * Order detail / tracking — server-authoritative integration:
+ *  - Order + lifecycle: GET /api/orders/:id
+ *  - Fulfillment:       GET /api/orders/:id/delivery
+ *  - Payments/balance:  GET /api/orders/:id/payment (server-calculated)
+ *  - Pay actions:       POST /api/orders/:id/payment { purpose, method }
+ *  - Cancel:            POST /api/orders/:id/cancel { reason }
  *
- * Server-authoritative integration:
- *  - Order + lifecycle: GET /api/orders/:id (statusHistory, items, payments)
- *  - Fulfillment:        GET /api/orders/:id/delivery
- *  - Payments & balance: GET /api/orders/:id/payment (safe projection,
- *                        server-calculated: commitmentPaid, balancePaid,
- *                        balanceDue, activePayment)
- *  - Pay actions:        POST /api/orders/:id/payment { purpose }
- *  - Cancel:             POST /api/orders/:id/cancel { reason }
- *
- * Payment success is decided ONLY by the backend webhook; in development the
- * deterministic mock provider requires the dev webhook script, so this page
- * polls the payment endpoint while an attempt is PENDING/PROCESSING.
+ * Payment success is decided ONLY by the backend webhook, so while an attempt
+ * is PENDING/PROCESSING this page polls the payment endpoint.
  */
 
-const LIFECYCLE_STEPS = [
-  { key: 'ORDER_PLACED', label: 'Order Placed' },
-  { key: 'COMMITMENT_PAID', label: 'Commitment Deposit Paid' },
-  { key: 'PREPARING', label: 'Preparing Your Order' },
-  { key: 'IN_TRANSIT', label: 'In Transit' },
-  { key: 'FULFILLED', label: 'Delivered' },
-  { key: 'COMPLETED', label: 'Paid & Complete' }
+const LIFECYCLE_KEYS = ['stepOrderPlaced', 'stepCommitmentPaid', 'stepPreparing', 'stepInTransit', 'stepDelivered', 'stepComplete'];
+
+const METHODS = [
+  { value: 'MTN_MOBILE_MONEY', labelKey: 'methodMtn' },
+  { value: 'AIRTEL_MONEY', labelKey: 'methodAirtel' },
+  { value: 'CARD', labelKey: 'methodCard' }
 ];
 
-function getStepIndex(status) {
-  switch (status) {
-    case 'PENDING_PAYMENT':
-      return 0;
-    case 'COMMITMENT_PAID':
-    case 'CONFIRMED':
-      return 1;
-    case 'PREPARING':
-    case 'READY_FOR_DELIVERY':
-    case 'READY_FOR_PICKUP':
-      return 2;
-    case 'OUT_FOR_DELIVERY':
-      return 3;
-    case 'DELIVERED':
-    case 'PICKED_UP':
-      return 4;
-    case 'BALANCE_PAID':
-    case 'COMPLETED':
-      return 5;
-    case 'CANCELLED':
-    case 'REFUNDED':
-    default:
-      return -1;
-  }
-}
-
-const PAYMENT_STATUS_BADGES = {
-  PENDING: { label: 'Pending Verification', type: 'warning' },
-  PROCESSING: { label: 'Processing', type: 'warning' },
-  SUCCESS: { label: 'Paid', type: 'success' },
-  FAILED: { label: 'Failed', type: 'danger' },
-  EXPIRED: { label: 'Expired', type: 'danger' },
-  CANCELLED: { label: 'Cancelled', type: 'neutral' }
-};
-
-const PAYMENT_PURPOSE_LABELS = {
-  COMMITMENT: 'Commitment Deposit Payment',
-  BALANCE: 'Remaining Balance Payment'
-};
-
-// Customer-friendly order status wording (no raw enums in the UI).
-const ORDER_STATUS_BADGES = {
-  PENDING_PAYMENT: { label: 'Awaiting Deposit', type: 'warning' },
-  COMMITMENT_PAID: { label: 'Deposit Paid', type: 'success' },
-  CONFIRMED: { label: 'Confirmed', type: 'success' },
-  PREPARING: { label: 'Preparing', type: 'info' },
-  READY_FOR_DELIVERY: { label: 'Ready for Delivery', type: 'info' },
-  READY_FOR_PICKUP: { label: 'Ready for Pickup', type: 'success' },
-  OUT_FOR_DELIVERY: { label: 'On the Way', type: 'warning' },
-  DELIVERED: { label: 'Delivered', type: 'success' },
-  PICKED_UP: { label: 'Picked Up', type: 'success' },
-  BALANCE_PAID: { label: 'Balance Paid', type: 'success' },
-  COMPLETED: { label: 'Completed', type: 'success' },
-  CANCELLED: { label: 'Cancelled', type: 'danger' },
-  PAYMENT_FAILED: { label: 'Payment Issue', type: 'danger' },
-  REFUNDED: { label: 'Refunded', type: 'neutral' },
-  DELIVERY_FAILED: { label: 'Delivery Issue', type: 'danger' }
-};
-
-function formatDateTime(value) {
-  if (!value) return '—';
-  try {
-    return new Date(value).toLocaleString('en-UG', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch {
-    return String(value);
-  }
-}
+/** Payment-method picker shared by the deposit and balance banners. */
+const MethodPicker = ({ value, onChange, disabled, t }) => (
+  <div className="method">
+    <p className="method__label">{t('chooseMethod')}:</p>
+    <div className="method__options">
+      {METHODS.map(({ value: method, labelKey }) => (
+        <button
+          key={method}
+          type="button"
+          className={`method__btn ${value === method ? 'method__btn--active' : ''}`}
+          onClick={() => onChange(method)}
+          disabled={disabled}
+          aria-pressed={value === method}
+        >
+          {t(labelKey)}
+        </button>
+      ))}
+    </div>
+  </div>
+);
 
 const OrderDetail = () => {
   const { id } = useParams();
-  const { currentLang } = useLanguage();
+  const { currentLang, t, formatDateTime } = useLanguage();
 
   const [order, setOrder] = useState(null);
   const [delivery, setDelivery] = useState(null);
@@ -118,6 +62,7 @@ const OrderDetail = () => {
   const [actionMessage, setActionMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const pollTimerRef = useRef(null);
 
   const fetchOrderDetails = useCallback(async () => {
@@ -129,66 +74,38 @@ const OrderDetail = () => {
       ]);
 
       if (orderRes.status === 'fulfilled' && orderRes.value?.data?.order) {
-        // GET /api/orders/:id -> { data: { order } }
         setOrder(orderRes.value.data.order);
       } else {
-        throw new Error(orderRes.status === 'rejected' ? orderRes.reason?.message : 'Order not found');
+        throw orderRes.status === 'rejected' ? orderRes.reason : new Error(t('orderLoadError'));
       }
 
-      if (delivRes.status === 'fulfilled' && delivRes.value?.data?.delivery) {
-        setDelivery(delivRes.value.data.delivery);
-      } else {
-        setDelivery(null);
-      }
-
-      // GET /api/orders/:id/payment -> { data: { pricing, payments, activePayment, ... } }
-      if (payRes.status === 'fulfilled' && payRes.value?.data?.pricing) {
-        setPaymentInfo(payRes.value.data);
-      } else {
-        setPaymentInfo(null);
-      }
+      setDelivery(delivRes.status === 'fulfilled' && delivRes.value?.data?.delivery ? delivRes.value.data.delivery : null);
+      setPaymentInfo(payRes.status === 'fulfilled' && payRes.value?.data?.pricing ? payRes.value.data : null);
     } catch (err) {
-      console.error('Failed to load order', err);
-      setErrorMessage(err.message || 'Could not load order details');
+      setErrorMessage(friendlyError(err, t, 'orderLoadError'));
     }
+    // `t` follows currentLang, which is already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, currentLang]);
 
-  // Initial load + reload whenever the language changes
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     setLoading(true);
     setErrorMessage(null);
-    fetchOrderDetails().finally(() => {
-      if (isMounted) setLoading(false);
-    });
+    fetchOrderDetails().finally(() => mounted && setLoading(false));
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, [fetchOrderDetails]);
 
-  // Payment outcome polling: the webhook (server-side) decides success, so
-  // while an attempt is PENDING/PROCESSING we poll the payment endpoint.
+  // Poll while a provider attempt is in flight (the webhook settles it).
   const activePayment = paymentInfo?.activePayment || null;
   useEffect(() => {
-    if (!activePayment) {
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-    pollTimerRef.current = setTimeout(() => {
-      fetchOrderDetails();
-    }, 4000);
-    return () => {
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
+    if (!activePayment) return undefined;
+    pollTimerRef.current = setTimeout(fetchOrderDetails, 4000);
+    return () => clearTimeout(pollTimerRef.current);
   }, [activePayment, fetchOrderDetails]);
 
-  // Payment Handler
   const handleInitiatePayment = async (purpose) => {
     setActionLoading(true);
     setActionMessage(null);
@@ -202,13 +119,14 @@ const OrderDetail = () => {
 
       if (res?.success) {
         const payment = res.data?.payment;
-        const msg = res.message || 'Payment initiated successfully';
         setActionMessage(
-          `${msg}. Reference: ${payment?.transactionRef || 'Pending'}. Status: ${payment?.status || 'Processing'}`
+          t('paymentRefStatus', {
+            msg: res.message || t('paymentInitiated'),
+            ref: payment?.transactionRef || t('pendingWord'),
+            status: payment?.status ? paymentStatusMeta(payment.status, t).label : t('processing')
+          })
         );
-        // Flutterwave hosted checkout (mobile money confirmation page / card
-        // payment link): redirect the customer. The webhook delivers the
-        // outcome; card payments also redirect back via /api/payments/return.
+        // Provider-hosted checkout (mobile-money confirmation / card page).
         const checkoutUrl = res.data?.checkoutUrl;
         if (checkoutUrl) {
           window.location.href = checkoutUrl;
@@ -217,39 +135,36 @@ const OrderDetail = () => {
         await fetchOrderDetails();
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Payment initiation failed');
+      setErrorMessage(friendlyError(err, t, 'paymentFailedMsg'));
     } finally {
       setActionLoading(false);
       setPaymentMethod(null);
     }
   };
 
-  // Order Cancellation Handler (server gates which statuses are cancellable)
   const handleCancelOrder = async () => {
-    if (!window.confirm('Are you sure you want to cancel this order?')) return;
     setActionLoading(true);
     setErrorMessage(null);
     try {
-      const res = await apiClient.post(`/orders/${id}/cancel`, {
-        reason: 'Customer requested cancellation from account'
-      });
+      const res = await apiClient.post(`/orders/${id}/cancel`, { reason: 'Customer requested cancellation from account' });
       if (res?.success) {
-        setActionMessage('Order successfully cancelled.');
+        setActionMessage(t('orderCancelledOk'));
         await fetchOrderDetails();
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Could not cancel order');
+      setErrorMessage(friendlyError(err, t, 'cancelFailed'));
     } finally {
       setActionLoading(false);
+      setConfirmCancel(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="card um-subview-card">
-        <div className="um-subview-loading">
+      <div className="panel account-card">
+        <div className="um-subview-loading" role="status">
           <div className="um-spinner" />
-          <p>Loading order lifecycle details...</p>
+          <p>{t('loadingOrder')}</p>
         </div>
       </div>
     );
@@ -257,69 +172,73 @@ const OrderDetail = () => {
 
   if (errorMessage && !order) {
     return (
-      <div className="card um-subview-card">
+      <div className="panel account-card">
         <div className="alert alert-error" role="alert">
-          <AlertTriangle size={16} strokeWidth={1.75} />
+          <AlertTriangle size={16} aria-hidden="true" />
           <span>{errorMessage}</span>
         </div>
-        <Link to="/account/orders" className="btn btn-secondary" style={{ width: 'fit-content', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-          <ArrowLeft size={14} strokeWidth={1.75} /> Back to Orders
+        <Link to="/account/orders" className="btn btn-secondary">
+          <ArrowLeft size={15} aria-hidden="true" /> {t('backToOrders')}
         </Link>
       </div>
     );
   }
 
-  const currentStep = getStepIndex(order.status);
-  const statusBadge = ORDER_STATUS_BADGES[order.status] || { label: order.status, type: 'neutral' };
-  const isCancelled = order.status === 'CANCELLED' || order.status === 'REFUNDED' || order.status === 'DELIVERY_FAILED';
-  const isHomeDelivery = order.fulfillment?.method === 'HOME_DELIVERY';
+  const currentStep = lifecycleIndex(order.status);
+  const statusBadge = orderStatusMeta(order.status, t);
+  const isCancelled = ['CANCELLED', 'REFUNDED', 'DELIVERY_FAILED'].includes(order.status);
+  const isHome = order.fulfillment?.method === 'HOME_DELIVERY';
 
-  // Payment eligibility strictly mirrors backend rules:
-  //  - commitment: order still PENDING_PAYMENT
-  //  - balance: fulfillment complete (DELIVERED for home, PICKED_UP for pickup)
+  // Payment eligibility mirrors backend rules.
   const canPayCommitment = order.status === 'PENDING_PAYMENT';
   const canPayBalance = order.status === 'DELIVERED' || order.status === 'PICKED_UP';
   const canCancel = ['PENDING_PAYMENT', 'COMMITMENT_PAID', 'CONFIRMED'].includes(order.status);
 
-  // Server-authoritative financials from GET /orders/:id/payment
   const fin = paymentInfo?.pricing || null;
-  const commitmentPaidUgx = fin?.commitmentPaidUgx ?? 0;
-  const balancePaidUgx = fin?.balancePaidUgx ?? 0;
-  const balanceDueUgx = fin?.remainingBalanceUgx ?? null;
+  const commitmentPaid = fin?.commitmentPaidUgx ?? 0;
+  const balancePaid = fin?.balancePaidUgx ?? 0;
+  const balanceDue = fin?.remainingBalanceUgx ?? null;
+  const balanceDisplay = balanceDue !== null ? balanceDue : order.pricing?.remainingBalanceUgx;
   const paymentHistory = paymentInfo?.payments || [];
-
   const commitmentStatus = paymentInfo?.commitmentPaymentStatus || 'UNPAID';
   const balanceStatus = paymentInfo?.balancePaymentStatus || 'UNPAID';
+  const balanceBeforeFulfillment = !canPayBalance && !isCancelled && balanceDue !== null && balanceDue > 0;
 
-  const balanceBeforeFulfillment = !canPayBalance && !isCancelled && balanceDueUgx !== null && balanceDueUgx > 0;
+  const stepLabel = (idx) => {
+    if (!isHome && idx === 3) return t('stepReadyCollection');
+    if (!isHome && idx === 4) return t('stepPickedUp');
+    return t(LIFECYCLE_KEYS[idx]);
+  };
+
+  const stageBadge = (status, paidLabel) => {
+    if (status === 'SUCCESS' || status === 'NOT_REQUIRED') {
+      return (
+        <span className="badge badge-success">
+          <Check size={12} strokeWidth={3} aria-hidden="true" /> {status === 'NOT_REQUIRED' ? t('nothingDue') : paidLabel}
+        </span>
+      );
+    }
+    const meta = ['PENDING', 'PROCESSING', 'FAILED', 'EXPIRED', 'CANCELLED'].includes(status) ? paymentStatusMeta(status, t) : null;
+    return meta ? <span className={`badge badge-${meta.tone}`}>{meta.label}</span> : null;
+  };
 
   return (
-    <div className="card um-subview-card um-order-detail-view">
-      {/* Header */}
-      <div className="um-order-detail-header">
+    <div className="panel account-card od">
+      <div className="od__head">
         <div>
-          <Link to="/account/orders" className="um-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-            <ArrowLeft size={14} strokeWidth={1.75} /> Back to All Orders
+          <Link to="/account/orders" className="od__back">
+            <ArrowLeft size={15} aria-hidden="true" /> {t('backToOrders')}
           </Link>
-          <div className="um-order-title-wrap">
-            <h2>Order {order.orderNumber}</h2>
-            <span className={`badge badge-${statusBadge.type}`}>
-              {statusBadge.label}
-            </span>
+          <div className="od__title">
+            <h2>{t('orderNumberTitle', { number: order.orderNumber })}</h2>
+            <span className={`badge badge-${statusBadge.tone}`}>{statusBadge.label}</span>
           </div>
-          <span className="um-order-timestamp">
-            Placed on {formatDateTime(order.createdAt)}
-          </span>
+          <span className="od__placed">{t('placedOn', { date: formatDateTime(order.createdAt) })}</span>
         </div>
 
         {canCancel && (
-          <button
-            type="button"
-            onClick={handleCancelOrder}
-            disabled={actionLoading}
-            className="btn btn-danger btn-sm"
-          >
-            Cancel Order
+          <button type="button" onClick={() => setConfirmCancel(true)} disabled={actionLoading} className="btn btn-secondary btn-sm od__cancel">
+            {t('cancelOrder')}
           </button>
         )}
       </div>
@@ -329,226 +248,133 @@ const OrderDetail = () => {
           <span>{actionMessage}</span>
         </div>
       )}
-
       {errorMessage && (
         <div className="alert alert-error" role="alert">
-          <AlertTriangle size={16} strokeWidth={1.75} />
+          <AlertTriangle size={16} aria-hidden="true" />
           <span>{errorMessage}</span>
         </div>
       )}
-
       {activePayment && (
-        <div className="alert alert-info" role="status" style={{ background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1E3A8A' }}>
-          <Loader size={16} strokeWidth={1.75} />
+        <div className="alert alert-info" role="status">
+          <Loader size={16} aria-hidden="true" className="od__spin" />
           <span>
-            A payment of {formatUGX(activePayment.amountUgx)} ({activePayment.purpose === 'BALANCE' ? 'balance' : 'commitment'}) is awaiting provider verification.
-            This page updates automatically once the UgaMarket server confirms it.
+            {t('paymentAwaiting', {
+              purpose: activePayment.purpose === 'BALANCE' ? t('purposeBalance') : t('purposeCommitment'),
+              amount: formatUGX(activePayment.amountUgx)
+            })}
           </span>
         </div>
       )}
 
-      {/* Lifecycle Progress Stepper — labels adapt to home delivery vs pickup */}
+      {/* Lifecycle */}
       {!isCancelled ? (
-        <div className="um-stepper-box card">
-          <h4 className="um-stepper-title">Fulfillment Progress</h4>
-          <div className="um-lifecycle-stepper">
-            {LIFECYCLE_STEPS.map((step, idx) => {
-              const isPassed = currentStep >= idx;
-              const isCurrent = currentStep === idx;
+        <section className="od__block" aria-label={t('fulfillmentProgress')}>
+          <h3>{t('fulfillmentProgress')}</h3>
+          <ol className="timeline">
+            {LIFECYCLE_KEYS.map((key, idx) => {
+              const passed = currentStep >= idx;
+              const current = currentStep === idx;
               return (
-                <div
-                  key={step.key}
-                  className={`um-lifecycle-step ${isPassed ? 'um-step--completed' : ''} ${isCurrent ? 'um-step--active' : ''}`}
-                >
-                  <div className="um-step-marker">
-                    {isPassed && !isCurrent ? <Check size={14} strokeWidth={2.5} /> : idx + 1}
-                  </div>
-                  <span className="um-step-label">
-                    {!isHomeDelivery && step.key === 'IN_TRANSIT'
-                      ? 'Ready for Collection'
-                      : !isHomeDelivery && step.key === 'FULFILLED'
-                        ? 'Picked Up'
-                        : step.label}
-                  </span>
-                </div>
+                <li key={key} className={`timeline__step ${passed ? 'timeline__step--done' : ''} ${current ? 'timeline__step--current' : ''}`} aria-current={current ? 'step' : undefined}>
+                  <span className="timeline__marker">{passed && !current ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : idx + 1}</span>
+                  <span className="timeline__label">{stepLabel(idx)}</span>
+                </li>
               );
             })}
-          </div>
-        </div>
+          </ol>
+        </section>
       ) : (
         <div className="alert alert-error" role="alert">
-          <XCircle size={16} strokeWidth={1.75} />
-          <span>This order was cancelled. If you believe this is a mistake, please contact UgaMarket support.</span>
+          <XCircle size={16} aria-hidden="true" />
+          <span>{t('orderWasCancelled')}</span>
         </div>
       )}
 
-      {/* Action Banners */}
+      {/* Payment actions */}
       {canPayCommitment && (
-        <div className="um-action-banner card">
+        <section className="od__action">
           <div>
-            <strong>Action Required: Pay Commitment Deposit</strong>
-            <p>
-              Please pay <strong>{formatUGX(order.pricing?.commitmentUgx)}</strong> to confirm your order so our farmers can start preparing your fresh produce.
-            </p>
-            <div className="um-method-select">
-              <p className="um-method-label">Choose payment method:</p>
-              <div className="um-method-options">
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'MTN_MOBILE_MONEY' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('MTN_MOBILE_MONEY')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'MTN_MOBILE_MONEY'}
-                >
-                  MTN Mobile Money
-                </button>
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'AIRTEL_MONEY' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('AIRTEL_MONEY')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'AIRTEL_MONEY'}
-                >
-                  Airtel Money
-                </button>
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'CARD' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('CARD')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'CARD'}
-                >
-                  Card / Visa / MasterCard
-                </button>
-              </div>
-            </div>
+            <strong>{t('actionPayDeposit')}</strong>
+            <p>{t('actionPayDepositDesc', { amount: formatUGX(order.pricing?.commitmentUgx) })}</p>
+            <MethodPicker value={paymentMethod} onChange={setPaymentMethod} disabled={actionLoading} t={t} />
           </div>
-          <button
-            type="button"
-            onClick={() => handleInitiatePayment('COMMITMENT')}
-            disabled={actionLoading || !!activePayment || !paymentMethod}
-            className="btn btn-primary btn-lg"
-          >
-            {actionLoading ? 'Initiating...' : `Pay Deposit (${formatUGX(order.pricing?.commitmentUgx)})`}
+          <button type="button" onClick={() => handleInitiatePayment('COMMITMENT')} disabled={actionLoading || !!activePayment || !paymentMethod} className="btn btn-primary btn-lg">
+            {actionLoading ? t('initiating') : t('payDeposit', { amount: formatUGX(order.pricing?.commitmentUgx) })}
           </button>
-        </div>
+        </section>
       )}
 
       {canPayBalance && !paymentInfo?.isFullyPaid && (
-        <div className="um-action-banner card um-balance-action-banner">
+        <section className="od__action od__action--balance">
           <div>
-            <strong>Produce Received: Complete Your Balance</strong>
-            <p>
-              Your produce has been {isHomeDelivery ? 'delivered' : 'ready for pickup and collected'}! After verifying quality, pay the remaining balance of{' '}
-              <strong>{balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx)}</strong>.
-            </p>
-            <div className="um-method-select">
-              <p className="um-method-label">Choose payment method:</p>
-              <div className="um-method-options">
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'MTN_MOBILE_MONEY' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('MTN_MOBILE_MONEY')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'MTN_MOBILE_MONEY'}
-                >
-                  MTN Mobile Money
-                </button>
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'AIRTEL_MONEY' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('AIRTEL_MONEY')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'AIRTEL_MONEY'}
-                >
-                  Airtel Money
-                </button>
-                <button
-                  type="button"
-                  className={`um-method-btn${paymentMethod === 'CARD' ? ' um-method-btn--active' : ''}`}
-                  onClick={() => setPaymentMethod('CARD')}
-                  disabled={actionLoading}
-                  aria-pressed={paymentMethod === 'CARD'}
-                >
-                  Card / Visa / MasterCard
-                </button>
-              </div>
-            </div>
+            <strong>{t('actionPayBalance')}</strong>
+            <p>{t(isHome ? 'actionPayBalanceHome' : 'actionPayBalancePickup', { amount: formatUGX(balanceDisplay) })}</p>
+            <MethodPicker value={paymentMethod} onChange={setPaymentMethod} disabled={actionLoading} t={t} />
           </div>
-          <button
-            type="button"
-            onClick={() => handleInitiatePayment('BALANCE')}
-            disabled={actionLoading || !!activePayment || !paymentMethod}
-            className="btn btn-accent btn-lg"
-          >
-            {actionLoading
-              ? 'Processing...'
-              : `Pay Balance (${balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx)})`}
+          <button type="button" onClick={() => handleInitiatePayment('BALANCE')} disabled={actionLoading || !!activePayment || !paymentMethod} className="btn btn-accent btn-lg">
+            {actionLoading ? t('processing') : t('payBalance', { amount: formatUGX(balanceDisplay) })}
           </button>
-        </div>
+        </section>
       )}
 
       {balanceBeforeFulfillment && (
-        <div className="alert alert-info" role="status" style={{ background: '#F8FAFC', borderColor: 'var(--border)', color: 'var(--slate)' }}>
-          <Info size={16} strokeWidth={1.75} />
-          <span>
-            Your remaining balance of <strong>{formatUGX(balanceDueUgx)}</strong> becomes payable once your order is{' '}
-            {isHomeDelivery ? 'delivered' : 'picked up'}.
-          </span>
+        <div className="alert alert-info" role="status">
+          <Info size={16} aria-hidden="true" />
+          <span>{t('balanceLater', { amount: formatUGX(balanceDue), state: isHome ? t('stateDelivered') : t('statePickedUp') })}</span>
         </div>
       )}
 
       {paymentInfo?.isFullyPaid && order.status !== 'COMPLETED' && (
         <div className="alert alert-success" role="status">
-          <Check size={16} strokeWidth={2} />
-          <span>All payments complete — the UgaMarket server is finalizing your order.</span>
+          <Check size={16} aria-hidden="true" />
+          <span>{t('allPaid')}</span>
         </div>
       )}
-
       {order.status === 'COMPLETED' && (
         <div className="alert alert-success" role="status">
-          <CheckCircle size={16} strokeWidth={1.75} />
-          <span>This order is complete. Thank you for shopping with UgaMarket — home to home!</span>
+          <CheckCircle size={16} aria-hidden="true" />
+          <span>{t('orderComplete')}</span>
         </div>
       )}
 
-      {/* Order Items Table */}
-      <div className="um-order-items-box card">
-        <h4>Order Line Items</h4>
-        <div className="um-order-items-table">
-          <div className="um-order-table-head">
-            <span>Product</span>
-            <span>Unit Price</span>
-            <span>Quantity</span>
-            <span>Line Total</span>
+      {/* Line items */}
+      <section className="od__block">
+        <h3>{t('lineItems')}</h3>
+        <div className="od__table">
+          <div className="od__thead" aria-hidden="true">
+            <span>{t('colProduct')}</span>
+            <span>{t('unitPrice')}</span>
+            <span>{t('colQuantity')}</span>
+            <span>{t('lineTotal')}</span>
           </div>
-          <div className="um-order-table-rows">
+          <ul>
             {order.items?.map((it) => (
-              <div key={it.id} className="um-order-table-row">
+              <li key={it.id} className="od__trow">
                 <div>
                   <strong>{it.productName}</strong>
-                  {it.unit && <small className="um-it-unit">Per {it.unit}</small>}
+                  {it.unit && <small>{t('unitPer', { unit: it.unit })}</small>}
                 </div>
-                <span>{formatUGX(it.unitPriceUgx)}</span>
-                <span>{it.quantity}</span>
-                <strong>{formatUGX(it.lineTotalUgx)}</strong>
-              </div>
+                <span data-label={t('unitPrice')}>{formatUGX(it.unitPriceUgx)}</span>
+                <span data-label={t('colQuantity')}>×{it.quantity}</span>
+                <strong data-label={t('lineTotal')}>{formatUGX(it.lineTotalUgx)}</strong>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
-      </div>
+      </section>
 
-      {/* Financial Breakdown Card — server-authoritative, always shows the two-stage payment model */}
-      <div className="um-order-info-grid">
-        {/* Fulfillment Card */}
-        <div className="um-info-card card">
-          <h4>Fulfillment Details</h4>
-          {isHomeDelivery ? (
-            <div className="um-fulfillment-info">
-              <span className="badge badge-info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Truck size={13} strokeWidth={1.75} /> Home Delivery</span>
-              {order.fulfillment.address ? (
-                <div className="um-addr-box">
-                  <strong>{order.fulfillment.address.title || 'Delivery Address'}</strong>
+      <div className="od__cols">
+        {/* Fulfillment */}
+        <section className="od__block od__card">
+          <h3>{t('fulfillmentDetails')}</h3>
+          {isHome ? (
+            <>
+              <span className="badge badge-info">
+                <Truck size={13} aria-hidden="true" /> {t('homeDelivery')}
+              </span>
+              {order.fulfillment?.address ? (
+                <div className="od__addr">
+                  <strong>{order.fulfillment.address.title || t('deliveryAddress')}</strong>
                   <p>
                     {order.fulfillment.address.streetAddress}
                     {order.fulfillment.address.division ? `, ${order.fulfillment.address.division}` : ''}
@@ -556,166 +382,167 @@ const OrderDetail = () => {
                   </p>
                 </div>
               ) : (
-                <p>Address details are stored with your order.</p>
+                <p className="od__muted">{t('addressStored')}</p>
               )}
-            </div>
+            </>
           ) : (
-            <div className="um-fulfillment-info">
-              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={13} strokeWidth={1.75} /> Pickup Station</span>
+            <>
+              <span className="badge badge-success">
+                <MapPin size={13} aria-hidden="true" /> {t('pickupStation')}
+              </span>
               {order.fulfillment?.station ? (
-                <div className="um-station-info-box">
+                <div className="od__addr">
                   <strong>{order.fulfillment.station.name}</strong>
                   <p>
                     {order.fulfillment.station.addressText}
                     {order.fulfillment.station.district ? `, ${order.fulfillment.station.district}` : ''}
                   </p>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={13} strokeWidth={1.75} /> {order.fulfillment.station.operatingHours || 'Contact station for hours'}</span>
+                  <span>
+                    <Clock size={13} aria-hidden="true" /> {order.fulfillment.station.operatingHours || t('contactForHours')}
+                  </span>
                   {order.fulfillment.station.contactPhone && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Phone size={13} strokeWidth={1.75} /> {order.fulfillment.station.contactPhone}</span>
+                    <span>
+                      <Phone size={13} aria-hidden="true" /> {order.fulfillment.station.contactPhone}
+                    </span>
                   )}
                 </div>
               ) : (
-                <p>Pickup station details are stored with your order.</p>
+                <p className="od__muted">{t('stationStored')}</p>
               )}
-            </div>
+            </>
           )}
 
           {delivery && (
-            <div className="um-delivery-tracking-box">
-              <h5>Delivery Tracking</h5>
-              <div className="um-tracking-item">
-                <span>Dispatch Status:</span>
-                <strong>{delivery.status}</strong>
-              </div>
-              {delivery.scheduledAt && (
-                <div className="um-tracking-item">
-                  <span>Scheduled:</span>
-                  <strong>{formatDateTime(delivery.scheduledAt)}</strong>
+            <div className="od__tracking">
+              <h4>{t('deliveryTracking')}</h4>
+              <dl>
+                <div>
+                  <dt>{t('dispatchStatus')}</dt>
+                  <dd>{deliveryStatusLabel(delivery.status, t)}</dd>
                 </div>
-              )}
-              {delivery.startedAt && (
-                <div className="um-tracking-item">
-                  <span>Dispatched:</span>
-                  <strong>{formatDateTime(delivery.startedAt)}</strong>
-                </div>
-              )}
-              {delivery.completedAt && (
-                <div className="um-tracking-item">
-                  <span>Completed:</span>
-                  <strong>{formatDateTime(delivery.completedAt)}</strong>
-                </div>
-              )}
-              {delivery.failureMessage && (
-                <div className="um-tracking-item">
-                  <span>Issue:</span>
-                  <strong>{delivery.failureMessage}</strong>
-                </div>
-              )}
+                {delivery.scheduledAt && (
+                  <div>
+                    <dt>{t('scheduled')}</dt>
+                    <dd>{formatDateTime(delivery.scheduledAt)}</dd>
+                  </div>
+                )}
+                {delivery.startedAt && (
+                  <div>
+                    <dt>{t('dispatched')}</dt>
+                    <dd>{formatDateTime(delivery.startedAt)}</dd>
+                  </div>
+                )}
+                {delivery.completedAt && (
+                  <div>
+                    <dt>{t('completedAt')}</dt>
+                    <dd>{formatDateTime(delivery.completedAt)}</dd>
+                  </div>
+                )}
+                {delivery.failureMessage && (
+                  <div>
+                    <dt>{t('issue')}</dt>
+                    <dd>{delivery.failureMessage}</dd>
+                  </div>
+                )}
+              </dl>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Financial Breakdown Card — server-authoritative */}
-        <div className="um-info-card card">
-          <h4>Payment &amp; Financial Summary</h4>
-          <div className="um-financial-rows">
-            <div className="um-fin-row">
-              <span>Items Subtotal</span>
-              <span>{formatUGX(order.pricing?.itemsSubtotalUgx || 0)}</span>
+        {/* Money */}
+        <section className="od__block od__card">
+          <h3>{t('paymentSummary')}</h3>
+          <dl className="od__fin">
+            <div>
+              <dt>{t('itemsSubtotal')}</dt>
+              <dd>{formatUGX(order.pricing?.itemsSubtotalUgx || 0)}</dd>
             </div>
-            <div className="um-fin-row">
-              <span>Delivery / Station Fee</span>
-              <span>{formatUGX(order.pricing?.deliveryFeeUgx || 0)}</span>
+            <div>
+              <dt>{t('deliveryStationFee')}</dt>
+              <dd>{formatUGX(order.pricing?.deliveryFeeUgx || 0)}</dd>
             </div>
-            <div className="um-fin-row um-fin-row--bold">
-              <span>Total Order Value</span>
-              <strong>{formatUGX(order.pricing?.totalUgx || 0)}</strong>
+            <div className="od__fin-strong">
+              <dt>{t('totalOrderValue')}</dt>
+              <dd>{formatUGX(order.pricing?.totalUgx || 0)}</dd>
             </div>
+            <div className="od__fin-rule">
+              <dt>{t('commitmentPaid')}</dt>
+              <dd className={commitmentPaid > 0 ? 'od__paid' : ''}>{formatUGX(commitmentPaid)}</dd>
+            </div>
+            <div>
+              <dt>{t('balancePaid')}</dt>
+              <dd className={balancePaid > 0 ? 'od__paid' : ''}>{formatUGX(balancePaid)}</dd>
+            </div>
+            <div className="od__fin-strong">
+              <dt>{t('balancePayable')}</dt>
+              <dd>{formatUGX(balanceDue !== null ? balanceDue : order.pricing?.remainingBalanceUgx || 0)}</dd>
+            </div>
+          </dl>
 
-            <div className="um-fin-divider" />
-
-            <div className="um-fin-row">
-              <span>Commitment Paid</span>
-              <span className={commitmentPaidUgx > 0 ? 'um-fin-paid' : ''}>{formatUGX(commitmentPaidUgx)}</span>
-            </div>
-            <div className="um-fin-row">
-              <span>Balance Paid</span>
-              <span className={balancePaidUgx > 0 ? 'um-fin-paid' : ''}>{formatUGX(balancePaidUgx)}</span>
-            </div>
-            <div className="um-fin-row um-fin-row--bold">
-              <span>Remaining Balance</span>
-              <strong>{balanceDueUgx !== null ? formatUGX(balanceDueUgx) : formatUGX(order.pricing?.remainingBalanceUgx || 0)}</strong>
-            </div>
-
-            <div className="um-fin-divider" />
-
-            <div className="um-payment-stage">
-              <div>
-                <strong>Commitment Deposit</strong>
+          <div className="od__stages">
+            <div>
+              <span>
+                <strong>{t('commitmentDeposit')}</strong>
                 <small>{formatUGX(order.pricing?.commitmentUgx || 0)}</small>
-              </div>
-              {commitmentStatus === 'SUCCESS' ? (
-                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Check size={12} strokeWidth={2.5} /> Paid</span>
-              ) : PAYMENT_STATUS_BADGES[commitmentStatus] ? (
-                <span className={`badge badge-${PAYMENT_STATUS_BADGES[commitmentStatus].type}`}>
-                  {PAYMENT_STATUS_BADGES[commitmentStatus].label}
-                </span>
-              ) : (
-                <span className="badge badge-warning">Unpaid</span>
-              )}
+              </span>
+              {stageBadge(commitmentStatus, t('paidBadge')) || <span className="badge badge-warning">{t('unpaidBadge')}</span>}
             </div>
-
-            <div className="um-payment-stage">
-              <div>
-                <strong>Remaining Balance</strong>
+            <div>
+              <span>
+                <strong>{t('balancePayable')}</strong>
                 <small>{formatUGX(order.pricing?.remainingBalanceUgx || 0)}</small>
-              </div>
-              {balanceStatus === 'SUCCESS' || balanceStatus === 'NOT_REQUIRED' ? (
-                <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}><Check size={12} strokeWidth={2.5} /> {balanceStatus === 'NOT_REQUIRED' ? 'Nothing Due' : 'Paid'}</span>
-              ) : PAYMENT_STATUS_BADGES[balanceStatus] ? (
-                <span className={`badge badge-${PAYMENT_STATUS_BADGES[balanceStatus].type}`}>
-                  {PAYMENT_STATUS_BADGES[balanceStatus].label}
-                </span>
-              ) : (
-                <span className="badge badge-neutral">Pay at Fulfillment</span>
-              )}
+              </span>
+              {stageBadge(balanceStatus, t('paidBadge')) || <span className="badge badge-neutral">{t('payAtFulfillmentBadge')}</span>}
             </div>
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* Payment History — GET /api/orders/:id/payment (safe projection only) */}
       {paymentHistory.length > 0 && (
-        <div className="um-order-items-box card">
-          <h4>Payment History</h4>
-          <div className="um-order-items-table">
-            <div className="um-order-table-head">
-              <span>Purpose</span>
-              <span>Amount</span>
-              <span>Status</span>
-              <span>Date</span>
+        <section className="od__block">
+          <h3>{t('paymentHistory')}</h3>
+          <div className="od__table">
+            <div className="od__thead" aria-hidden="true">
+              <span>{t('colPurpose')}</span>
+              <span>{t('colAmount')}</span>
+              <span>{t('colStatus')}</span>
+              <span>{t('colDate')}</span>
             </div>
-            <div className="um-order-table-rows">
+            <ul>
               {paymentHistory.map((p) => {
-                const badge = PAYMENT_STATUS_BADGES[p.status] || { label: p.status, type: 'neutral' };
+                const meta = paymentStatusMeta(p.status, t);
                 return (
-                  <div key={p.id} className="um-order-table-row">
+                  <li key={p.id} className="od__trow">
                     <div>
-                      <strong>{PAYMENT_PURPOSE_LABELS[p.purpose] || p.paymentType || p.purpose}</strong>
-                      <small className="um-it-unit">
-                        {p.provider} • Ref {p.transactionRef}
+                      <strong>{p.purpose === 'BALANCE' ? t('purposeBalanceLabel') : p.purpose === 'COMMITMENT' ? t('purposeCommitmentLabel') : p.paymentType || p.purpose}</strong>
+                      <small>
+                        {p.provider} • {t('refLabel', { ref: p.transactionRef })}
                       </small>
                     </div>
-                    <span>{formatUGX(p.amountUgx)}</span>
-                    <span className={`badge badge-${badge.type}`}>{badge.label}</span>
-                    <span>{formatDateTime(p.createdAt)}</span>
-                  </div>
+                    <span data-label={t('colAmount')}>{formatUGX(p.amountUgx)}</span>
+                    <span data-label={t('colStatus')}>
+                      <span className={`badge badge-${meta.tone}`}>{meta.label}</span>
+                    </span>
+                    <span data-label={t('colDate')}>{formatDateTime(p.createdAt)}</span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
-        </div>
+        </section>
       )}
+
+      <ConfirmDialog
+        open={confirmCancel}
+        title={t('cancelOrderTitle')}
+        message={t('cancelOrderMessage')}
+        confirmLabel={t('cancelOrder')}
+        cancelLabel={t('keepOrder')}
+        danger
+        busy={actionLoading}
+        onConfirm={handleCancelOrder}
+        onCancel={() => setConfirmCancel(false)}
+      />
     </div>
   );
 };

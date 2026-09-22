@@ -4,19 +4,16 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background:
-    radial-gradient(1200px 500px at 80% -10%, var(--brand-primary-soft), transparent),
-    var(--surface-muted);
+  background: var(--surface-muted);
 }
 
 .login-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: 28px 26px;
+  padding: 36px 32px;
 }
 
 .login-brand {
@@ -25,18 +22,18 @@
 }
 
 .login-brand__logo {
-  height: 52px;
+  height: 76px;
   width: auto;
   margin-bottom: 12px;
 }
 
 .login-brand h1 {
-  font-size: 17px;
-  margin-bottom: 3px;
+  font-size: 21px;
+  margin-bottom: 4px;
 }
 
 .login-brand p {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
 }
 
@@ -51,7 +48,7 @@
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-muted);
 }
 

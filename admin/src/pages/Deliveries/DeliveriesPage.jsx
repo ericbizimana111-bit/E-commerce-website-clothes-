@@ -8,6 +8,7 @@ import { formatUGX, formatDateTime, getDeliveryStatusMeta } from '../../utils/fo
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import DeliveryStatusModal from './DeliveryStatusModal';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
@@ -166,22 +167,15 @@ export default function DeliveriesPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
+        <SearchInput
+          value={orderNumber}
+          onSearch={(term) => {
             setPage(1);
-            load();
+            setOrderNumber(term);
           }}
-        >
-          <input
-            type="text"
-            value={orderNumber}
-            onChange={(e) => setOrderNumber(e.target.value)}
-            placeholder="Exact order number, e.g. FB-20260919-A1B2C3"
-            aria-label="Filter by order number"
-          />
-        </form>
+          placeholder="Search by order number, e.g. FB-20260919-A1B2C3"
+          label="Filter by order number"
+        />
         <select
           value={status}
           onChange={(e) => {

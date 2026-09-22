@@ -1,102 +1,104 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, MapPin, Plus, Trash2, X } from 'lucide-react';
 import apiClient from '../../api/client';
+import AddressForm, { EMPTY_ADDRESS } from '../../Components/AddressForm/AddressForm';
+import ConfirmDialog from '../../Components/ui/ConfirmDialog';
 import { useLanguage } from '../../Context/LanguageContext';
-import { X, Plus, AlertTriangle } from 'lucide-react';
+import { friendlyError } from '../../utils/errors';
+import './Addresses.css';
 
 /**
- * Addresses — UgaMarket — home to home.
- * Consumes the actual backend address contract:
- *   GET    /api/addresses        -> { data: { addresses } }
- *   POST   /api/addresses        -> { data: { address } }  (title, district, division, streetAddress, isDefault)
- *   DELETE /api/addresses/:id    -> { success, message }
+ * Saved addresses — consumes the real backend contract:
+ *   GET    /api/addresses      -> { data: { addresses } }
+ *   POST   /api/addresses      -> { data: { address } }
+ *   DELETE /api/addresses/:id  -> { success, message }
  * Ownership is enforced server-side; the frontend never sends a userId.
  */
 const Addresses = () => {
   const { t } = useLanguage();
-
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_ADDRESS);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const emptyForm = {
-    title: 'Home',
-    district: 'Kampala',
-    division: '',
-    streetAddress: '',
-    isDefault: false
-  };
-  const [form, setForm] = useState(emptyForm);
-
-  const fetchAddresses = async () => {
+  const fetchAddresses = useCallback(async () => {
     try {
-      setLoading(true);
       const res = await apiClient.get('/addresses');
-      if (Array.isArray(res?.data?.addresses)) {
-        setAddresses(res.data.addresses);
-      }
+      if (Array.isArray(res?.data?.addresses)) setAddresses(res.data.addresses);
     } catch (err) {
-      console.error('Failed to load addresses', err);
-      setError(err.message || 'Could not load addresses');
+      setError(friendlyError(err, t, 'addressesLoadError'));
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetchAddresses();
-  }, []);
+  }, [fetchAddresses]);
 
-  const handleAddSubmit = async (e) => {
-    e.preventDefault();
+  const handleSave = async (address) => {
     setSubmitting(true);
     setError(null);
     setMessage(null);
-
     try {
-      const res = await apiClient.post('/addresses', form);
+      const res = await apiClient.post('/addresses', address);
       if (res?.data?.address) {
-        setMessage('Address saved successfully!');
-        setShowAddForm(false);
-        setForm(emptyForm);
-        fetchAddresses();
+        setMessage(t('addressSaved'));
+        setShowForm(false);
+        setForm(EMPTY_ADDRESS);
+        await fetchAddresses();
       }
     } catch (err) {
-      setError(err.message || 'Failed to save address');
+      setError(friendlyError(err, t, 'saveAddressFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this delivery address?')) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await apiClient.delete(`/addresses/${id}`);
-      setMessage('Address deleted.');
-      fetchAddresses();
+      await apiClient.delete(`/addresses/${deleteTarget.id}`);
+      setMessage(t('addressDeleted'));
+      setDeleteTarget(null);
+      await fetchAddresses();
     } catch (err) {
-      setError(err.message || 'Failed to delete address');
+      setError(friendlyError(err, t, 'addressDeleteFailed'));
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
-    <div className="card um-subview-card">
-      <div className="um-subview-header">
-        <h2>{t('addresses')}</h2>
+    <div className="panel account-card">
+      <div className="account-card__head">
+        <h2>{t('addressesTitle')}</h2>
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className={`btn btn-sm ${showForm ? 'btn-secondary' : 'btn-primary'}`}
           onClick={() => {
-            setShowAddForm(!showAddForm);
+            setShowForm((s) => !s);
             setError(null);
             setMessage(null);
           }}
         >
-          {showAddForm
-            ? <><X size={14} strokeWidth={2} /> Close Form</>
-            : <><Plus size={14} strokeWidth={2} /> Add New Address</>}
+          {showForm ? (
+            <>
+              <X size={15} aria-hidden="true" /> {t('closeForm')}
+            </>
+          ) : (
+            <>
+              <Plus size={15} aria-hidden="true" /> {t('addNewAddressBtn')}
+            </>
+          )}
         </button>
       </div>
 
@@ -105,131 +107,68 @@ const Addresses = () => {
           <span>{message}</span>
         </div>
       )}
-
       {error && (
         <div className="alert alert-error" role="alert">
-          <AlertTriangle size={16} strokeWidth={1.75} />
+          <AlertTriangle size={16} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      {showAddForm && (
-        <form onSubmit={handleAddSubmit} className="um-new-address-form card" style={{ marginBottom: '1.5rem' }}>
-          <h4>Add New Delivery Location</h4>
-          <div className="form-group">
-            <label className="form-label" htmlFor="addr-title">Address Label *</label>
-            <input
-              id="addr-title"
-              type="text"
-              required
-              className="form-input"
-              placeholder="e.g. Home, Office"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="addr-street">Street Address / Landmark *</label>
-            <input
-              id="addr-street"
-              type="text"
-              required
-              className="form-input"
-              placeholder="e.g. Plot 15 Bukoto Street, opposite the market"
-              value={form.streetAddress}
-              onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label" htmlFor="addr-district">District *</label>
-              <input
-                id="addr-district"
-                type="text"
-                required
-                className="form-input"
-                value={form.district}
-                onChange={(e) => setForm({ ...form, district: e.target.value })}
-              />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label" htmlFor="addr-division">Division (optional)</label>
-              <input
-                id="addr-division"
-                type="text"
-                className="form-input"
-                placeholder="e.g. Nakawa"
-                value={form.division}
-                onChange={(e) => setForm({ ...form, division: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-            <input
-              type="checkbox"
-              id="addr-isDefault"
-              checked={form.isDefault}
-              onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
-            />
-            <label htmlFor="addr-isDefault" style={{ cursor: 'pointer', fontSize: '0.88rem' }}>
-              Set as default delivery address
-            </label>
-          </div>
-
-          <button type="submit" disabled={submitting} className="btn btn-primary btn-sm">
-            {submitting ? 'Saving...' : 'Save Address'}
-          </button>
-        </form>
+      {showForm && (
+        <AddressForm idPrefix="addr" heading={t('addNewLocation')} value={form} onChange={setForm} onSubmit={handleSave} submitting={submitting} />
       )}
 
       {loading ? (
-        <div className="um-subview-loading">
+        <div className="um-subview-loading" role="status">
           <div className="um-spinner" />
-          <p>Loading addresses...</p>
+          <p>{t('loading')}</p>
         </div>
       ) : addresses.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted)' }}>
-          <p>You have no saved delivery addresses yet.</p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowAddForm(true)}
-            style={{ marginTop: '0.5rem' }}
-          >
-            + Add Your First Address
-          </button>
+        <div className="state-block">
+          <span className="state-block__icon">
+            <MapPin size={34} strokeWidth={1.4} aria-hidden="true" />
+          </span>
+          <p>{t('noAddresses')}</p>
+          {!showForm && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowForm(true)}>
+              {t('addFirstAddress')}
+            </button>
+          )}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+        <ul className="addr-grid">
           {addresses.map((addr) => (
-            <div key={addr.id} className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: '1rem', color: 'var(--dark)' }}>{addr.title || 'Address'}</strong>
-                {addr.isDefault && <span className="badge badge-success">Default</span>}
+            <li key={addr.id} className="addr">
+              <div className="addr__head">
+                <span className="addr__pin">
+                  <MapPin size={16} aria-hidden="true" />
+                </span>
+                <strong>{addr.title || t('addressFallback')}</strong>
+                {addr.isDefault && <span className="badge badge-success">{t('defaultBadge')}</span>}
               </div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--slate)', margin: '0.25rem 0' }}>
+              <p>
                 {addr.streetAddress}
                 {addr.division ? `, ${addr.division}` : ''}
                 {addr.district ? `, ${addr.district}` : ''}
               </p>
-
-              <div style={{ marginTop: 'auto', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(addr.id)}
-                  className="btn btn-sm btn-danger"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+              <button type="button" onClick={() => setDeleteTarget(addr)} className="btn btn-secondary btn-sm addr__delete">
+                <Trash2 size={14} aria-hidden="true" /> {t('delete')}
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={t('deleteAddressTitle')}
+        message={t('deleteAddressMessage')}
+        confirmLabel={t('delete')}
+        danger
+        busy={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

@@ -15,9 +15,8 @@
 .history-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 50px rgba(16, 24, 40, 0.25);
   width: 100%;
-  padding: 18px 20px;
+  padding: 24px;
 }
 
 .stock-modal {
@@ -39,7 +38,7 @@
 .stock-modal__header h2,
 .history-modal__header h2 {
   flex: 1;
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .stock-modal__icon {

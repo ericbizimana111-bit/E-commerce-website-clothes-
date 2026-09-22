@@ -12,6 +12,7 @@ import InventoryPage from './pages/Inventory/InventoryPage';
 import DeliveriesPage from './pages/Deliveries/DeliveriesPage';
 import PaymentsPage from './pages/Payments/PaymentsPage';
 import CustomersPage from './pages/Customers/CustomersPage';
+import StationsPage from './pages/Stations/StationsPage';
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
@@ -20,6 +21,7 @@ const PAGE_TITLES = {
   '/categories': 'Categories',
   '/inventory': 'Inventory',
   '/deliveries': 'Deliveries',
+  '/stations': 'Pickup Stations',
   '/payments': 'Payments',
   '/customers': 'Customers',
 };
@@ -70,6 +72,7 @@ export default function App() {
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="deliveries" element={<DeliveriesPage />} />
+        <Route path="stations" element={<StationsPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="customers" element={<CustomersPage />} />
       </Route>

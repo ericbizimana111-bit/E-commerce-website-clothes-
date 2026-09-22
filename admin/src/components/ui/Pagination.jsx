@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import './pagination.css';
 
 /**
  * Pagination bound to the backend's { page, totalPages, total } metadata.

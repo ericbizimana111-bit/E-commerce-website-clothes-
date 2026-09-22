@@ -2,6 +2,7 @@ const prisma = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 const { normalizeLanguage, resolveTranslation } = require('../utils/translation');
 const { logAudit } = require('./audit.service');
+const imageService = require('./image.service');
 
 /**
  * Format category entity for public responses with localized translation
@@ -313,6 +314,78 @@ async function toggleCategoryActive(id, isActive, adminId = null, ipAddress = nu
   return updated;
 }
 
+/**
+ * Admin: upload (or replace) a category image from a multipart file.
+ * Uses the same validated storage as product images (MIME allowlist, magic
+ * bytes, 5 MB, server-generated filename). A replaced file is deleted only
+ * when nothing else in the database still references it.
+ */
+async function uploadCategoryImage(id, file, adminId = null, ipAddress = null) {
+  const categoryId = parseInt(id, 10);
+  const existing = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!existing) {
+    throw new AppError(`Category with ID ${id} not found`, 404);
+  }
+  if (!file || !file.buffer || file.size === 0) {
+    throw new AppError('No image file received. Send multipart/form-data with an "image" field', 400);
+  }
+
+  const publicUrl = imageService.saveImageFile(file.buffer, file.mimetype);
+
+  const updated = await prisma.category.update({
+    where: { id: categoryId },
+    data: { imageUrl: publicUrl },
+    include: { translations: true },
+  });
+
+  await logAudit({
+    adminId,
+    action: 'CATEGORY_IMAGE_UPLOAD',
+    entityName: 'Category',
+    entityId: categoryId,
+    details: { imageUrl: publicUrl },
+    ipAddress,
+  });
+
+  if (existing.imageUrl && existing.imageUrl !== publicUrl) {
+    await imageService.cleanupOrphanedImageFile(existing.imageUrl);
+  }
+
+  return updated;
+}
+
+/**
+ * Admin: remove a category's image (the category falls back to the placeholder).
+ */
+async function removeCategoryImage(id, adminId = null, ipAddress = null) {
+  const categoryId = parseInt(id, 10);
+  const existing = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!existing) {
+    throw new AppError(`Category with ID ${id} not found`, 404);
+  }
+
+  const updated = await prisma.category.update({
+    where: { id: categoryId },
+    data: { imageUrl: null },
+    include: { translations: true },
+  });
+
+  await logAudit({
+    adminId,
+    action: 'CATEGORY_IMAGE_REMOVE',
+    entityName: 'Category',
+    entityId: categoryId,
+    details: { imageUrl: existing.imageUrl },
+    ipAddress,
+  });
+
+  if (existing.imageUrl) {
+    await imageService.cleanupOrphanedImageFile(existing.imageUrl);
+  }
+
+  return updated;
+}
+
 module.exports = {
   formatLocalizedCategory,
   listPublicCategories,
@@ -322,4 +395,6 @@ module.exports = {
   createCategory,
   updateCategory,
   toggleCategoryActive,
+  uploadCategoryImage,
+  removeCategoryImage,
 };

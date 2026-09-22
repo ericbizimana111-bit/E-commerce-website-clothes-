@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { History, PackageCheck, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
+import { History, PackageCheck, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import { formatUGX } from '../../utils/format';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import StockActionModal from './StockActionModal';
 import StockHistoryModal from './StockHistoryModal';
 import { TableSkeleton } from '../../components/ui/loaders';
@@ -28,7 +29,6 @@ export default function InventoryPage() {
   const [pagination, setPagination] = useState(null);
   const [page, setPage] = useState(1);
   const [stockFilter, setStockFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -139,23 +139,15 @@ export default function InventoryPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
+        <SearchInput
+          value={search}
+          onSearch={(term) => {
             setPage(1);
-            setSearch(searchInput.trim());
+            setSearch(term);
           }}
-        >
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search products"
-            aria-label="Search inventory"
-          />
-        </form>
+          placeholder="Search products"
+          label="Search inventory"
+        />
 
         <select
           value={stockFilter}

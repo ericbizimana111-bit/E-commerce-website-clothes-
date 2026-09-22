@@ -1,3 +1,5 @@
+import './PageHeader.css';
+
 /**
  * Consistent page header: title, optional description, action area.
  */

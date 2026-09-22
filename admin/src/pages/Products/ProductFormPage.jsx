@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ImagePlus, Save, Star, Trash2 } from 'lucide-react';
+import { Save, Star, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import ImageDropzone from '../../components/ui/ImageDropzone';
+import { validateImageFile } from '../../utils/imageFiles';
 import { DetailSkeleton } from '../../components/ui/loaders';
 import { ErrorState } from '../../components/ui/states';
 import './ProductFormPage.css';
@@ -42,8 +45,6 @@ const EMPTY_FORM = {
 };
 
 const PLACEHOLDER = '/img-placeholder.svg';
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // must match backend limit (5 MB)
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 function slugify(value) {
   return value
@@ -78,11 +79,12 @@ export default function ProductFormPage() {
   const [pendingImage, setPendingImage] = useState(null); // { file, previewUrl }
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null); // { current, total }
+  const [removeTarget, setRemoveTarget] = useState(null);
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState(null);
   const [validation, setValidation] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     api
@@ -170,53 +172,73 @@ export default function ProductFormPage() {
     return Object.keys(errors).length === 0;
   };
 
-  /** Client-side mirror of the backend image validation (immediate feedback; the backend re-validates everything). */
-  const pickImage = (event) => {
-    const file = event.target.files?.[0] || null;
-    event.target.value = ''; // allow re-picking the same file after a fix
-    setImageError(null);
-    if (!file) return;
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setImageError('Unsupported file type. Use JPEG, PNG, WebP, or GIF.');
-      return;
+  /** Re-fetch only the image list so unsaved edits in the rest of the form are kept. */
+  const refreshImages = async () => {
+    const res = await api.get(`/admin/catalog/products/${id}`);
+    setImages(Array.isArray(res?.data?.images) ? res.data.images : []);
+  };
+
+  /** Entry point for both the file picker and drag-and-drop. */
+  const handleFiles = (fileList) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+
+    const problems = [];
+    const valid = [];
+    files.forEach((file) => {
+      const problem = validateImageFile(file);
+      if (problem) problems.push(problem);
+      else valid.push(file);
+    });
+
+    if (!isEdit && valid.length > 1) {
+      problems.push('Only one image can be attached while creating. Add more after saving the product.');
     }
-    if (file.size === 0) {
-      setImageError('The selected file is empty.');
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError('Image is larger than the 5 MB limit.');
-      return;
-    }
-    const previewUrl = URL.createObjectURL(file);
+    setImageError(problems.length ? problems.join(' ') : null);
+    if (valid.length === 0) return;
+
     if (isEdit) {
-      uploadImage(file);
+      uploadImages(valid);
     } else {
-      setPendingImage((prev) => {
-        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-        return { file, previewUrl };
-      });
+      setPendingImage({ file: valid[0], previewUrl: URL.createObjectURL(valid[0]) });
     }
   };
 
-  /** Upload a file to an existing (or newly created) product via multipart POST. */
-  const uploadImage = async (file, productId = id) => {
+  /** Upload files one at a time (multipart POST) to an existing or newly created product. */
+  const uploadImages = async (files, productId = id) => {
     setImageBusy(true);
     setImageError(null);
-    try {
-      const data = new FormData();
-      data.append('image', file);
-      await api.post(`/admin/catalog/products/${productId}/images`, data);
-      showToast('Image uploaded.', { type: 'success' });
-      if (String(productId) === String(id)) await load();
-      return true;
-    } catch (err) {
-      setImageError(err.message || 'Image upload failed.');
-      showToast(err.message || 'Image upload failed.', { type: 'error' });
-      return false;
-    } finally {
-      setImageBusy(false);
+    let uploaded = 0;
+    const failures = [];
+    for (let i = 0; i < files.length; i += 1) {
+      setUploadProgress({ current: i + 1, total: files.length });
+      try {
+        const data = new FormData();
+        data.append('image', files[i]);
+        await api.post(`/admin/catalog/products/${productId}/images`, data);
+        uploaded += 1;
+      } catch (err) {
+        failures.push(`${files[i].name}: ${err.message || 'upload failed.'}`);
+      }
     }
+    setUploadProgress(null);
+
+    if (uploaded > 0) {
+      showToast(uploaded === 1 ? 'Image uploaded.' : `${uploaded} images uploaded.`, { type: 'success' });
+      if (String(productId) === String(id)) {
+        try {
+          await refreshImages();
+        } catch (err) {
+          failures.push(err.message || 'Could not refresh the image list.');
+        }
+      }
+    }
+    if (failures.length > 0) {
+      setImageError(failures.join(' '));
+      showToast(failures[0], { type: 'error' });
+    }
+    setImageBusy(false);
+    return failures.length === 0;
   };
 
   /** Remove an image (edit mode). Backend deletes the row; file cleanup is reference-checked server-side. */
@@ -226,12 +248,13 @@ export default function ProductFormPage() {
     try {
       await api.delete(`/admin/catalog/products/${id}/images/${image.id}`);
       showToast('Image removed.', { type: 'success' });
-      await load();
+      await refreshImages();
     } catch (err) {
       setImageError(err.message || 'Failed to remove image.');
       showToast(err.message || 'Failed to remove image.', { type: 'error' });
     } finally {
       setImageBusy(false);
+      setRemoveTarget(null);
     }
   };
 
@@ -253,7 +276,7 @@ export default function ProductFormPage() {
       ];
       await api.put(`/admin/catalog/products/${id}/images`, { images: ordered });
       showToast('Primary image updated.', { type: 'success' });
-      await load();
+      await refreshImages();
     } catch (err) {
       setImageError(err.message || 'Failed to update the primary image.');
       showToast(err.message || 'Failed to update the primary image.', { type: 'error' });
@@ -302,7 +325,12 @@ export default function ProductFormPage() {
       // Upload the image chosen during CREATE now that the product exists.
       if (!isEdit && pendingImage?.file) {
         if (createdId) {
-          await uploadImage(pendingImage.file, createdId);
+          const ok = await uploadImages([pendingImage.file], createdId);
+          if (!ok) {
+            // Product exists but the image failed: open it so the upload can be retried.
+            navigate(`/products/${createdId}`);
+            return;
+          }
         } else {
           setImageError('Product was created but its ID was missing from the response; the image was not uploaded.');
         }
@@ -490,105 +518,109 @@ export default function ProductFormPage() {
 
         <fieldset>
           <legend>Images</legend>
-          <p className="field-hint">
+          <p className="field-hint product-form__hint">
             {isEdit
-              ? 'Upload adds the image to this product immediately. The primary image is what customers see first.'
-              : 'Pick an image to attach — it is uploaded right after the product is created. JPEG, PNG, WebP, or GIF up to 5 MB.'}
+              ? 'Uploads are added to this product straight away. The primary image is what customers see first.'
+              : 'Attach an image now and it is uploaded right after the product is created. You can add more once it is saved.'}
           </p>
 
           {imageError && (
-            <div className="alert alert--error" role="alert" style={{ marginBottom: 12 }}>
+            <div className="alert alert--error" role="alert" style={{ marginBottom: 14 }}>
               <span>{imageError}</span>
             </div>
           )}
 
-          <div className="product-form__images">
-            {(isEdit ? images : []).map((img) => (
-              <div key={img.id} className="product-form__image-card">
-                <img
-                  src={img.imageUrl}
-                  alt={img.altText || 'Product image'}
-                  className="product-form__image-thumb"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = PLACEHOLDER;
-                  }}
-                />
-                {img.isPrimary && (
-                  <span className="product-form__image-primary" title="Primary image">
-                    <Star size={11} aria-hidden="true" /> Primary
-                  </span>
-                )}
-                <div className="product-form__image-actions">
-                  {!img.isPrimary && (
+          <ImageDropzone
+            id="pf-image"
+            inputLabel="Choose product image"
+            multiple={isEdit}
+            disabled={imageBusy || submitting}
+            progressText={uploadProgress ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}…` : null}
+            idleText={
+              isEdit
+                ? 'Drag and drop images here, or click to browse'
+                : 'Drag and drop an image here, or click to browse'
+            }
+            onFiles={handleFiles}
+          />
+
+          {((isEdit && images.length > 0) || (!isEdit && pendingImage)) && (
+            <div className="product-form__images">
+              {(isEdit ? images : []).map((img) => (
+                <div key={img.id} className="product-form__image-card">
+                  <div className="product-form__image-frame">
+                    <img
+                      src={img.imageUrl}
+                      alt={img.altText || 'Product image'}
+                      className="product-form__image-thumb"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = PLACEHOLDER;
+                      }}
+                    />
+                    {img.isPrimary && (
+                      <span className="product-form__image-primary" title="Primary image">
+                        <Star size={11} aria-hidden="true" /> Primary
+                      </span>
+                    )}
+                  </div>
+                  <div className="product-form__image-actions">
+                    {!img.isPrimary && (
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => makePrimary(img)}
+                        disabled={imageBusy || submitting}
+                        aria-label={`Set image ${img.id} as primary`}
+                      >
+                        <Star size={13} aria-hidden="true" />
+                        Set primary
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className="btn btn--secondary btn--sm"
-                      onClick={() => makePrimary(img)}
+                      className="btn btn--ghost btn--sm product-form__image-remove"
+                      onClick={() => setRemoveTarget(img)}
                       disabled={imageBusy || submitting}
-                      aria-label={`Set image ${img.id} as primary`}
+                      aria-label={`Remove image ${img.id}`}
                     >
-                      <Star size={12} aria-hidden="true" />
-                      Set primary
+                      <Trash2 size={13} aria-hidden="true" />
+                      Remove
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => removeImage(img)}
-                    disabled={imageBusy || submitting}
-                    aria-label={`Remove image ${img.id}`}
-                  >
-                    <Trash2 size={12} aria-hidden="true" />
-                    Remove
-                  </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {!isEdit && pendingImage && (
-              <div className="product-form__image-card">
-                <img
-                  src={pendingImage.previewUrl}
-                  alt="Selected product image preview"
-                  className="product-form__image-thumb"
-                />
-                <span className="product-form__image-primary" title="Will be the primary image">
-                  <Star size={11} aria-hidden="true" /> Primary
-                </span>
-                <div className="product-form__image-actions">
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => {
-                      URL.revokeObjectURL(pendingImage.previewUrl);
-                      setPendingImage(null);
-                    }}
-                    disabled={submitting}
-                  >
-                    <Trash2 size={12} aria-hidden="true" />
-                    Discard
-                  </button>
+              {!isEdit && pendingImage && (
+                <div className="product-form__image-card">
+                  <div className="product-form__image-frame">
+                    <img
+                      src={pendingImage.previewUrl}
+                      alt="Selected product image preview"
+                      className="product-form__image-thumb"
+                    />
+                    <span className="product-form__image-primary" title="Will be the primary image">
+                      <Star size={11} aria-hidden="true" /> Primary
+                    </span>
+                  </div>
+                  <p className="product-form__image-name" title={pendingImage.file.name}>
+                    {pendingImage.file.name}
+                  </p>
+                  <div className="product-form__image-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm product-form__image-remove"
+                      onClick={() => setPendingImage(null)}
+                      disabled={submitting}
+                    >
+                      <Trash2 size={13} aria-hidden="true" />
+                      Discard
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="product-form__image-upload">
-              <input
-                ref={fileInputRef}
-                id="pf-image"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={pickImage}
-                disabled={imageBusy || submitting}
-                aria-label="Choose product image"
-              />
-              <label htmlFor="pf-image" className="btn btn--secondary btn--sm product-form__image-label">
-                <ImagePlus size={13} aria-hidden="true" />
-                {imageBusy ? 'Working…' : isEdit ? 'Upload image' : 'Choose image'}
-              </label>
+              )}
             </div>
-          </div>
+          )}
         </fieldset>
 
         <div className="product-form__actions">
@@ -601,6 +633,17 @@ export default function ProductFormPage() {
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        title="Remove this image?"
+        message="The image will be removed from this product. Customers will no longer see it."
+        confirmLabel="Remove image"
+        danger
+        busy={imageBusy}
+        onConfirm={() => removeImage(removeTarget)}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   );
 }

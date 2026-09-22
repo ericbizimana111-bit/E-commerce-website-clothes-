@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { LIMITS, isValidEmail, sanitizeEmail, sanitizePassword } from '../../utils/inputGuards';
 import './LoginPage.css';
 
 const LOGO_SRC = '/logo.png';
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 30;
 
 /**
  * Admin login against the backend's dedicated admin auth context
@@ -20,6 +23,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [failures, setFailures] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Countdown while locked out after repeated failed sign-ins.
+  useEffect(() => {
+    if (lockedUntil <= Date.now()) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [lockedUntil]);
+
+  const secondsLeft = Math.max(0, Math.ceil((lockedUntil - now) / 1000));
+  const locked = secondsLeft > 0;
 
   // Already signed in: go straight to the console. Declarative redirect —
   // calling navigate() during render would trigger a React warning.
@@ -29,11 +45,15 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || locked) return;
     setError(null);
 
     if (!email.trim()) {
       setError('Enter your admin email address.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError('Enter a valid email address.');
       return;
     }
     if (!password) {
@@ -46,6 +66,15 @@ export default function LoginPage() {
       await login(email, password);
       navigate(redirectTo, { replace: true });
     } catch (err) {
+      const next = failures + 1;
+      if (next >= MAX_FAILED_ATTEMPTS) {
+        setFailures(0);
+        setLockedUntil(Date.now() + LOCKOUT_SECONDS * 1000);
+        setNow(Date.now());
+      } else {
+        setFailures(next);
+      }
+      setPassword('');
       setError(err.message || 'Sign in failed. Check your credentials and try again.');
     } finally {
       setSubmitting(false);
@@ -61,10 +90,12 @@ export default function LoginPage() {
           <p>Sign in with your UgaMarket staff account.</p>
         </div>
 
-        {error && (
+        {(error || locked) && (
           <div className="alert alert--error" role="alert">
             <AlertCircle size={15} aria-hidden="true" />
-            <span>{error}</span>
+            <span>
+              {locked ? `Too many failed attempts. Try again in ${secondsLeft} seconds.` : error}
+            </span>
           </div>
         )}
 
@@ -77,8 +108,11 @@ export default function LoginPage() {
               id="login-email"
               type="email"
               autoComplete="username"
+              autoCapitalize="off"
+              spellCheck="false"
+              maxLength={LIMITS.email}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
               placeholder="admin@ugamarket.ug"
               disabled={submitting}
             />
@@ -92,8 +126,9 @@ export default function LoginPage() {
               id="login-password"
               type="password"
               autoComplete="current-password"
+              maxLength={LIMITS.password}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(sanitizePassword(e.target.value))}
               placeholder="••••••••"
               disabled={submitting}
             />
@@ -102,7 +137,7 @@ export default function LoginPage() {
           <button
             type="submit"
             className="btn btn--primary btn--block"
-            disabled={submitting}
+            disabled={submitting || locked}
           >
             <LogIn size={15} aria-hidden="true" />
             {submitting ? 'Signing in…' : 'Sign in'}

@@ -1,0 +1,61 @@
+.addr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+
+.addr {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: border-color var(--base) var(--ease);
+}
+
+.addr:hover {
+  border-color: var(--primary);
+}
+
+.addr__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.addr__head strong {
+  color: var(--ink);
+}
+
+.addr__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 50%;
+}
+
+.addr p {
+  flex: 1;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.addr__delete {
+  align-self: flex-start;
+  color: var(--danger);
+}
+
+.addr__delete:hover:not(:disabled) {
+  color: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+
+.addr__delete::before {
+  background: var(--danger-soft) !important;
+}

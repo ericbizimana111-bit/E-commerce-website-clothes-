@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Boxes, Pencil, Plus, Power, RefreshCw, Search } from 'lucide-react';
+import { Boxes, Pencil, Plus, Power, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
@@ -22,7 +23,6 @@ export default function CategoriesPage() {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -150,23 +150,15 @@ export default function CategoriesPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
+        <SearchInput
+          value={search}
+          onSearch={(term) => {
             setPage(1);
-            setSearch(searchInput.trim());
+            setSearch(term);
           }}
-        >
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search categories"
-            aria-label="Search categories"
-          />
-        </form>
+          placeholder="Search categories"
+          label="Search categories"
+        />
       </div>
 
       {error ? (
@@ -199,6 +191,7 @@ export default function CategoriesPage() {
         <CategoryFormModal
           category={editor.id ? editor : null}
           onClose={() => setEditor(null)}
+          onImageChanged={load}
           onSaved={async (message) => {
             setEditor(null);
             showToast(message, { type: 'success' });

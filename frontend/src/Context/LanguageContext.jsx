@@ -1,297 +1,100 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  detectBrowserLanguage,
+  isSupportedLanguage,
+  localeFor,
+  translate
+} from '../i18n';
+
+export { SUPPORTED_LANGUAGES };
 
 const LanguageContext = createContext();
 
-export const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇺🇬' },
-  { code: 'lg', name: 'Luganda', flag: '🇺🇬' },
-  { code: 'sw', name: 'Kiswahili', flag: '🇹🇿' },
-  { code: 'fr', name: 'Français', flag: '🇷🇼' }
-];
+const STORAGE_KEY = 'ugamarket_lang';
 
-const TRANSLATIONS = {
-  en: {
-    brandName: 'UgaMarket',
-    brandTagline: 'home to home',
-    home: 'Home',
-    catalog: 'Food Catalog',
-    categories: 'Categories',
-    cart: 'Cart',
-    login: 'Login',
-    signup: 'Create Account',
-    logout: 'Logout',
-    account: 'My Account',
-    orders: 'Orders',
-    addresses: 'Addresses',
-    notifications: 'Notifications',
-    searchPlaceholder: 'Search fresh matooke, beans, maize flour...',
-    allCategories: 'All Categories',
-    inStockOnly: 'In Stock Only',
-    minPrice: 'Min Price (UGX)',
-    maxPrice: 'Max Price (UGX)',
-    filter: 'Filter',
-    reset: 'Reset',
-    addToCart: 'Add to Cart',
-    outOfStock: 'Out of Stock',
-    inStock: 'In Stock',
-    unit: 'Unit',
-    checkout: 'Proceed to Checkout',
-    emptyCart: 'Your cart is empty',
-    emptyCartDesc: 'Explore fresh Ugandan food products directly from farms to your doorstep.',
-    startShopping: 'Start Shopping',
-    subtotal: 'Subtotal',
-    fulfillmentMethod: 'Fulfillment Method',
-    homeDelivery: 'Home Delivery',
-    pickupStation: 'Pickup Station',
-    deliveryFee: 'Delivery Fee',
-    total: 'Total',
-    placeOrder: 'Place Order',
-    commitmentDeposit: 'Commitment Deposit',
-    balancePayable: 'Remaining Balance',
-    orderHistory: 'My Orders',
-    orderTracking: 'Track Order',
-    status: 'Status',
-    date: 'Date',
-    actions: 'Actions',
-    viewDetails: 'View Details',
-    payCommitment: 'Pay Commitment Deposit',
-    payBalance: 'Pay Remaining Balance',
-    cancelOrder: 'Cancel Order',
-    orderCompleted: 'Order Completed',
-    orderCancelled: 'Order Cancelled',
-    qualityCheck: 'Quality Inspection',
-    delivered: 'Delivered',
-    pickedUp: 'Picked Up',
-    howItWorks: 'How UgaMarket Works',
-    howStep1Title: 'Order Fresh Produce',
-    howStep1Desc: 'Browse verified Ugandan agricultural food staples, fruits, and vegetables.',
-    howStep2Title: 'Pay a Small Commitment Deposit',
-    howStep2Desc: 'Secure your harvest order with a small deposit before preparation.',
-    howStep3Title: 'Quality Checked & Delivered',
-    howStep3Desc: 'Inspect your fresh order at home or pickup station and pay the remaining balance upon fulfillment.'
-  },
-  lg: {
-    brandName: 'UgaMarket',
-    brandTagline: 'okuva ewaffe okutuuka ewammwe',
-    home: 'Awaka',
-    catalog: 'Ebyokulya Byonna',
-    categories: 'Ebika by’Ebyokulya',
-    cart: 'Ekiteeteeyi',
-    login: 'Yingira',
-    signup: 'Kola Akaunti',
-    logout: 'Vaamu',
-    account: 'Akaunti Yange',
-    orders: 'Ebiwandiike Byange',
-    addresses: 'Endagiriro',
-    notifications: 'Obubaka',
-    searchPlaceholder: 'Noonya matooke, ebijanjaalo, akawunga...',
-    allCategories: 'Ebika Byonna',
-    inStockOnly: 'Ebiriiwo Byokka',
-    minPrice: 'Omuwendo Ogusembyeyo (UGX)',
-    maxPrice: 'Omuwendo Oggwanidde (UGX)',
-    filter: 'Sunsula',
-    reset: 'Ddamu',
-    addToCart: 'Yongera mu Kasawo',
-    outOfStock: 'Biweddeeyo',
-    inStock: 'Biriwo',
-    unit: 'Kipimo',
-    checkout: 'Genda Oyingize Omuwendo',
-    emptyCart: 'Akasawo ko tekalina kintu',
-    emptyCartDesc: 'Kwetegereze emmere nsiike okuva mu ffaamu okutuuka mu makubo go.',
-    startShopping: 'Tandika Okugula',
-    subtotal: 'Omugatte Omusozi',
-    fulfillmentMethod: 'Enkuuma Y’Okukutuusaako',
-    homeDelivery: 'Kutuusa Waka',
-    pickupStation: 'Sitensheni Y’Okunonako',
-    deliveryFee: 'Ebisale By’Okutuusa',
-    total: 'Omugatte Gwonna',
-    placeOrder: 'Mala Okulagira',
-    commitmentDeposit: 'Ekitundu Ekisooka',
-    balancePayable: 'Ebisigalidde',
-    orderHistory: 'Ebiwandiike Byange',
-    orderTracking: 'Goberera Ebyokulya Byo',
-    status: 'Embeera',
-    date: 'Olunaku',
-    actions: 'Ebikolwa',
-    viewDetails: 'Kebera Byonna',
-    payCommitment: 'Sasula Ekitundu Ekisooka',
-    payBalance: 'Sasula Ebisigalidde',
-    cancelOrder: 'Sazaamu Olagiro',
-    orderCompleted: 'Olagiro Liwedde Bulungi',
-    orderCancelled: 'Olagiro Lisaziddwamu',
-    qualityCheck: 'Okukebera Omutindo',
-    delivered: 'Kituuse',
-    pickedUp: 'Kinoneddwa',
-    howItWorks: 'Enkola ya UgaMarket',
-    howStep1Title: 'Londa Ebyokulya Ebibisi',
-    howStep1Desc: 'Londa ku matooke, emmere ey’omutindo okuva ku bannansi.',
-    howStep2Title: 'Sasula Ekitundu Ekisooka',
-    howStep2Desc: 'Teekawo ekitundu ky’ensimbi okulaga obuvunaanyizibwa nga tetunnabikunganya.',
-    howStep3Title: 'Bikebere Olyoke Osasule Ebisigalidde',
-    howStep3Desc: 'Bwobimanya nti biri ku mutindo, sasula ebisigadde.'
-  },
-  sw: {
-    brandName: 'UgaMarket',
-    brandTagline: 'nyumba hadi nyumba',
-    home: 'Mwanzo',
-    catalog: 'Bidhaa za Chakula',
-    categories: 'Vitengo',
-    cart: 'Kikapu',
-    login: 'Ingia',
-    signup: 'Fungua Akaunti',
-    logout: 'Toka',
-    account: 'Akaunti Yangu',
-    orders: 'Maagizo Yangu',
-    addresses: 'Anwani',
-    notifications: 'Taarifa',
-    searchPlaceholder: 'Tafuta matoke, maharage, unga wa sembe...',
-    allCategories: 'Vitengo Vyote',
-    inStockOnly: 'Zilizopo Tu',
-    minPrice: 'Bei ya Chini (UGX)',
-    maxPrice: 'Bei ya Juu (UGX)',
-    filter: 'Chuja',
-    reset: 'Weka Upya',
-    addToCart: 'Weka Kikapuni',
-    outOfStock: 'Imeisha',
-    inStock: 'Ipo',
-    unit: 'Kipimo',
-    checkout: 'Endelea Kulipa',
-    emptyCart: 'Kikapu chako kiko tupu',
-    emptyCartDesc: 'Gundua bidhaa safi za shambani hadi mlangoni pako.',
-    startShopping: 'Anza Kununua',
-    subtotal: 'Jumla Ndogo',
-    fulfillmentMethod: 'Njia ya Kupokea',
-    homeDelivery: 'Kufikishiwa Nyumbani',
-    pickupStation: 'Kituo cha Kuchukulia',
-    deliveryFee: 'Ada ya Uwasilishaji',
-    total: 'Jumla Kuu',
-    placeOrder: 'Kamilisha Agizo',
-    commitmentDeposit: 'Amana ya Awali',
-    balancePayable: 'Salio Lililobaki',
-    orderHistory: 'Historia ya Maagizo',
-    orderTracking: 'Fuatilia Agizo',
-    status: 'Hali',
-    date: 'Tarehe',
-    actions: 'Vitendo',
-    viewDetails: 'Tazama Zaidi',
-    payCommitment: 'Lipa Amana ya Awali',
-    payBalance: 'Lipa Salio Lililobaki',
-    cancelOrder: 'Ghairi Agizo',
-    orderCompleted: 'Agizo Limekamilika',
-    orderCancelled: 'Agizo Limeghairiwa',
-    qualityCheck: 'Ukaguzi wa Ubora',
-    delivered: 'Imewasilishwa',
-    pickedUp: 'Imechukuliwa',
-    howItWorks: 'Jinsi UgaMarket Inavyofanya Kazi',
-    howStep1Title: 'Agiza Mazao Safi',
-    howStep1Desc: 'Vinjari bidhaa safi za kilimo kutoka mashambani mwa Uganda.',
-    howStep2Title: 'Lipa Amana Ndogo',
-    howStep2Desc: 'Thibitisha agizo lako kwa kulipa amana ndogo kabla ya kutayarishwa.',
-    howStep3Title: 'Ukaguzi & Lipa Salio',
-    howStep3Desc: 'Kagua bidhaa zako nyumbani au kituoni na ukamilishe salio baada ya kuridhika.'
-  },
-  fr: {
-    brandName: 'UgaMarket',
-    brandTagline: 'de maison à maison',
-    home: 'Accueil',
-    catalog: 'Catalogue Alimentaire',
-    categories: 'Catégories',
-    cart: 'Panier',
-    login: 'Connexion',
-    signup: 'Créer un Compte',
-    logout: 'Déconnexion',
-    account: 'Mon Compte',
-    orders: 'Mes Commandes',
-    addresses: 'Adresses',
-    notifications: 'Notifications',
-    searchPlaceholder: 'Rechercher matooke, haricots, farine...',
-    allCategories: 'Toutes Catégories',
-    inStockOnly: 'En Stock Seulement',
-    minPrice: 'Prix Min (UGX)',
-    maxPrice: 'Prix Max (UGX)',
-    filter: 'Filtrer',
-    reset: 'Réinitialiser',
-    addToCart: 'Ajouter au Panier',
-    outOfStock: 'Rupture de Stock',
-    inStock: 'En Stock',
-    unit: 'Unité',
-    checkout: 'Passer à la Caisse',
-    emptyCart: 'Votre panier est vide',
-    emptyCartDesc: 'Découvrez des produits agricoles frais ougandais directement des fermes.',
-    startShopping: 'Commencer vos Achats',
-    subtotal: 'Sous-total',
-    fulfillmentMethod: 'Mode de Livraison',
-    homeDelivery: 'Livraison à Domicile',
-    pickupStation: 'Point de Retrait',
-    deliveryFee: 'Frais de Livraison',
-    total: 'Total',
-    placeOrder: 'Confirmer la Commande',
-    commitmentDeposit: 'Acompte d\'Engagement',
-    balancePayable: 'Solde Restant',
-    orderHistory: 'Historique des Commandes',
-    orderTracking: 'Suivi de Commande',
-    status: 'Statut',
-    date: 'Date',
-    actions: 'Actions',
-    viewDetails: 'Voir Détails',
-    payCommitment: 'Payer l\'Acompte d\'Engagement',
-    payBalance: 'Payer le Solde Restant',
-    cancelOrder: 'Annuler la Commande',
-    orderCompleted: 'Commande Complétée',
-    orderCancelled: 'Commande Annulée',
-    qualityCheck: 'Contrôle de Qualité',
-    delivered: 'Livré',
-    pickedUp: 'Récupéré',
-    howItWorks: 'Comment Fonctionne UgaMarket',
-    howStep1Title: 'Commandez des Produits Frais',
-    howStep1Desc: 'Sélectionnez des vivres agricoles directement des producteurs locaux.',
-    howStep2Title: 'Payez un Petit Acompte d\'Engagement',
-    howStep2Desc: 'Sécurisez votre récolte avec un acompte initial modeste.',
-    howStep3Title: 'Contrôle Qualité & Solde',
-    howStep3Desc: 'Vérifiez la fraîcheur à la livraison et payez le solde restant.'
+/** Saved choice wins; otherwise follow the browser; otherwise English. */
+function getInitialLanguage() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && isSupportedLanguage(saved)) return saved;
+  } catch {
+    /* storage unavailable */
   }
-};
+  if (typeof navigator !== 'undefined') {
+    return detectBrowserLanguage(navigator.languages || [navigator.language]);
+  }
+  return DEFAULT_LANGUAGE;
+}
 
 export const LanguageProvider = ({ children }) => {
-  const [currentLang, setCurrentLang] = useState(() => {
-    return localStorage.getItem('ugamarket_lang') || 'en';
-  });
+  const [currentLang, setCurrentLang] = useState(getInitialLanguage);
 
-  const changeLanguage = (code) => {
-    if (TRANSLATIONS[code]) {
-      setCurrentLang(code);
-      localStorage.setItem('ugamarket_lang', code);
+  // Keep <html lang> in sync so screen readers, hyphenation and browser
+  // translation prompts follow the language the customer picked.
+  useEffect(() => {
+    document.documentElement.lang = currentLang;
+  }, [currentLang]);
+
+  const changeLanguage = useCallback((code) => {
+    if (!isSupportedLanguage(code)) return;
+    setCurrentLang(code);
+    try {
+      localStorage.setItem(STORAGE_KEY, code);
+    } catch {
+      /* non-fatal */
     }
-  };
+  }, []);
 
-  const t = (key) => {
-    return TRANSLATIONS[currentLang]?.[key] || TRANSLATIONS.en[key] || key;
-  };
+  const t = useCallback((key, params) => translate(currentLang, key, params), [currentLang]);
 
-  const getLocalizedField = (item, fieldName) => {
-    if (!item) return '';
-    if (currentLang !== 'en') {
-      const localized = item[`${fieldName}_${currentLang}`];
-      if (localized && typeof localized === 'string' && localized.trim()) {
-        return localized;
+  const getLocalizedField = useCallback(
+    (item, fieldName) => {
+      if (!item) return '';
+      if (currentLang !== 'en') {
+        const localized = item[`${fieldName}_${currentLang}`];
+        if (localized && typeof localized === 'string' && localized.trim()) {
+          return localized;
+        }
       }
-    }
-    return item[fieldName] || '';
-  };
-
-  return (
-    <LanguageContext.Provider
-      value={{
-        currentLang,
-        changeLanguage,
-        t,
-        getLocalizedField,
-        supportedLanguages: SUPPORTED_LANGUAGES
-      }}
-    >
-      {children}
-    </LanguageContext.Provider>
+      return item[fieldName] || '';
+    },
+    [currentLang]
   );
+
+  const formatDateTime = useCallback(
+    (value, options) => {
+      if (!value) return '—';
+      try {
+        return new Date(value).toLocaleString(localeFor(currentLang), {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          ...options
+        });
+      } catch {
+        return String(value);
+      }
+    },
+    [currentLang]
+  );
+
+  const value = useMemo(
+    () => ({
+      currentLang,
+      changeLanguage,
+      t,
+      getLocalizedField,
+      formatDateTime,
+      supportedLanguages: SUPPORTED_LANGUAGES
+    }),
+    [currentLang, changeLanguage, t, getLocalizedField, formatDateTime]
+  );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
 export const useLanguage = () => useContext(LanguageContext);

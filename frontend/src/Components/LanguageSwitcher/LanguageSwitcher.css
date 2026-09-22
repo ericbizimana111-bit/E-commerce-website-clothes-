@@ -1,0 +1,103 @@
+.lang-menu {
+  position: relative;
+}
+
+.lang-menu__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 999px;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.lang-menu--light .lang-menu__btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+.lang-menu--light .lang-menu__btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.lang-menu--default .lang-menu__btn {
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.lang-menu--default .lang-menu__btn:hover {
+  border-color: var(--primary);
+}
+
+.lang-menu__chev {
+  transition: transform var(--base) var(--ease);
+}
+.lang-menu__chev--open {
+  transform: rotate(180deg);
+}
+
+.lang-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1600;
+  min-width: 190px;
+  padding: 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  animation: sb-in var(--fast) var(--ease);
+}
+
+.lang-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--fast) var(--ease);
+}
+
+.lang-menu__item:hover {
+  background: var(--surface-alt);
+}
+
+.lang-menu__item--active {
+  color: var(--primary);
+  font-weight: 700;
+  background: var(--primary-soft);
+}
+
+.lang-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lang-list__btn {
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  transition: border-color var(--fast) var(--ease), background-color var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.lang-list__btn:hover {
+  border-color: var(--primary);
+}
+
+.lang-list__btn--active {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}

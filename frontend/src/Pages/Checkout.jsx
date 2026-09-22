@@ -1,618 +1,445 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Check, Clock, Lock, MapPin, Plus, ShieldCheck, Truck, X } from 'lucide-react';
 import apiClient from '../api/client';
 import { useAuth } from '../Context/AuthContext';
 import { useCart } from '../Context/CartContext';
 import { useLanguage } from '../Context/LanguageContext';
+import SlidingTabs from '../Components/ui/SlidingTabs';
+import AddressForm, { EMPTY_ADDRESS } from '../Components/AddressForm/AddressForm';
 import { formatUGX } from '../utils/currency';
-import { AlertTriangle, Truck, MapPin, Clock, Check, Lock, ShieldCheck } from 'lucide-react';
+import { friendlyError } from '../utils/errors';
+import { LIMITS, sanitizeMultiline } from '../utils/inputGuards';
 import './Checkout.css';
 
 /**
- * Checkout — UgaMarket — home to home.
- *
- * Server-authoritative rules:
- *  - Totals/commitment/balance come ONLY from POST /api/checkout/preview
- *    (read-only, server-calculated). No client financial math is authoritative.
+ * Checkout — server-authoritative rules:
+ *  - Totals / commitment / balance come ONLY from POST /api/checkout/preview.
  *  - Addresses come from GET/POST /api/addresses (ownership enforced server-side).
  *  - Pickup stations come from GET /api/pickup-stations (never hardcoded).
  *  - Orders are created via POST /api/orders, which revalidates stock, prices,
  *    fulfillment and computes the authoritative amounts in one transaction.
  */
-
 const Checkout = () => {
   const { isAuthenticated, user } = useAuth();
   const { items, itemCount, refreshCart } = useCart();
-  const { currentLang, t } = useLanguage();
+  const { currentLang, t, getLocalizedField } = useLanguage();
   const navigate = useNavigate();
 
-  // Fulfillment State
   const [fulfillmentMethod, setFulfillmentMethod] = useState('HOME_DELIVERY');
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const [pickupStations, setPickupStations] = useState([]);
   const [selectedStationId, setSelectedStationId] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
+  const [showNewAddress, setShowNewAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
+  const [savingAddress, setSavingAddress] = useState(false);
 
-  // Add new address toggle/form
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
-  const [newAddress, setNewAddress] = useState({
-    title: 'Home',
-    district: 'Kampala',
-    division: '',
-    streetAddress: '',
-    isDefault: false
-  });
-
-  // Server checkout preview state
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [fulfillmentDataLoading, setFulfillmentDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // Auth Guard
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login?redirect=/checkout');
-    }
+    if (!isAuthenticated) navigate('/login?redirect=/checkout');
   }, [isAuthenticated, navigate]);
 
-  // Load addresses & pickup stations
+  // Saved addresses + pickup stations
   useEffect(() => {
-    if (!isAuthenticated) return;
-    let isMounted = true;
-    setFulfillmentDataLoading(true);
+    if (!isAuthenticated) return undefined;
+    let mounted = true;
+    setDataLoading(true);
 
-    const loadFulfillmentData = async () => {
-      try {
-        const [addrRes, stationRes] = await Promise.allSettled([
-          apiClient.get('/addresses'),
-          apiClient.get('/pickup-stations')
-        ]);
+    (async () => {
+      const [addrRes, stationRes] = await Promise.allSettled([apiClient.get('/addresses'), apiClient.get('/pickup-stations')]);
+      if (!mounted) return;
 
-        if (isMounted) {
-          // GET /api/addresses -> { data: { addresses: [...] } }
-          if (addrRes.status === 'fulfilled' && Array.isArray(addrRes.value?.data?.addresses)) {
-            const list = addrRes.value.data.addresses;
-            setAddresses(list);
-            if (list.length > 0) {
-              const def = list.find((a) => a.isDefault) || list[0];
-              setSelectedAddressId(def.id);
-            } else {
-              setShowNewAddressForm(true);
-            }
-          }
-
-          // GET /api/pickup-stations -> { data: { stations: [...] } }
-          if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
-            const stations = stationRes.value.data.stations;
-            setPickupStations(stations);
-            if (stations.length > 0) {
-              setSelectedStationId(stations[0].id.toString());
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load fulfillment data', err);
-      } finally {
-        if (isMounted) setFulfillmentDataLoading(false);
+      if (addrRes.status === 'fulfilled' && Array.isArray(addrRes.value?.data?.addresses)) {
+        const list = addrRes.value.data.addresses;
+        setAddresses(list);
+        if (list.length > 0) setSelectedAddressId((list.find((a) => a.isDefault) || list[0]).id);
+        else setShowNewAddress(true);
       }
-    };
+      if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
+        const stations = stationRes.value.data.stations;
+        setPickupStations(stations);
+        if (stations.length > 0) setSelectedStationId(String(stations[0].id));
+      }
+      setDataLoading(false);
+    })();
 
-    loadFulfillmentData();
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, [isAuthenticated]);
 
-  // Server checkout preview fetch (authoritative pricing)
-  const fetchCheckoutPreview = useCallback(async () => {
+  // Authoritative pricing from the server
+  const fetchPreview = useCallback(async () => {
     if (items.length === 0) return;
-
-    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) {
-      setPreview(null);
-      return;
-    }
-    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) {
-      setPreview(null);
-      return;
-    }
+    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) return setPreview(null);
+    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) return setPreview(null);
 
     setPreviewLoading(true);
     setErrorMessage(null);
-
     try {
-      const payload = {
+      const res = await apiClient.post('/checkout/preview', {
         fulfillmentMethod,
         ...(fulfillmentMethod === 'HOME_DELIVERY'
           ? { addressId: selectedAddressId }
           : { pickupStationId: Number(selectedStationId) })
-      };
-
-      // POST /api/checkout/preview -> { data: { checkout: { ready, issues, fulfillment, pricing, items } } }
-      const res = await apiClient.post('/checkout/preview', payload);
-      if (res?.data?.checkout) {
-        setPreview(res.data.checkout);
-      }
+      });
+      if (res?.data?.checkout) setPreview(res.data.checkout);
     } catch (err) {
-      console.warn('Checkout preview error', err);
       setPreview(null);
-      setErrorMessage(err.message || 'Unable to calculate checkout totals');
+      setErrorMessage(friendlyError(err, t, 'previewFailed'));
     } finally {
       setPreviewLoading(false);
     }
+    // `t` only changes with the language; the preview does not depend on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length, fulfillmentMethod, selectedAddressId, selectedStationId]);
 
   useEffect(() => {
-    fetchCheckoutPreview();
-  }, [fetchCheckoutPreview]);
+    fetchPreview();
+  }, [fetchPreview]);
 
-  // Handle saving new address (backend Address model:
-  // title, district, division, streetAddress, latitude, longitude, isDefault)
-  const handleSaveNewAddress = async (e) => {
-    e.preventDefault();
+  const handleSaveAddress = async (address) => {
     setErrorMessage(null);
+    setSavingAddress(true);
     try {
-      const res = await apiClient.post('/addresses', newAddress);
-      // POST /api/addresses -> { data: { address } }
+      const res = await apiClient.post('/addresses', address);
       const created = res?.data?.address;
       if (created) {
         setAddresses((prev) => [created, ...prev]);
         setSelectedAddressId(created.id);
-        setShowNewAddressForm(false);
-        setNewAddress({
-          title: 'Home',
-          district: 'Kampala',
-          division: '',
-          streetAddress: '',
-          isDefault: false
-        });
+        setShowNewAddress(false);
+        setNewAddress(EMPTY_ADDRESS);
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Failed to save address');
+      setErrorMessage(friendlyError(err, t, 'saveAddressFailed'));
+    } finally {
+      setSavingAddress(false);
     }
   };
 
-  // Place Order — POST /api/orders (server revalidates everything)
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (submitting) return;
-
-    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) {
-      setErrorMessage('Please select or add a delivery address');
-      return;
-    }
-    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) {
-      setErrorMessage('Please select a pickup station');
-      return;
-    }
+    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) return setErrorMessage(t('pleaseSelectAddress'));
+    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) return setErrorMessage(t('pleaseSelectStation'));
 
     setSubmitting(true);
     setErrorMessage(null);
-
     try {
-      const payload = {
+      const res = await apiClient.post('/orders', {
         fulfillmentMethod,
         ...(fulfillmentMethod === 'HOME_DELIVERY'
           ? { addressId: selectedAddressId }
           : { pickupStationId: Number(selectedStationId) }),
         ...(orderNotes.trim() ? { notes: orderNotes.trim() } : {}),
         language: currentLang || 'en'
-      };
-
-      const res = await apiClient.post('/orders', payload);
+      });
       const createdOrder = res?.data?.order || res?.data;
-
-      if (createdOrder?.id) {
-        // Refresh cart so client knows server cart is cleared
-        await refreshCart();
-        // Redirect to order details to review or pay commitment
-        navigate(`/account/orders/${createdOrder.id}`);
-      } else {
-        throw new Error('Order creation did not return an order ID');
-      }
+      if (!createdOrder?.id) throw new Error(t('noOrderId'));
+      await refreshCart();
+      navigate(`/account/orders/${createdOrder.id}`);
     } catch (err) {
-      console.error('Failed to create order', err);
-      setErrorMessage(err.message || 'Failed to place order. Please try again.');
+      setErrorMessage(friendlyError(err, t, 'placeOrderFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const methodTabs = useMemo(
+    () => [
+      { value: 'HOME_DELIVERY', label: t('homeDelivery'), id: 'co-tab-home', controls: 'co-panel' },
+      { value: 'PICKUP_STATION', label: t('pickupStation'), id: 'co-tab-pickup', controls: 'co-panel' }
+    ],
+    [t]
+  );
+
   if (items.length === 0) {
     return (
-      <div className="um-checkout-page">
-        <div className="container">
-          <div className="um-empty-checkout card">
-            <h2>{t('emptyCart')}</h2>
-            <p>Please add fresh farm produce before proceeding to checkout.</p>
-            <Link to="/catalog" className="btn btn-primary">
-              {t('catalog')}
-            </Link>
-          </div>
+      <div className="checkout container">
+        <div className="state-block panel">
+          <h1>{t('emptyCart')}</h1>
+          <p>{t('addProduceFirst')}</p>
+          <Link to="/catalog" className="btn btn-primary">
+            {t('catalogTitle')}
+          </Link>
         </div>
       </div>
     );
   }
 
-  // Server-authoritative values (no client financial math).
   const pricing = preview?.pricing || null;
   const fulfillment = preview?.fulfillment || null;
-  const displaySubtotal = pricing?.subtotalUgx ?? null;
-  const displayDeliveryFee = fulfillment?.deliveryFeeUgx ?? null;
-  const displayTotal = pricing?.totalUgx ?? null;
-  const displayCommitment = pricing?.commitmentUgx ?? null;
-  const displayBalance = pricing?.remainingBalanceUgx ?? null;
+  const subtotal = pricing?.subtotalUgx ?? null;
+  const deliveryFee = fulfillment?.deliveryFeeUgx ?? null;
+  const total = pricing?.totalUgx ?? null;
+  const commitment = pricing?.commitmentUgx ?? null;
+  const balance = pricing?.remainingBalanceUgx ?? null;
   const commitmentNote = pricing?.commitmentNote || null;
   const cartIssues = preview?.issues || [];
+  const hasAll = total !== null && commitment !== null && deliveryFee !== null;
+  const money = (value) => (value === null ? '…' : formatUGX(value));
 
-  const hasAllServerAmounts =
-    displayTotal !== null && displayCommitment !== null && displayDeliveryFee !== null;
-
-  const formatOrPending = (value) => (value === null ? '…' : formatUGX(value));
+  const steps = [
+    { label: t('stepCart'), to: '/cart', done: true },
+    { label: t('stepDelivery'), current: true },
+    { label: t('stepDeposit') },
+    { label: t('stepConfirmation') }
+  ];
 
   return (
-    <div className="um-checkout-page">
-      <div className="container">
-        {/* Checkout journey progress — Cart is done, Payment/Confirmation follow on the order page */}
-        <nav className="um-checkout-progress" aria-label="Checkout progress">
-          <ol className="um-progress-steps">
-            <li className="um-progress-step um-progress-step--done">
-              <Link to="/cart">Cart</Link>
+    <div className="checkout container">
+      <nav className="steps" aria-label={t('checkoutProgress')}>
+        <ol>
+          {steps.map((step, i) => (
+            <li key={step.label} className={`steps__item ${step.done ? 'steps__item--done' : ''} ${step.current ? 'steps__item--current' : ''}`} aria-current={step.current ? 'step' : undefined}>
+              <span className="steps__dot">{step.done ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : i + 1}</span>
+              {step.to ? <Link to={step.to}>{step.label}</Link> : <span>{step.label}</span>}
             </li>
-            <li className="um-progress-step um-progress-step--current" aria-current="step">
-              <span>Delivery &amp; Review</span>
-            </li>
-            <li className="um-progress-step">
-              <span>{t('commitmentDeposit')}</span>
-            </li>
-            <li className="um-progress-step">
-              <span>Confirmation</span>
-            </li>
-          </ol>
-        </nav>
+          ))}
+        </ol>
+      </nav>
 
-        <div className="um-checkout-header">
-          <h1 className="um-checkout-title">Checkout</h1>
-          <p className="um-checkout-subtitle">
-            {t('commitmentDeposit')} paid now • {t('balancePayable')} after your produce is inspected
-          </p>
+      <header className="checkout__head">
+        <h1 className="page-title">{t('checkoutTitle')}</h1>
+        <p className="section-desc">{t('checkoutSubtitle')}</p>
+      </header>
+
+      {errorMessage && (
+        <div className="alert alert-error" role="alert">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span>{errorMessage}</span>
         </div>
+      )}
 
-        {errorMessage && (
-          <div className="alert alert-error" role="alert">
-            <AlertTriangle size={16} strokeWidth={1.75} />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
-        {/* Cart issues surfaced by the server (stale price / stock conflicts) */}
-        {cartIssues.length > 0 && (
-          <div className="alert alert-error" role="alert">
-            <strong>Your cart needs attention:</strong>
-            <ul style={{ margin: '0.5rem 0 0 1.25rem' }}>
+      {cartIssues.length > 0 && (
+        <div className="alert alert-error" role="alert">
+          <div>
+            <strong>{t('cartNeedsAttention')}</strong>
+            <ul style={{ margin: '6px 0 6px 18px', listStyle: 'disc' }}>
               {cartIssues.map((issue) => (
                 <li key={issue.cartItemId || issue.slug}>{issue.message}</li>
               ))}
             </ul>
-            <Link to="/cart" style={{ display: 'inline-block', marginTop: '0.5rem', textDecoration: 'underline' }}>
-              Review your cart →
+            <Link to="/cart" style={{ fontWeight: 700, textDecoration: 'underline' }}>
+              {t('reviewCart')}
             </Link>
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="um-checkout-layout">
-          {/* Main Form Area */}
-          <div className="um-checkout-main">
-            {/* Step 1: Fulfillment Method */}
-            <div className="um-checkout-step card">
-              <div className="um-step-heading">
-                <span className="um-step-badge-num">1</span>
-                <h3>{t('fulfillmentMethod')}</h3>
-              </div>
+      <div className="checkout__layout">
+        <div className="checkout__main">
+          <section className="card checkout__step">
+            <h2 className="checkout__step-title">
+              <span className="checkout__num">1</span>
+              {t('fulfillmentMethod')}
+            </h2>
 
-              <div className="um-fulfillment-tabs">
-                <button
-                  type="button"
-                  className={`um-tab-btn ${fulfillmentMethod === 'HOME_DELIVERY' ? 'um-tab-btn--active' : ''}`}
-                  onClick={() => setFulfillmentMethod('HOME_DELIVERY')}
-                >
-                  <span className="um-tab-icon"><Truck size={20} strokeWidth={1.75} /></span>
-                  <div>
-                    <strong>{t('homeDelivery')}</strong>
-                    <span>Direct to your doorstep</span>
-                  </div>
-                </button>
+            <SlidingTabs options={methodTabs} value={fulfillmentMethod} onChange={setFulfillmentMethod} ariaLabel={t('fulfillmentMethod')} full />
 
-                <button
-                  type="button"
-                  className={`um-tab-btn ${fulfillmentMethod === 'PICKUP_STATION' ? 'um-tab-btn--active' : ''}`}
-                  onClick={() => setFulfillmentMethod('PICKUP_STATION')}
-                >
-                  <span className="um-tab-icon"><MapPin size={20} strokeWidth={1.75} /></span>
-                  <div>
-                    <strong>{t('pickupStation')}</strong>
-                    <span>Collect at a secure neighborhood station</span>
-                  </div>
-                </button>
-              </div>
+            <div id="co-panel" role="tabpanel" aria-labelledby={fulfillmentMethod === 'HOME_DELIVERY' ? 'co-tab-home' : 'co-tab-pickup'} className="checkout__panel" key={fulfillmentMethod}>
+              {fulfillmentMethod === 'HOME_DELIVERY' ? (
+                <>
+                  <p className="checkout__method-desc">
+                    <Truck size={16} aria-hidden="true" /> {t('homeDeliveryDesc')}
+                  </p>
 
-              {/* Home Delivery Address Selector */}
-              {fulfillmentMethod === 'HOME_DELIVERY' && (
-                <div className="um-address-section">
-                  <div className="um-address-section-header">
-                    <h4>Delivery Address</h4>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setShowNewAddressForm(!showNewAddressForm)}
-                    >
-                      {showNewAddressForm ? 'Cancel' : '+ Add New Address'}
-                    </button>
+                  <div className="checkout__row">
+                    <h3>{t('deliveryAddress')}</h3>
+                    {addresses.length > 0 && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNewAddress((s) => !s)}>
+                        {showNewAddress ? (
+                          <>
+                            <X size={14} aria-hidden="true" /> {t('cancel')}
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={14} aria-hidden="true" /> {t('addNewAddressBtn')}
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
-                  {/* Existing Addresses */}
-                  {!showNewAddressForm && addresses.length > 0 && (
-                    <div className="um-address-list">
+                  {!showNewAddress && addresses.length > 0 && (
+                    <div className="options" role="radiogroup" aria-label={t('deliveryAddress')}>
                       {addresses.map((addr) => (
-                        <label
-                          key={addr.id}
-                          className={`um-address-option ${selectedAddressId === addr.id ? 'um-address-option--selected' : ''}`}
-                        >
-                          <input
-                            type="radio"
-                            name="addressSelect"
-                            value={addr.id}
-                            checked={selectedAddressId === addr.id}
-                            onChange={() => setSelectedAddressId(addr.id)}
-                          />
-                          <div className="um-address-details">
+                        <label key={addr.id} className={`option ${selectedAddressId === addr.id ? 'option--selected' : ''}`}>
+                          <input type="radio" name="addressSelect" value={addr.id} checked={selectedAddressId === addr.id} onChange={() => setSelectedAddressId(addr.id)} />
+                          <span className="option__body">
                             <strong>
-                              {addr.title || 'Address'}
-                              {addr.isDefault && <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>Default</span>}
+                              {addr.title || t('addressFallback')}
+                              {addr.isDefault && <span className="badge badge-success">{t('defaultBadge')}</span>}
                             </strong>
-                            <p>{addr.streetAddress}{addr.division ? `, ${addr.division}` : ''}, {addr.district}</p>
-                          </div>
+                            <span>
+                              {addr.streetAddress}
+                              {addr.division ? `, ${addr.division}` : ''}, {addr.district}
+                            </span>
+                          </span>
                         </label>
                       ))}
                     </div>
                   )}
 
-                  {!showNewAddressForm && fulfillmentDataLoading && (
-                    <div className="um-subview-loading" style={{ padding: '1.5rem' }}>
+                  {!showNewAddress && dataLoading && (
+                    <div className="um-subview-loading" role="status">
                       <div className="um-spinner" />
-                      <p>Loading your addresses...</p>
+                      <p>{t('loadingAddresses')}</p>
                     </div>
                   )}
 
-                  {/* Add New Address Form */}
-                  {showNewAddressForm && (
-                    <form onSubmit={handleSaveNewAddress} className="um-new-address-form card">
-                      <h5>Enter Delivery Location</h5>
-                      <div className="form-group">
-                        <label className="form-label" htmlFor="co-addr-title">Address Label *</label>
-                        <input
-                          id="co-addr-title"
-                          type="text"
-                          required
-                          className="form-input"
-                          placeholder="e.g. Home, Office"
-                          value={newAddress.title}
-                          onChange={(e) => setNewAddress({ ...newAddress, title: e.target.value })}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label" htmlFor="co-addr-street">Street Address / Landmark *</label>
-                        <input
-                          id="co-addr-street"
-                          type="text"
-                          required
-                          className="form-input"
-                          placeholder="e.g. Plot 12 Ntinda Road, near the shell station"
-                          value={newAddress.streetAddress}
-                          onChange={(e) => setNewAddress({ ...newAddress, streetAddress: e.target.value })}
-                        />
-                      </div>
-                      <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>
-                        <div className="form-group" style={{ flex: 1 }}>
-                          <label className="form-label" htmlFor="co-addr-district">District *</label>
-                          <input
-                            id="co-addr-district"
-                            type="text"
-                            required
-                            className="form-input"
-                            value={newAddress.district}
-                            onChange={(e) => setNewAddress({ ...newAddress, district: e.target.value })}
-                          />
-                        </div>
-                        <div className="form-group" style={{ flex: 1 }}>
-                          <label className="form-label" htmlFor="co-addr-division">Division (optional)</label>
-                          <input
-                            id="co-addr-division"
-                            type="text"
-                            className="form-input"
-                            placeholder="e.g. Nakawa"
-                            value={newAddress.division}
-                            onChange={(e) => setNewAddress({ ...newAddress, division: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                          type="checkbox"
-                          id="co-addr-default"
-                          checked={newAddress.isDefault}
-                          onChange={(e) => setNewAddress({ ...newAddress, isDefault: e.target.checked })}
-                        />
-                        <label htmlFor="co-addr-default" style={{ cursor: 'pointer', fontSize: '0.88rem' }}>
-                          Set as default delivery address
-                        </label>
-                      </div>
-                      <p className="um-input-hint">
-                        Delivering as <strong>{user?.fullName}</strong> ({user?.phone})
-                      </p>
-                      <button type="submit" className="btn btn-primary btn-sm">
-                        Save &amp; Use Address
-                      </button>
-                    </form>
+                  {showNewAddress && (
+                    <AddressForm
+                      idPrefix="co-addr"
+                      heading={t('enterLocation')}
+                      value={newAddress}
+                      onChange={setNewAddress}
+                      onSubmit={handleSaveAddress}
+                      submitting={savingAddress}
+                      submitLabel={t('saveUseAddress')}
+                      footnote={t('deliveringAs', { name: user?.fullName || '', phone: user?.phone || '' })}
+                    />
                   )}
-                </div>
-              )}
-
-              {/* Pickup Stations Selector */}
-              {fulfillmentMethod === 'PICKUP_STATION' && (
-                <div className="um-stations-selection">
-                  <h4>Select a Pickup Station</h4>
-                  {fulfillmentDataLoading && (
-                    <div className="um-subview-loading" style={{ padding: '1.5rem' }}>
+                </>
+              ) : (
+                <>
+                  <p className="checkout__method-desc">
+                    <MapPin size={16} aria-hidden="true" /> {t('pickupStationDesc')}
+                  </p>
+                  <h3>{t('selectStation')}</h3>
+                  {dataLoading && (
+                    <div className="um-subview-loading" role="status">
                       <div className="um-spinner" />
-                      <p>Loading pickup stations...</p>
+                      <p>{t('loadingStations')}</p>
                     </div>
                   )}
-                  <div className="um-station-options-grid">
+                  <div className="options" role="radiogroup" aria-label={t('selectStation')}>
                     {pickupStations.map((station) => (
-                      <label
-                        key={station.id}
-                        className={`um-station-card ${selectedStationId === station.id.toString() ? 'um-station-card--selected' : ''}`}
-                      >
-                        <input
-                          type="radio"
-                          name="stationSelect"
-                          value={station.id}
-                          checked={selectedStationId === station.id.toString()}
-                          onChange={() => setSelectedStationId(station.id.toString())}
-                        />
-                        <div className="um-station-body">
-                          <strong style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={14} strokeWidth={1.75} /> {station.name}</strong>
-                          <p>{station.addressText}, {station.district}</p>
-                          <span className="um-station-hrs" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={13} strokeWidth={1.75} /> {station.operatingHours || 'Contact station for hours'}</span>
-                        </div>
+                      <label key={station.id} className={`option ${selectedStationId === String(station.id) ? 'option--selected' : ''}`}>
+                        <input type="radio" name="stationSelect" value={station.id} checked={selectedStationId === String(station.id)} onChange={() => setSelectedStationId(String(station.id))} />
+                        <span className="option__body">
+                          <strong>{station.name}</strong>
+                          <span>
+                            {station.addressText}, {station.district}
+                          </span>
+                          <span className="option__hours">
+                            <Clock size={13} aria-hidden="true" /> {station.operatingHours || t('contactForHours')}
+                          </span>
+                        </span>
                       </label>
                     ))}
                   </div>
-                </div>
+                </>
               )}
             </div>
+          </section>
 
-            {/* Step 2: Order Notes */}
-            <div className="um-checkout-step card">
-              <div className="um-step-heading">
-                <span className="um-step-badge-num">2</span>
-                <h3>Special Instructions &amp; Packaging</h3>
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="co-notes">Harvest &amp; Delivery Notes (Optional)</label>
-                <textarea
-                  id="co-notes"
-                  className="form-textarea"
-                  rows="3"
-                  placeholder="e.g. Please pick ripe matooke fingers, leave with security guard if not available."
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  maxLength={1000}
-                />
-              </div>
+          <section className="card checkout__step">
+            <h2 className="checkout__step-title">
+              <span className="checkout__num">2</span>
+              {t('notesStep')}
+            </h2>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="co-notes">
+                {t('notesLabel')} <span className="input-hint">({t('optional')})</span>
+              </label>
+              <textarea
+                id="co-notes"
+                className="form-textarea"
+                rows="3"
+                placeholder={t('notesPlaceholder')}
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(sanitizeMultiline(e.target.value, LIMITS.notes))}
+                maxLength={LIMITS.notes}
+              />
+              <span className="input-hint" style={{ textAlign: 'right' }}>
+                {t('notesCounter', { used: orderNotes.length, max: LIMITS.notes })}
+              </span>
             </div>
-          </div>
-
-          {/* Sidebar Summary */}
-          <div className="um-checkout-sidebar">
-            <div className="um-checkout-review card">
-              <h3 className="um-review-title">
-                Order Overview ({itemCount} {itemCount === 1 ? 'item' : 'items'})
-              </h3>
-
-              <div className="um-review-items">
-                {items.map((item) => {
-                  const product = item.product || {};
-                  return (
-                    <div key={item.id} className="um-review-item-row">
-                      <span className="um-review-item-name">
-                        {item.quantity}x {product.name || 'Fresh item'}
-                      </span>
-                      <span className="um-review-item-price">
-                        {formatUGX(item.subtotalUgx || (item.unitPriceUgx * item.quantity))}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="um-review-totals">
-                <div className="um-review-row">
-                  <span>Subtotal</span>
-                  <span>{formatOrPending(displaySubtotal)}</span>
-                </div>
-                <div className="um-review-row">
-                  <span>{t('deliveryFee')}</span>
-                  <span>
-                    {displayDeliveryFee === null
-                      ? '…'
-                      : displayDeliveryFee === 0
-                        ? 'FREE (Pickup)'
-                        : formatUGX(displayDeliveryFee)}
-                  </span>
-                </div>
-                <div className="um-review-row um-review-total-row">
-                  <strong>Total Order Value</strong>
-                  <strong className="um-review-total-ugx">{formatOrPending(displayTotal)}</strong>
-                </div>
-                {preview && !previewLoading && (
-                  <p className="um-review-server-note" style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Check size={13} strokeWidth={2.5} /> Final amounts confirmed by UgaMarket
-                  </p>
-                )}
-              </div>
-
-              {/* Commitment / Balance breakdown — server-authoritative values */}
-              <div className="um-checkout-breakdown card">
-                <div className="um-breakdown-row">
-                  <div>
-                    <strong className="um-breakdown-title">{t('commitmentDeposit')} — Pay Now</strong>
-                    <span className="um-breakdown-sub">Required now to initiate your order</span>
-                  </div>
-                  <strong className="um-breakdown-amount um-deposit-val">
-                    {formatOrPending(displayCommitment)}
-                  </strong>
-                </div>
-                <div className="um-breakdown-divider" />
-                <div className="um-breakdown-row">
-                  <div>
-                    <strong className="um-breakdown-title">{t('balancePayable')} — Pay at Fulfillment</strong>
-                    <span className="um-breakdown-sub">Payable after quality inspection</span>
-                  </div>
-                  <strong className="um-breakdown-amount">
-                    {formatOrPending(displayBalance)}
-                  </strong>
-                </div>
-                {commitmentNote && (
-                  <p className="um-breakdown-note" style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.5rem' }}>
-                    {commitmentNote}
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={handlePlaceOrder}
-                disabled={submitting || previewLoading || !hasAllServerAmounts}
-                className="btn btn-primary btn-lg btn-block um-place-order-btn"
-              >
-                {submitting
-                  ? 'Placing your order...'
-                  : previewLoading || !hasAllServerAmounts
-                    ? 'Confirming your totals…'
-                    : `Place Order — Pay ${formatUGX(displayCommitment)} Now`}
-              </button>
-
-              <div className="um-checkout-security">
-                <span><Lock size={13} strokeWidth={1.75} /> Checkout secured by UgaMarket</span>
-                <span><ShieldCheck size={13} strokeWidth={1.75} /> Inspect quality before paying the balance</span>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
+
+        <aside className="checkout__summary card" aria-label={t('orderOverview')}>
+          <h2>
+            {t('orderOverview')} ({t('itemsCount', { count: itemCount })})
+          </h2>
+
+          <ul className="checkout__items">
+            {items.map((item) => {
+              const product = item.product || {};
+              return (
+                <li key={item.id}>
+                  <span>
+                    {item.quantity}× {getLocalizedField(product, 'name') || product.name || t('freshItem')}
+                  </span>
+                  <span>{formatUGX(item.subtotalUgx || item.unitPriceUgx * item.quantity)}</span>
+                </li>
+              );
+            })}
+          </ul>
+
+          <dl className="checkout__totals">
+            <div>
+              <dt>{t('subtotal')}</dt>
+              <dd>{money(subtotal)}</dd>
+            </div>
+            <div>
+              <dt>{t('deliveryFee')}</dt>
+              <dd>{deliveryFee === null ? '…' : deliveryFee === 0 ? t('freePickup') : formatUGX(deliveryFee)}</dd>
+            </div>
+            <div className="checkout__grand">
+              <dt>{t('totalOrderValue')}</dt>
+              <dd>{money(total)}</dd>
+            </div>
+          </dl>
+          {preview && !previewLoading && (
+            <p className="checkout__confirmed">
+              <Check size={13} strokeWidth={3} aria-hidden="true" /> {t('serverConfirmed')}
+            </p>
+          )}
+
+          <div className="checkout__split">
+            <div>
+              <div>
+                <strong>
+                  {t('commitmentDeposit')} — {t('payNowSuffix')}
+                </strong>
+                <span>{t('requiredNow')}</span>
+              </div>
+              <strong className="checkout__deposit">{money(commitment)}</strong>
+            </div>
+            <div>
+              <div>
+                <strong>
+                  {t('balancePayable')} — {t('payAtFulfillmentSuffix')}
+                </strong>
+                <span>{t('afterInspection')}</span>
+              </div>
+              <strong>{money(balance)}</strong>
+            </div>
+            {commitmentNote && <p className="checkout__note">{commitmentNote}</p>}
+          </div>
+
+          <button type="button" onClick={handlePlaceOrder} disabled={submitting || previewLoading || !hasAll} className="btn btn-primary btn-lg btn-block">
+            {submitting ? t('placingOrder') : previewLoading || !hasAll ? t('confirmingTotals') : t('placeOrderPay', { amount: formatUGX(commitment) })}
+          </button>
+
+          <ul className="checkout__secure">
+            <li>
+              <Lock size={14} aria-hidden="true" /> {t('checkoutSecured')}
+            </li>
+            <li>
+              <ShieldCheck size={14} aria-hidden="true" /> {t('inspectBeforeBalance')}
+            </li>
+          </ul>
+        </aside>
       </div>
     </div>
   );

@@ -1,317 +1,492 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import apiClient from '../api/client';
-import { resolveImageUrl } from '../api/client';
+import {
+  AlertCircle,
+  ArrowRight,
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  Home as HomeIcon,
+  Leaf,
+  MapPin,
+  Navigation,
+  ShieldCheck,
+  ShoppingBasket,
+  Sprout,
+  Truck,
+  Wallet
+} from 'lucide-react';
+import apiClient, { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
 import { ProductGridSkeleton, CategoryGridSkeleton } from '../Components/Skeletons/Skeletons';
+import SlidingTabs from '../Components/ui/SlidingTabs';
+import Reveal from '../Components/ui/Reveal';
+import { useAuth } from '../Context/AuthContext';
 import { useLanguage } from '../Context/LanguageContext';
-import {
-  Leaf, Zap, ShieldCheck, Home, ShoppingBasket, CreditCard,
-  Truck, MapPin, Clock, ShoppingCart, AlertCircle, Package,
-} from 'lucide-react';
+import useCategories from '../utils/useCategories';
+import { isOpenNow, mapsUrl } from '../utils/stations';
 import './Shop.css';
 
-const CatPlaceholder = '/img-placeholder.svg';
+const CAT_PLACEHOLDER = '/img-placeholder.svg';
+const SLIDE_MS = 6500;
 
-const HERO_ITEMS = [
-  { icon: Leaf,          name: 'Matooke Clusters',  unit: 'per bunch',  price: 'UGX 12,000' },
-  { icon: Package,       name: 'Local Rice (5 kg)',  unit: 'per bag',    price: 'UGX 18,500' },
-  { icon: Zap,           name: 'Sukuma Wiki Bundle', unit: 'per bundle', price: 'UGX 4,000'  },
-  { icon: ShoppingBasket,name: 'Mixed Beans (2 kg)', unit: 'per pack',   price: 'UGX 9,000'  },
+const SLIDES = [
+  { key: 'slide1', tone: 'green', to: '/catalog', Icon: Sprout },
+  { key: 'slide2', tone: 'amber', to: '/pickup-stations', Icon: MapPin },
+  { key: 'slide3', tone: 'ink', to: '/how-it-works', Icon: ShieldCheck }
 ];
 
-const Shop = () => {
-  const { t, currentLang, getLocalizedField } = useLanguage();
-  const [categories, setCategories] = useState([]);
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [stations, setStations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+const FEATURED_QUERIES = {
+  new: 'limit=8',
+  stock: 'limit=8&inStock=true',
+  budget: 'limit=8&maxPrice=10000'
+};
+
+/* ── Hero ────────────────────────────────────────────────── */
+const Hero = () => {
+  const { t, getLocalizedField } = useLanguage();
+  const { user, isAuthenticated } = useAuth();
+  const { categories } = useCategories();
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const reduceMotion = useRef(false);
 
   useEffect(() => {
-    let isMounted = true;
-    const loadHomeData = async () => {
-      try {
-        setLoading(true);
-        setError(false);
-        const [catRes, prodRes, stationRes] = await Promise.allSettled([
-          apiClient.get(`/categories?lang=${currentLang}`),
-          apiClient.get(`/products?limit=8&lang=${currentLang}`),
-          apiClient.get('/pickup-stations')
-        ]);
+    reduceMotion.current = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  }, []);
 
-        if (isMounted) {
-          if (catRes.status === 'fulfilled' && Array.isArray(catRes.value?.data)) {
-            setCategories(catRes.value.data);
-          }
-          if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value?.data)) {
-            setFeaturedProducts(prodRes.value.data);
-          }
-          if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
-            setStations(stationRes.value.data.stations.slice(0, 4));
-          }
-          if (catRes.status === 'rejected' && prodRes.status === 'rejected') {
-            setError(true);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load homepage data', err);
-        if (isMounted) setError(true);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+  useEffect(() => {
+    if (paused || reduceMotion.current) return undefined;
+    const timer = setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), SLIDE_MS);
+    return () => clearInterval(timer);
+  }, [paused]);
+
+  const go = (next) => setIndex((next + SLIDES.length) % SLIDES.length);
+  const firstName = user?.fullName?.split(' ')[0] || t('customerFallback');
+
+  return (
+    <section className="container hero" aria-label={t('brandName')}>
+      <h1 className="um-visually-hidden">
+        {t('brandName')} — {t('brandTagline')}
+      </h1>
+      <nav className="hero__cats panel" aria-label={t('heroCategories')}>
+        <h2 className="hero__cats-title">{t('heroCategories')}</h2>
+        <ul>
+          {categories.slice(0, 8).map((cat) => (
+            <li key={cat.id}>
+              <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="hero__cat">
+                <span>{getLocalizedField(cat, 'name') || cat.name}</span>
+                <ChevronRight size={15} aria-hidden="true" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <Link to="/catalog" className="hero__cats-all">
+          {t('viewAllProducts')} <ArrowRight size={14} aria-hidden="true" />
+        </Link>
+      </nav>
+
+      <div
+        className="hero__slider"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={t('brandTagline')}
+      >
+        {SLIDES.map(({ key, tone, to, Icon }, i) => (
+          <article
+            key={key}
+            className={`slide slide--${tone} ${i === index ? 'slide--active' : ''}`}
+            aria-hidden={i !== index}
+            role="group"
+            aria-roledescription="slide"
+          >
+            <div className="slide__copy">
+              <span className="slide__kicker">{t(`${key}Kicker`)}</span>
+              <h2 className="slide__title">{t(`${key}Title`)}</h2>
+              <p className="slide__desc">{t(`${key}Desc`)}</p>
+              <Link to={to} className="btn btn-lg slide__cta" tabIndex={i === index ? 0 : -1}>
+                {t(`${key}Cta`)} <ArrowRight size={18} aria-hidden="true" className="btn__nudge" />
+              </Link>
+            </div>
+            <div className="slide__art" aria-hidden="true">
+              <span className="slide__ring slide__ring--a" />
+              <span className="slide__ring slide__ring--b" />
+              <span className="slide__icon">
+                <Icon size={84} strokeWidth={1.2} />
+              </span>
+            </div>
+          </article>
+        ))}
+
+        <div className="hero__controls">
+          <button type="button" className="hero__arrow" onClick={() => go(index - 1)} aria-label={t('slidePrev')}>
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <div className="hero__dots">
+            {SLIDES.map((s, i) => (
+              <button
+                key={s.key}
+                type="button"
+                className={`hero__dot ${i === index ? 'hero__dot--active' : ''}`}
+                onClick={() => setIndex(i)}
+                aria-label={t('slideGoTo', { n: i + 1 })}
+                aria-current={i === index}
+              />
+            ))}
+          </div>
+          <button type="button" className="hero__arrow" onClick={() => go(index + 1)} aria-label={t('slideNext')}>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <aside className="hero__side">
+        <div className="panel hero__member">
+          <span className="hero__member-avatar">
+            <Leaf size={22} aria-hidden="true" />
+          </span>
+          <h2>{isAuthenticated ? t('welcomeBack', { name: firstName }) : t('welcomeTitle')}</h2>
+          <p>{isAuthenticated ? t('welcomeBackDesc') : t('welcomeDesc')}</p>
+          {isAuthenticated ? (
+            <div className="hero__member-actions hero__member-actions--single">
+              <Link to="/account/orders" className="btn btn-primary btn-sm">
+                {t('trackOrders')}
+              </Link>
+              <Link to="/account/addresses" className="btn btn-secondary btn-sm">
+                {t('savedAddresses')}
+              </Link>
+            </div>
+          ) : (
+            <div className="hero__member-actions">
+              <Link to="/login" className="btn btn-secondary btn-sm">
+                {t('signIn')}
+              </Link>
+              <Link to="/login?signup=true" className="btn btn-primary btn-sm">
+                {t('signup')}
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="hero__tiles">
+          <div className="panel hero__tile">
+            <CreditCard size={20} aria-hidden="true" />
+            <div>
+              <strong>{t('sideTilePayTitle')}</strong>
+              <span>{t('sideTilePayDesc')}</span>
+            </div>
+          </div>
+          <div className="panel hero__tile">
+            <BadgeCheck size={20} aria-hidden="true" />
+            <div>
+              <strong>{t('sideTileFarmTitle')}</strong>
+              <span>{t('sideTileFarmDesc')}</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  );
+};
+
+/* ── Trust strip ─────────────────────────────────────────── */
+const TrustStrip = () => {
+  const { t } = useLanguage();
+  const items = [
+    { Icon: Leaf, title: t('trustFarmTitle'), desc: t('trustFarmDesc') },
+    { Icon: ShieldCheck, title: t('trustInspectTitle'), desc: t('trustInspectDesc') },
+    { Icon: Wallet, title: t('trustPayTitle'), desc: t('trustPayDesc') },
+    { Icon: Truck, title: t('trustPickupTitle'), desc: t('trustPickupDesc') }
+  ];
+  return (
+    <section className="container" aria-label={t('brandName')}>
+      <ul className="trust panel">
+        {items.map(({ Icon, title, desc }) => (
+          <li key={title} className="trust__item">
+            <span className="trust__icon">
+              <Icon size={22} aria-hidden="true" />
+            </span>
+            <span>
+              <strong>{title}</strong>
+              <small>{desc}</small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
+
+/* ── Main page ───────────────────────────────────────────── */
+const Shop = () => {
+  const { t, currentLang, getLocalizedField } = useLanguage();
+  const { categories, loading: catsLoading } = useCategories();
+
+  const [tab, setTab] = useState('new');
+  const [products, setProducts] = useState([]);
+  const [featuredState, setFeaturedState] = useState('loading'); // loading | ready | error
+  const [reloadKey, setReloadKey] = useState(0);
+  const [stations, setStations] = useState([]);
+  const featuredCache = useRef({});
+
+  // Featured tabs: fetched on demand, cached per tab + language.
+  useEffect(() => {
+    const cacheKey = `${tab}:${currentLang}`;
+    if (featuredCache.current[cacheKey]) {
+      setProducts(featuredCache.current[cacheKey]);
+      setFeaturedState('ready');
+      return undefined;
+    }
+    let alive = true;
+    setFeaturedState('loading');
+    apiClient
+      .get(`/products?${FEATURED_QUERIES[tab]}&lang=${currentLang}`)
+      .then((res) => {
+        if (!alive) return;
+        const list = Array.isArray(res?.data) ? res.data : [];
+        featuredCache.current[cacheKey] = list;
+        setProducts(list);
+        setFeaturedState('ready');
+      })
+      .catch(() => alive && setFeaturedState('error'));
+    return () => {
+      alive = false;
     };
+  }, [tab, currentLang, reloadKey]);
 
-    loadHomeData();
-    return () => { isMounted = false; };
-  }, [currentLang]);
+  useEffect(() => {
+    let mounted = true;
+    apiClient
+      .get('/pickup-stations')
+      .then((res) => {
+        if (mounted && Array.isArray(res?.data?.stations)) setStations(res.data.stations);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const tabOptions = useMemo(
+    () => [
+      { value: 'new', label: t('tabNew') },
+      { value: 'stock', label: t('tabInStock') },
+      { value: 'budget', label: t('tabBudget') }
+    ],
+    [t]
+  );
+
+  const openCount = stations.filter((s) => isOpenNow(s.operatingHours) === true).length;
+  const anyHours = stations.some((s) => isOpenNow(s.operatingHours) !== null);
 
   return (
     <div className="um-home">
-      {/* Hero Section */}
-      <section className="um-hero">
-        <div className="um-hero-container">
-          <div className="um-hero-content">
-            <div className="um-hero-badge">
-              <Leaf size={14} strokeWidth={2} />
-              <span>Farm Fresh Produce Direct to Your Door</span>
-            </div>
-            <h1 className="um-hero-title">
-              Uganda's Fresh Food Marketplace, <span className="um-highlight">home to home.</span>
-            </h1>
-            <p className="um-hero-description">
-              Order fresh matooke, beans, local rice, fresh greens, and farm produce sourced straight from Ugandan farmers. Inspect your food on delivery and pay the balance only after quality check.
-            </p>
-            <div className="um-hero-actions">
-              <Link to="/catalog" className="btn btn-primary btn-lg">
-                <ShoppingCart size={18} strokeWidth={1.75} />
-                {t('startShopping')}
-              </Link>
-              <Link to="/pickup-stations" className="btn btn-secondary btn-lg">
-                <MapPin size={18} strokeWidth={1.75} />
-                {t('pickupStation')}s
-              </Link>
-            </div>
+      <Hero />
+      <TrustStrip />
 
-            <div className="um-hero-perks">
-              <div className="um-perk-item">
-                <div className="um-perk-icon">
-                  <Zap size={18} strokeWidth={1.75} />
-                </div>
-                <div>
-                  <strong>Small Commitment Deposit</strong>
-                  <span>Secure your harvest order early</span>
-                </div>
-              </div>
-              <div className="um-perk-item">
-                <div className="um-perk-icon">
-                  <ShieldCheck size={18} strokeWidth={1.75} />
-                </div>
-                <div>
-                  <strong>Quality Guarantee</strong>
-                  <span>Inspect before paying the balance</span>
-                </div>
-              </div>
-              <div className="um-perk-item">
-                <div className="um-perk-icon">
-                  <Home size={18} strokeWidth={1.75} />
-                </div>
-                <div>
-                  <strong>Home or Pickup</strong>
-                  <span>Convenient collection points</span>
-                </div>
-              </div>
-            </div>
+      {/* Categories */}
+      <Reveal as="section" className="section container">
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">{t('catsTitle')}</h2>
+            <p className="section-desc">{t('catsDesc')}</p>
           </div>
-
-          <div className="um-hero-visual-pane">
-            <div className="um-hero-visual-card">
-              <div className="um-hvc-header">
-                <div className="um-hvc-status">
-                  <span className="um-hvc-dot" />
-                  Live Harvest Market
-                </div>
-                <span className="um-hvc-badge">Open Now</span>
-              </div>
-              <div className="um-hvc-items">
-                {HERO_ITEMS.map((item) => (
-                  <div key={item.name} className="um-hvc-row">
-                    <span className="um-hvc-icon"><item.icon size={16} strokeWidth={1.75} /></span>
-                    <div className="um-hvc-info">
-                      <strong>{item.name}</strong>
-                      <span>{item.unit}</span>
-                    </div>
-                    <span className="um-hvc-price">{item.price}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="um-hvc-footer">
-                <div className="um-hvc-stat"><strong>500+</strong><span>Farms</span></div>
-                <div className="um-hvc-divider" />
-                <div className="um-hvc-stat"><strong>30%</strong><span>Deposit</span></div>
-                <div className="um-hvc-divider" />
-                <div className="um-hvc-stat"><strong>MTN/Airtel</strong><span>Mobile Pay</span></div>
-              </div>
-            </div>
-          </div>
+          <Link to="/catalog" className="btn btn-secondary btn-sm">
+            {t('viewAll')} <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
+          </Link>
         </div>
-      </section>
 
-      {/* How It Works */}
-      <section className="um-how-it-works">
-        <div className="container">
-          <div className="um-section-header">
-            <span className="um-section-subtitle">Transparent &amp; Fair Food Commerce</span>
-            <h2 className="um-section-title">{t('howItWorks')}</h2>
-            <p className="um-section-desc">
-              We built UgaMarket so customers never have to worry about food quality or fake payments.
-            </p>
+        {catsLoading ? (
+          <CategoryGridSkeleton count={6} />
+        ) : categories.length === 0 ? (
+          <div className="um-empty-state">{t('catsEmpty')}</div>
+        ) : (
+          <div className="cat-rail">
+            {categories.map((cat) => {
+              const name = getLocalizedField(cat, 'name') || cat.name;
+              const image = resolveImageUrl(cat.imageUrl) || CAT_PLACEHOLDER;
+              return (
+                <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="cat-tile">
+                  <span className="cat-tile__media">
+                    <img
+                      src={image}
+                      alt=""
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = CAT_PLACEHOLDER;
+                      }}
+                    />
+                  </span>
+                  <span className="cat-tile__name">{name}</span>
+                  <span className="cat-tile__count">{t('productsCount', { count: cat.productCount ?? 0 })}</span>
+                </Link>
+              );
+            })}
           </div>
+        )}
+      </Reveal>
 
-          <div className="um-steps-grid">
-            <div className="um-step-card">
-              <div className="um-step-number">01</div>
-              <div className="um-step-icon">
-                <ShoppingBasket size={28} strokeWidth={1.5} />
-              </div>
-              <h3>{t('howStep1Title')}</h3>
-              <p>{t('howStep1Desc')}</p>
-            </div>
-
-            <div className="um-step-card um-step-card--highlight">
-              <div className="um-step-number">02</div>
-              <div className="um-step-icon um-step-icon--accent">
-                <CreditCard size={28} strokeWidth={1.5} />
-              </div>
-              <h3>{t('howStep2Title')}</h3>
-              <p>{t('howStep2Desc')}</p>
-              <span className="um-step-badge">Commitment Deposit</span>
-            </div>
-
-            <div className="um-step-card">
-              <div className="um-step-number">03</div>
-              <div className="um-step-icon">
-                <Truck size={28} strokeWidth={1.5} />
-              </div>
-              <h3>{t('howStep3Title')}</h3>
-              <p>{t('howStep3Desc')}</p>
-              <span className="um-step-badge">Balance on Fulfillment</span>
-            </div>
+      {/* Featured products */}
+      <Reveal as="section" className="section container featured">
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">{t('featuredTitle')}</h2>
+            <p className="section-desc">{t('featuredDesc')}</p>
           </div>
+          <SlidingTabs options={tabOptions} value={tab} onChange={setTab} ariaLabel={t('featuredTitle')} />
         </div>
-      </section>
 
-      {/* Categories Section */}
-      <section className="um-categories-section">
-        <div className="container">
-          <div className="um-section-header">
-            <span className="um-section-subtitle">Fresh From The Soil</span>
-            <h2 className="um-section-title">Shop by Category</h2>
-            <p className="um-section-desc">Explore nutritious staples, cereals, and garden produce</p>
+        {featuredState === 'loading' ? (
+          <ProductGridSkeleton count={8} />
+        ) : featuredState === 'error' ? (
+          <div className="state-block">
+            <AlertCircle size={32} aria-hidden="true" />
+            <p>{t('productsLoadError')}</p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReloadKey((k) => k + 1)}>
+              {t('retry')}
+            </button>
           </div>
+        ) : products.length === 0 ? (
+          <div className="um-empty-state">{t('productsEmpty')}</div>
+        ) : (
+          <div className="um-products-grid featured__grid" key={`${tab}:${currentLang}`}>
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
 
-          {loading ? (
-            <CategoryGridSkeleton count={6} />
-          ) : categories.length === 0 ? (
-            <div className="um-empty-state">No categories available yet. Check back soon!</div>
-          ) : (
-            <div className="um-cat-grid">
-              {categories.map((cat) => {
-                const catName = getLocalizedField(cat, 'name') || cat.name;
-                const image = resolveImageUrl(cat.imageUrl) || CatPlaceholder;
-                return (
-                  <Link key={cat.id} to={`/catalog?category=${cat.slug}`} className="um-cat-card">
-                    <div className="um-cat-img-wrapper">
-                      <img
-                        src={image}
-                        alt={catName}
-                        className="um-cat-img"
-                        onError={(e) => { e.target.onerror = null; e.target.src = CatPlaceholder; }}
-                      />
-                    </div>
-                    <div className="um-cat-info">
-                      <h4 className="um-cat-name">{catName}</h4>
-                      <span className="um-cat-count">
-                        {cat.productCount ?? 0} {cat.productCount === 1 ? 'product' : 'products'}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+        <div className="featured__more">
+          <Link to="/catalog" className="btn btn-primary">
+            {t('viewAllProducts')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
+          </Link>
         </div>
-      </section>
+      </Reveal>
 
-      {/* Featured Harvest Produce */}
-      <section className="um-featured-section">
+      {/* How it works */}
+      <Reveal as="section" className="how">
         <div className="container">
-          <div className="um-section-header-flex">
+          <div className="section-head how__head">
             <div>
-              <span className="um-section-subtitle">Daily Picks</span>
-              <h2 className="um-section-title">Featured Farm Harvests</h2>
+              <span className="section-kicker">{t('howKicker')}</span>
+              <h2 className="section-title">{t('howItWorks')}</h2>
             </div>
-            <Link to="/catalog" className="btn btn-secondary">
-              View All Products &rarr;
+            <Link to="/how-it-works" className="btn btn-secondary btn-sm">
+              {t('howItWorksShort')}
+              <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
             </Link>
           </div>
-
-          {loading ? (
-            <ProductGridSkeleton count={8} />
-          ) : error && featuredProducts.length === 0 ? (
-            <div className="um-empty-state">
-              <AlertCircle size={32} strokeWidth={1.5} style={{ margin: '0 auto 0.75rem' }} />
-              Could not load products. Please check your connection and refresh.
-            </div>
-          ) : featuredProducts.length === 0 ? (
-            <div className="um-empty-state">No products currently available.</div>
-          ) : (
-            <div className="um-products-grid">
-              {featuredProducts.map((prod) => (
-                <ProductCard key={prod.id} product={prod} />
-              ))}
-            </div>
-          )}
+          <ol className="how__steps">
+            {[
+              { n: '01', Icon: ShoppingBasket, title: t('howStep1Title'), desc: t('howStep1Desc') },
+              { n: '02', Icon: CreditCard, title: t('howStep2Title'), desc: t('howStep2Desc') },
+              { n: '03', Icon: ShieldCheck, title: t('howStep3Title'), desc: t('howStep3Desc') }
+            ].map(({ n, Icon, title, desc }) => (
+              <li key={n} className="how__step">
+                <span className="how__num">{n}</span>
+                <span className="how__icon">
+                  <Icon size={26} strokeWidth={1.6} aria-hidden="true" />
+                </span>
+                <h3>{title}</h3>
+                <p>{desc}</p>
+              </li>
+            ))}
+          </ol>
         </div>
-      </section>
+      </Reveal>
 
-      {/* Pickup Stations Banner */}
+      {/* Pickup stations */}
       {stations.length > 0 && (
-        <section className="um-stations-banner">
-          <div className="container">
-            <div className="um-stations-box">
-              <div className="um-stations-text">
-                <span className="badge badge-warning">No Delivery Fee</span>
-                <h2>Pick Up Your Order at a UgaMarket Station</h2>
-                <p>
-                  Prefer collecting your fresh produce yourself? Choose a convenient pickup station and pay no delivery fee.
-                </p>
-                <Link to="/pickup-stations" className="btn btn-accent">
-                  Explore Pickup Stations
-                </Link>
-              </div>
+        <Reveal as="section" className="section container">
+          <div className="pickup">
+            <div className="pickup__intro">
+              <span className="pickup__kicker">
+                <Truck size={14} aria-hidden="true" /> {t('stationsKicker')}
+              </span>
+              <h2>{t('stationsHomeTitle')}</h2>
+              <p>{t('stationsHomeDesc')}</p>
 
-              <div className="um-stations-cards">
-                {stations.map((s) => (
-                  <div key={s.id} className="um-station-preview-card">
-                    <div className="um-station-pin">
-                      <MapPin size={18} strokeWidth={1.75} />
-                    </div>
-                    <div>
-                      <strong>{s.name}</strong>
-                      <p>{s.addressText || s.district}</p>
-                      <span className="um-station-hours">
-                        <Clock size={12} strokeWidth={2} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
-                        {s.operatingHours || 'Contact station for hours'}
+              <dl className="pickup__stats">
+                <div>
+                  <dt>{t('stationsStatCount')}</dt>
+                  <dd>{stations.length}</dd>
+                </div>
+                {anyHours && (
+                  <div>
+                    <dt>{t('stationsStatOpen')}</dt>
+                    <dd>{openCount}</dd>
+                  </div>
+                )}
+              </dl>
+
+              <Link to="/pickup-stations" className="btn btn-accent">
+                {t('stationsExplore')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
+              </Link>
+            </div>
+
+            <ul className="pickup__list">
+              {stations.slice(0, 4).map((station) => {
+                const open = isOpenNow(station.operatingHours);
+                return (
+                  <li key={station.id} className="pickup__card">
+                    <span className="pickup__pin">
+                      <MapPin size={20} aria-hidden="true" />
+                    </span>
+                    <div className="pickup__info">
+                      <div className="pickup__title">
+                        <strong>{station.name}</strong>
+                        {open !== null && (
+                          <span className={`badge ${open ? 'badge-success' : 'badge-neutral'}`}>
+                            {open ? t('openNow') : t('closedNow')}
+                          </span>
+                        )}
+                      </div>
+                      <p>{station.addressText || station.district}</p>
+                      <span className="pickup__hours">
+                        <Clock size={13} aria-hidden="true" /> {station.operatingHours || t('contactForHours')}
                       </span>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                    <a
+                      href={mapsUrl(station)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="pickup__go"
+                      aria-label={`${t('getDirections')}: ${station.name}`}
+                    >
+                      <Navigation size={17} aria-hidden="true" />
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        </section>
+        </Reveal>
       )}
+
+      {/* Closing call to action */}
+      <Reveal as="section" className="container">
+        <div className="cta">
+          <div>
+            <h2>{t('finalCtaTitle')}</h2>
+            <p>{t('finalCtaDesc')}</p>
+          </div>
+          <div className="cta__actions">
+            <Link to="/catalog" className="btn btn-lg cta__primary">
+              <HomeIcon size={18} aria-hidden="true" /> {t('startShopping')}
+            </Link>
+            <Link to="/pickup-stations" className="btn btn-lg btn-outline-light">
+              <MapPin size={18} aria-hidden="true" /> {t('pickupStations')}
+            </Link>
+          </div>
+        </div>
+      </Reveal>
     </div>
   );
 };

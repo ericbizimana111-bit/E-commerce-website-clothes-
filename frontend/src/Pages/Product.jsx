@@ -1,95 +1,113 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import apiClient from '../api/client';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Check, Leaf, MapPin, Minus, Plus, ShieldCheck, ShoppingCart, Truck, Wallet } from 'lucide-react';
+import apiClient, { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
+import SlidingTabs from '../Components/ui/SlidingTabs';
+import { useToast } from '../Components/Toast/Toast';
 import { useCart } from '../Context/CartContext';
 import { useLanguage } from '../Context/LanguageContext';
 import { formatUGX } from '../utils/currency';
-import { Circle, ShieldCheck, ShoppingCart, Check, MapPin, Leaf } from 'lucide-react';
+import { friendlyError } from '../utils/errors';
 import './Product.css';
 
 const DEFAULT_IMAGE = '/img-placeholder.svg';
+const MAX_QTY = 999;
 
 export const Product = () => {
   const { productId } = useParams();
   const { addToCart, loading: cartLoading } = useCart();
   const { currentLang, getLocalizedField, t } = useLanguage();
+  const { showToast } = useToast();
 
   const [product, setProduct] = useState(null);
   const [activeImage, setActiveImage] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [addedNotice, setAddedNotice] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [tab, setTab] = useState('description');
+  const [zoom, setZoom] = useState(null);
+  const addedTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchProduct = async () => {
+    let mounted = true;
+    const controller = new AbortController();
+
+    (async () => {
       setLoading(true);
       setError(null);
       try {
-        const isNumeric = !isNaN(productId);
+        const isNumeric = /^\d+$/.test(productId);
         const endpoint = isNumeric
           ? `/products/${productId}?lang=${currentLang}`
-          : `/products/slug/${productId}?lang=${currentLang}`;
+          : `/products/slug/${encodeURIComponent(productId)}?lang=${currentLang}`;
+        const res = await apiClient.get(endpoint, { signal: controller.signal });
+        if (!mounted || !res?.data) return;
 
-        const res = await apiClient.get(endpoint);
-        if (isMounted && res?.data) {
-          const prod = res.data;
-          setProduct(prod);
+        const prod = res.data;
+        setProduct(prod);
+        const primary = prod.images?.find((img) => img.isPrimary) || prod.images?.[0];
+        setActiveImage(primary?.imageUrl || prod.imageUrl || '');
+        setQuantity(1);
+        setAdded(false);
 
-          const primary = prod.images?.find((img) => img.isPrimary) || prod.images?.[0];
-          setActiveImage(primary?.imageUrl || prod.imageUrl || DEFAULT_IMAGE);
-          setQuantity(1);
-
-          // Fetch related products in the same category
-          if (prod.category?.slug) {
-            try {
-              const relRes = await apiClient.get(
-                `/products?categorySlug=${prod.category.slug}&limit=4&lang=${currentLang}`
-              );
-              if (isMounted && relRes?.data) {
-                setRelatedProducts(relRes.data.filter((p) => p.id !== prod.id).slice(0, 3));
-              }
-            } catch (e) {
-              console.warn('Failed to load related products', e);
-            }
+        if (prod.category?.slug) {
+          try {
+            const rel = await apiClient.get(
+              `/products?categorySlug=${encodeURIComponent(prod.category.slug)}&limit=5&lang=${currentLang}`,
+              { signal: controller.signal }
+            );
+            if (mounted && Array.isArray(rel?.data)) setRelated(rel.data.filter((p) => p.id !== prod.id).slice(0, 4));
+          } catch {
+            /* related products are optional */
           }
         }
       } catch (err) {
-        console.error('Failed to load product', err);
-        if (isMounted) setError(err.message || 'Product not found');
+        if (mounted && err?.name !== 'AbortError') setError(friendlyError(err, t, 'productNotFoundDesc'));
       } finally {
-        if (isMounted) setLoading(false);
+        if (mounted) setLoading(false);
       }
-    };
-
-    fetchProduct();
-    window.scrollTo(0, 0);
+    })();
 
     return () => {
-      isMounted = false;
+      mounted = false;
+      controller.abort();
     };
+    // `t` changes only with the language, which is already a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId, currentLang]);
+
+  const tabOptions = useMemo(
+    () => [
+      { value: 'description', label: t('tabDescription'), id: 'pd-tab-description', controls: 'pd-panel-description' },
+      { value: 'delivery', label: t('tabDelivery'), id: 'pd-tab-delivery', controls: 'pd-panel-delivery' }
+    ],
+    [t]
+  );
 
   if (loading) {
     return (
-      <div className="container um-prod-detail-loading">
+      <div className="container pd-state" role="status">
         <div className="um-spinner" />
-        <p>Loading product details...</p>
+        <p>{t('loadingProduct')}</p>
       </div>
     );
   }
 
   if (error || !product) {
     return (
-      <div className="container um-prod-detail-error card">
-        <h2>Produce Not Found</h2>
-        <p>{error || 'The requested food product is not available.'}</p>
-        <Link to="/catalog" className="btn btn-primary">
-          Return to Food Catalog
-        </Link>
+      <div className="container pd-state">
+        <div className="state-block panel">
+          <h2>{t('productNotFoundTitle')}</h2>
+          <p>{error || t('productNotFoundDesc')}</p>
+          <Link to="/catalog" className="btn btn-primary">
+            {t('returnToCatalog')}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -97,225 +115,260 @@ export const Product = () => {
   const name = getLocalizedField(product, 'name') || product.name;
   const description = getLocalizedField(product, 'description') || product.description;
   const price = product.priceUgx ?? product.price ?? 0;
-  const stock = product.availability?.stockQuantity ?? product.stockQuantity ?? 999;
-  const inStock = product.availability?.inStock ?? (stock > 0);
-  const isAvailable = (product.isActive !== false) && inStock && stock > 0;
+  const stock = product.availability?.stockQuantity ?? product.stockQuantity ?? 0;
+  const inStock = product.availability?.inStock ?? stock > 0;
+  const isAvailable = product.isActive !== false && inStock && stock > 0;
+  const unit = product.unit || t('unitFallback');
+  const maxQty = Math.max(1, Math.min(stock || 1, MAX_QTY));
+  const categoryName = product.category ? getLocalizedField(product.category, 'name') || product.category.name : '';
+  const images = product.images?.length ? product.images : [];
+  const mainSrc = resolveImageUrl(activeImage) || DEFAULT_IMAGE;
 
-  // NOTE: commitment deposit percentages are configured on the UgaMarket
-  // server and may change; the authoritative split is shown at checkout.
+  const setQty = (value) => {
+    const n = parseInt(value, 10);
+    if (Number.isNaN(n)) return setQuantity(1);
+    setQuantity(Math.min(Math.max(n, 1), maxQty));
+  };
 
   const handleAddToCart = async () => {
     if (!isAvailable || cartLoading) return;
-    const cartItem = {
-      ...product,
-      priceUgx: price,
-      stockQuantity: stock,
-      image: activeImage,
-      name
-    };
-    const res = await addToCart(cartItem, quantity);
+    const res = await addToCart({ ...product, priceUgx: price, stockQuantity: stock, image: activeImage, name }, quantity);
     if (res?.success) {
-      setAddedNotice(true);
-      setTimeout(() => setAddedNotice(false), 2500);
+      setAdded(true);
+      showToast(t('addedToCartToast', { name }), { type: 'success' });
+      clearTimeout(addedTimer.current);
+      addedTimer.current = setTimeout(() => setAdded(false), 2400);
+    } else if (res?.error) {
+      showToast(res.error, { type: 'error' });
     }
   };
 
-  const incrementQty = () => {
-    if (quantity < stock) setQuantity((q) => q + 1);
-  };
-
-  const decrementQty = () => {
-    if (quantity > 1) setQuantity((q) => q - 1);
+  const onZoomMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setZoom({ x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 });
   };
 
   return (
-    <div className="um-prod-detail-page">
-      <div className="container">
-        {/* Breadcrumbs */}
-        <nav className="um-detail-breadcrumb">
-          <Link to="/">Home</Link>
-          <span>/</span>
-          <Link to="/catalog">{t('catalog')}</Link>
-          {product.category && (
-            <>
-              <span>/</span>
-              <Link to={`/catalog?category=${product.category.slug}`}>
-                {getLocalizedField(product.category, 'name') || product.category.name}
-              </Link>
-            </>
-          )}
-          <span>/</span>
-          <span className="um-breadcrumb-current">{name}</span>
-        </nav>
+    <div className="pd container">
+      <nav className="breadcrumb" aria-label={t('breadcrumb')}>
+        <Link to="/">{t('breadcrumbHome')}</Link>
+        <span aria-hidden="true">/</span>
+        <Link to="/catalog">{t('catalogTitle')}</Link>
+        {product.category && (
+          <>
+            <span aria-hidden="true">/</span>
+            <Link to={`/catalog?category=${encodeURIComponent(product.category.slug)}`}>{categoryName}</Link>
+          </>
+        )}
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{name}</span>
+      </nav>
 
-        {/* Product Hero Grid */}
-        <div className="um-detail-grid">
-          {/* Gallery Column */}
-          <div className="um-detail-gallery">
-            <div className="um-detail-main-img-wrap card">
-              <img
-                src={activeImage}
-                alt={name}
-                className="um-detail-main-img"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = DEFAULT_IMAGE;
-                }}
-              />
-              {!isAvailable && (
-                <div className="um-detail-out-banner">
-                  <span>{t('outOfStock')}</span>
-                </div>
-              )}
-            </div>
+      <div className="pd__grid">
+        {/* Gallery */}
+        <div className="pd__gallery">
+          <div
+            className={`pd__stage panel ${zoom ? 'pd__stage--zoom' : ''}`}
+            onMouseMove={onZoomMove}
+            onMouseLeave={() => setZoom(null)}
+          >
+            <img
+              key={mainSrc}
+              src={mainSrc}
+              alt={name}
+              className="pd__img"
+              style={zoom ? { transformOrigin: `${zoom.x}% ${zoom.y}%` } : undefined}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = DEFAULT_IMAGE;
+              }}
+            />
+            {!isAvailable && <span className="pd__soldout">{t('outOfStock')}</span>}
+          </div>
 
-            {/* Thumbnail selector if multiple images */}
-            {product.images && product.images.length > 1 && (
-              <div className="um-detail-thumbs">
-                {product.images.map((img) => (
+          {images.length > 1 && (
+            <ul className="pd__thumbs">
+              {images.map((img, i) => (
+                <li key={img.id}>
                   <button
-                    key={img.id}
                     type="button"
-                    className={`um-detail-thumb-btn ${activeImage === img.imageUrl ? 'um-detail-thumb--active' : ''}`}
+                    className={`pd__thumb ${activeImage === img.imageUrl ? 'pd__thumb--active' : ''}`}
                     onClick={() => setActiveImage(img.imageUrl)}
+                    aria-label={t('imageOf', { n: i + 1, total: images.length })}
+                    aria-pressed={activeImage === img.imageUrl}
                   >
-                    <img src={img.imageUrl} alt={img.altText || name} />
+                    <img src={resolveImageUrl(img.imageUrl) || DEFAULT_IMAGE} alt="" loading="lazy" />
                   </button>
-                ))}
-              </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Details */}
+        <div className="pd__info">
+          {categoryName && <span className="badge badge-success">{categoryName}</span>}
+          <h1 className="pd__title">{name}</h1>
+
+          <div className="pd__meta">
+            {isAvailable ? (
+              <span className="badge badge-success">
+                <Check size={12} strokeWidth={3} aria-hidden="true" />
+                {t('inStockQty', { stock, unit })}
+              </span>
+            ) : (
+              <span className="badge badge-danger">{t('outOfStock')}</span>
+            )}
+            {product.sku && (
+              <span className="pd__sku">
+                {t('sku')}: {product.sku}
+              </span>
             )}
           </div>
 
-          {/* Details Column */}
-          <div className="um-detail-info">
-            {product.category && (
-              <span className="badge badge-success um-detail-cat-badge">
-                {getLocalizedField(product.category, 'name') || product.category.name}
+          <div className="pd__price-box">
+            <span className="pd__price">{formatUGX(price)}</span>
+            {product.unit && <span className="pd__per">{t('perUnit', { unit: product.unit })}</span>}
+          </div>
+          <p className="pd__note">{t('pricesInUgx')}</p>
+
+          <section className="pd__model">
+            <h2>{t('commitmentModel')}</h2>
+            <div className="pd__model-grid">
+              <div>
+                <span>{t('payNow')}</span>
+                <strong>{t('smallDeposit')}</strong>
+              </div>
+              <span className="pd__model-plus" aria-hidden="true">
+                +
               </span>
-            )}
-
-            <h1 className="um-detail-title">{name}</h1>
-
-            <div className="um-detail-meta-row">
-              <div className="um-detail-stock">
-                {isAvailable ? (
-                  <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Circle size={6} fill="currentColor" strokeWidth={0} /> In Stock ({stock} {product.unit || 'units'} available)
-                  </span>
-                ) : (
-                  <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Circle size={6} fill="currentColor" strokeWidth={0} /> Out of Stock
-                  </span>
-                )}
+              <div>
+                <span>{t('payAtFulfillment')}</span>
+                <strong>{t('remainingBalanceLabel')}</strong>
               </div>
-              {product.sku && <span className="um-detail-sku">SKU: {product.sku}</span>}
             </div>
+            <p>
+              <ShieldCheck size={16} aria-hidden="true" /> {t('commitmentHint')}
+            </p>
+          </section>
 
-            {/* Price Box */}
-            <div className="um-detail-price-box">
-              <div className="um-detail-price-main">
-                <span className="um-detail-price">{formatUGX(price)}</span>
-                {product.unit && <span className="um-detail-per">per {product.unit}</span>}
-              </div>
-              <p className="um-detail-vat-note">Prices shown in Ugandan Shillings (UGX)</p>
-            </div>
-
-            {/* Transparent Financial Structure Box */}
-            <div className="um-financial-callout card">
-              <div className="um-callout-header">
-                <strong>UgaMarket Commitment Model</strong>
-              </div>
-              <div className="um-callout-grid">
-                <div className="um-callout-item">
-                  <span className="um-callout-label">Pay Now</span>
-                  <span className="um-callout-val">Small commitment deposit</span>
-                </div>
-                <div className="um-callout-divider">+</div>
-                <div className="um-callout-item">
-                  <span className="um-callout-label">Pay at Fulfillment</span>
-                  <span className="um-callout-val">Remaining balance</span>
-                </div>
-              </div>
-              <p className="um-callout-hint" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-                <ShieldCheck size={15} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: '2px' }} /> You only pay the remaining balance after inspecting fresh food quality at your door or pickup station. Exact amounts are confirmed at checkout by the UgaMarket server.
-              </p>
-            </div>
-
-            {/* Quantity Stepper & Actions */}
-            <div className="um-detail-actions-box">
-              <div className="um-qty-group">
-                <span className="form-label">Quantity ({product.unit || 'items'}):</span>
-                <div className="um-qty-stepper">
-                  <button
-                    type="button"
-                    onClick={decrementQty}
-                    disabled={quantity <= 1 || !isAvailable}
-                    className="um-qty-btn"
-                    aria-label="Decrease quantity"
-                  >
-                    -
-                  </button>
-                  <span className="um-qty-value">{quantity}</span>
-                  <button
-                    type="button"
-                    onClick={incrementQty}
-                    disabled={quantity >= stock || !isAvailable}
-                    className="um-qty-btn"
-                    aria-label="Increase quantity"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="um-detail-buttons">
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  disabled={!isAvailable || cartLoading}
-                  className="btn btn-primary btn-lg um-detail-add-btn"
-                >
-                  <ShoppingCart size={18} strokeWidth={1.75} /> {addedNotice ? 'Added to Cart!' : `Add ${quantity} to Cart`}
+          <div className="pd__buy">
+            <div className="pd__qty">
+              <span className="form-label" id="pd-qty-label">
+                {t('quantity')} ({unit})
+              </span>
+              <div className="qty" role="group" aria-labelledby="pd-qty-label">
+                <button type="button" className="qty__btn" onClick={() => setQty(quantity - 1)} disabled={quantity <= 1 || !isAvailable} aria-label={t('decreaseQty')}>
+                  <Minus size={16} aria-hidden="true" />
                 </button>
-                <Link to="/cart" className="btn btn-secondary btn-lg">
-                  View Cart
-                </Link>
+                <input
+                  className="qty__input"
+                  inputMode="numeric"
+                  value={quantity}
+                  onChange={(e) => setQty(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  disabled={!isAvailable}
+                  aria-label={t('quantity')}
+                />
+                <button type="button" className="qty__btn" onClick={() => setQty(quantity + 1)} disabled={quantity >= maxQty || !isAvailable} aria-label={t('increaseQty')}>
+                  <Plus size={16} aria-hidden="true" />
+                </button>
               </div>
-
-              {addedNotice && (
-                <div className="alert alert-success">
-                  <Check size={15} strokeWidth={2.5} /> Produce successfully added to your cart!{' '}
-                  <Link to="/cart" style={{ textDecoration: 'underline', fontWeight: 600 }}>
-                    Proceed to Cart →
-                  </Link>
-                </div>
-              )}
             </div>
 
-            {/* Description & Farm Notes */}
-            <div className="um-detail-desc card">
-              <h3>Produce Information</h3>
-              <p>{description || 'Fresh agricultural produce sourced directly from local Ugandan farmers. Grown naturally with sustainable farm practices.'}</p>
-              <div className="um-detail-features">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><ShieldCheck size={15} strokeWidth={1.75} /> <strong>Inspect First:</strong> Pay the balance only after checking your produce</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><MapPin size={15} strokeWidth={1.75} /> <strong>Your Choice:</strong> Doorstep delivery or pickup station collection</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Leaf size={15} strokeWidth={1.75} /> <strong>Farm Sourced:</strong> From verified Ugandan farmers</div>
-              </div>
+            <div className="pd__actions">
+              <button type="button" onClick={handleAddToCart} disabled={!isAvailable || cartLoading} className={`btn btn-lg pd__add ${added ? 'pd__add--done' : 'btn-primary'}`}>
+                {added ? <Check size={18} aria-hidden="true" /> : <ShoppingCart size={18} aria-hidden="true" />}
+                {added ? t('addedToCart') : t('addNToCart', { qty: quantity })}
+              </button>
+              <Link to="/cart" className="btn btn-lg btn-secondary">
+                {t('viewCart')}
+              </Link>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Related Products */}
-        {relatedProducts.length > 0 && (
-          <div className="um-related-section">
-            <h2 className="um-section-title">Similar Harvest Items</h2>
-            <div className="um-products-grid">
-              {relatedProducts.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+      {/* Details tabs */}
+      <section className="pd__tabs panel">
+        <SlidingTabs options={tabOptions} value={tab} onChange={setTab} ariaLabel={t('produceInfo')} variant="line" />
+        <div className="pd__panel" role="tabpanel" id={`pd-panel-${tab}`} aria-labelledby={`pd-tab-${tab}`} key={tab}>
+          {tab === 'description' ? (
+            <>
+              <h2>{t('produceInfo')}</h2>
+              <p className="pd__desc">{description || t('defaultDescription')}</p>
+              <ul className="pd__features">
+                <li>
+                  <ShieldCheck size={20} aria-hidden="true" />
+                  <span>
+                    <strong>{t('featureInspect')}</strong>
+                    {t('featureInspectDesc')}
+                  </span>
+                </li>
+                <li>
+                  <MapPin size={20} aria-hidden="true" />
+                  <span>
+                    <strong>{t('featureChoice')}</strong>
+                    {t('featureChoiceDesc')}
+                  </span>
+                </li>
+                <li>
+                  <Leaf size={20} aria-hidden="true" />
+                  <span>
+                    <strong>{t('featureFarm')}</strong>
+                    {t('featureFarmDesc')}
+                  </span>
+                </li>
+              </ul>
+            </>
+          ) : (
+            <ul className="pd__features pd__features--cols">
+              <li>
+                <Truck size={20} aria-hidden="true" />
+                <span>
+                  <strong>{t('deliveryHomeTitle')}</strong>
+                  {t('deliveryHomeDesc')}
+                </span>
+              </li>
+              <li>
+                <MapPin size={20} aria-hidden="true" />
+                <span>
+                  <strong>{t('deliveryPickupTitle')}</strong>
+                  {t('deliveryPickupDesc')}
+                </span>
+              </li>
+              <li>
+                <Wallet size={20} aria-hidden="true" />
+                <span>
+                  <strong>{t('deliveryPayTitle')}</strong>
+                  {t('deliveryPayDesc')}
+                </span>
+              </li>
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {related.length > 0 && (
+        <section className="pd__related">
+          <h2 className="section-title">{t('relatedTitle')}</h2>
+          <div className="um-products-grid">
+            {related.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
           </div>
-        )}
+        </section>
+      )}
+
+      {/* Phone: sticky purchase bar above the bottom navigation */}
+      <div className="pd__sticky">
+        <div>
+          <strong>{formatUGX(price)}</strong>
+          {product.unit && <small>{t('perUnit', { unit: product.unit })}</small>}
+        </div>
+        <button type="button" onClick={handleAddToCart} disabled={!isAvailable || cartLoading} className={`btn ${added ? 'pd__add--done' : 'btn-primary'}`}>
+          {added ? <Check size={17} aria-hidden="true" /> : <ShoppingCart size={17} aria-hidden="true" />}
+          {added ? t('addedToCart') : t('addToCart')}
+        </button>
       </div>
     </div>
   );

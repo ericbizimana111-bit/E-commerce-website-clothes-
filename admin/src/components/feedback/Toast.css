@@ -13,12 +13,11 @@
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--text-strong);
   color: #fff;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.4;
   animation: toast-in 0.18s ease-out;

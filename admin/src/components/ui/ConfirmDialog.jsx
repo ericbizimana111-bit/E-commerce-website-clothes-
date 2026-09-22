@@ -1,5 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './ConfirmDialog.css';
 
 /**
@@ -28,7 +29,9 @@ export default function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  // Portal to <body> so the dialog is never clipped/offset by a transformed
+  // ancestor (e.g. the mobile sidebar drawer).
+  return createPortal(
     <div className="confirm-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onCancel()}>
       <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <div className="confirm-dialog__header">
@@ -48,7 +51,7 @@ export default function ConfirmDialog({
         </div>
         <p className="confirm-dialog__message">{message}</p>
         <div className="confirm-dialog__actions">
-          <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={busy}>
+          <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={busy} autoFocus>
             {cancelLabel}
           </button>
           <button
@@ -61,6 +64,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

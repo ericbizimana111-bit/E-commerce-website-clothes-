@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Package, Pencil, Plus, Power, RefreshCw, Search } from 'lucide-react';
+import { Package, Pencil, Plus, Power, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import { hasRole, CATALOG_ROLES, useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/feedback/Toast';
@@ -8,6 +8,7 @@ import { formatUGX } from '../../utils/format';
 import DataTable from '../../components/ui/DataTable';
 import PageHeader from '../../components/ui/PageHeader';
 import Pagination from '../../components/ui/Pagination';
+import SearchInput from '../../components/ui/SearchInput';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
@@ -23,7 +24,6 @@ export default function ProductsPage() {
   const inStock = searchParams.get('inStock') || '';
   const categoryId = searchParams.get('category') || '';
 
-  const [searchInput, setSearchInput] = useState(search);
   const [categories, setCategories] = useState([]);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState(null);
@@ -33,10 +33,6 @@ export default function ProductsPage() {
   const [toggleBusy, setToggleBusy] = useState(false);
 
   const canManage = hasRole(role, CATALOG_ROLES);
-
-  useEffect(() => {
-    setSearchInput(search);
-  }, [search]);
 
   // Category options for the filter (admin categories endpoint, first page).
   useEffect(() => {
@@ -186,22 +182,12 @@ export default function ProductsPage() {
       />
 
       <div className="toolbar">
-        <form
-          className="toolbar__search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateParams({ search: searchInput.trim() });
-          }}
-        >
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search slug, SKU, or translated name"
-            aria-label="Search products"
-          />
-        </form>
+        <SearchInput
+          value={search}
+          onSearch={(term) => updateParams({ search: term })}
+          placeholder="Search slug, SKU, or product name"
+          label="Search products"
+        />
 
         <select
           value={categoryId}

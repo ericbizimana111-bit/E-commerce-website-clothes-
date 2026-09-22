@@ -38,6 +38,10 @@ router.post('/categories', validateRequest(createCategorySchema), categoryContro
 router.put('/categories/:id', validateRequest(updateCategorySchema), categoryController.updateCategory);
 router.patch('/categories/:id/active', validateRequest(toggleCategoryActiveSchema), categoryController.toggleCategoryActive);
 
+// Category image file upload/removal (multipart, same validation as product images)
+router.post('/categories/:id/image', validateRequest(idParamSchema), uploadProductImageMiddleware, categoryController.uploadCategoryImage);
+router.delete('/categories/:id/image', validateRequest(idParamSchema), categoryController.removeCategoryImage);
+
 // -------------------------------------------------------------
 // Product Management
 // -------------------------------------------------------------
