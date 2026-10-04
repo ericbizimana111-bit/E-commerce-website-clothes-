@@ -21,11 +21,20 @@ const orderRoutes = require('./routes/order.routes');
 const adminOrderRoutes = require('./routes/adminOrder.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const adminDeliveryRoutes = require('./routes/adminDelivery.routes');
-const pickupStationRoutes = require('./routes/pickupStation.routes');
-const adminPickupStationRoutes = require('./routes/adminPickupStation.routes');
 const addressRoutes = require('./routes/address.routes');
+const locationRoutes = require('./routes/location.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const adminNotificationRoutes = require('./routes/adminNotification.routes');
 const adminCustomerRoutes = require('./routes/adminCustomer.routes');
+const adminSettingsRoutes = require('./routes/adminSettings.routes');
+const adminDashboardRoutes = require('./routes/adminDashboard.routes');
+const realtimeRoutes = require('./routes/realtime.routes');
+const { customerChatRoutes, adminChatRoutes } = require('./routes/chat.routes');
+const {
+  publicServiceRoutes,
+  customerServiceRequestRoutes,
+  adminServiceRoutes,
+} = require('./routes/homeService.routes');
 
 const app = express();
 
@@ -42,8 +51,9 @@ app.use(helmet({
 // 2. CORS
 app.use(corsMiddleware);
 
-// 3. Rate Limiting
-app.use('/api', apiLimiter);
+// 3. Rate Limiting (the long-lived realtime stream is exempt: one request
+// per connection, authenticated by a short-lived ticket)
+app.use('/api', (req, res, next) => (req.path === '/realtime/stream' ? next() : apiLimiter(req, res, next)));
 
 // 4. Request Logging (skip in test environment)
 if (env.NODE_ENV !== 'test') {
@@ -75,7 +85,7 @@ app.get('/api/health', async (req, res, next) => {
     res.json({
       success: true,
       status: 'UP',
-      service: 'Uganda Food Marketplace API',
+      service: 'UgaMarket API',
       version: '1.0.0',
       database: 'connected',
       currency: 'UGX',
@@ -111,14 +121,27 @@ app.use('/api/payments', paymentRoutes);
 // DISPATCHER included as the operational fulfillment role)
 app.use('/api/admin/deliveries', adminDeliveryRoutes);
 
-// 10e. Customer Fulfillment & In-App notification routes
-app.use('/api/pickup-stations', pickupStationRoutes);
-app.use('/api/admin/pickup-stations', adminPickupStationRoutes);
+// 10e. Validated Uganda addresses, location lookups, notifications
+// (UgaMarket is delivery-only: pickup stations are no longer offered)
 app.use('/api/addresses', addressRoutes);
+app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin/notifications', adminNotificationRoutes);
 
-// 10f. Admin customer visibility (ADMIN/SUPER_ADMIN; no DISPATCHER access)
+// 10f. Real-time push (SSE) + customer <-> staff chat
+app.use('/api/realtime', realtimeRoutes);
+app.use('/api/chat', customerChatRoutes);
+app.use('/api/admin/chat', adminChatRoutes);
+
+// 10g. Home services: catalogue, customer bookings, staff management
+app.use('/api/services', publicServiceRoutes);
+app.use('/api/service-requests', customerServiceRequestRoutes);
+app.use('/api/admin/services', adminServiceRoutes);
+
+// 10h. Admin customer visibility, store settings, dashboard summary
 app.use('/api/admin/customers', adminCustomerRoutes);
+app.use('/api/admin/settings', adminSettingsRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // 11. 404 Handler for undefined routes
 app.use((req, res, next) => {

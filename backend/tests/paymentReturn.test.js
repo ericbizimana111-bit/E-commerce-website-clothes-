@@ -47,7 +47,7 @@ describe('GET /api/payments/return — card payment redirect relay', () => {
         userId: testUserId,
         orderNumber: `FB-RETURN-TEST-${Date.now()}`,
         status: 'PENDING_PAYMENT',
-        deliveryType: 'PICKUP_STATION',
+        deliveryType: 'HOME_DELIVERY',
         currency: 'UGX',
         itemsSubtotal: 10000,
         deliveryFee: 0,

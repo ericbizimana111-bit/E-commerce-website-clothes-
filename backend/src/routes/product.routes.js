@@ -12,6 +12,9 @@ const {
 // Public product listing with search, filters, pagination, and language
 router.get('/', validateRequest(publicProductQuerySchema), productController.listPublicProducts);
 
+// Sidebar filter facets (brands, price range), optionally per category
+router.get('/facets', productController.getPublicFacets);
+
 // Public product by slug
 router.get('/slug/:slug', validateRequest(slugParamSchema), validateRequest(publicProductQuerySchema), productController.getPublicProductBySlug);
 

@@ -37,6 +37,7 @@ router.get('/categories', categoryController.listAdminCategories);
 router.post('/categories', validateRequest(createCategorySchema), categoryController.createCategory);
 router.put('/categories/:id', validateRequest(updateCategorySchema), categoryController.updateCategory);
 router.patch('/categories/:id/active', validateRequest(toggleCategoryActiveSchema), categoryController.toggleCategoryActive);
+router.post('/categories/:id/translate', validateRequest(idParamSchema), categoryController.retranslateCategory);
 
 // Category image file upload/removal (multipart, same validation as product images)
 router.post('/categories/:id/image', validateRequest(idParamSchema), uploadProductImageMiddleware, categoryController.uploadCategoryImage);
@@ -51,6 +52,7 @@ router.post('/products', validateRequest(createProductSchema), productController
 router.put('/products/:id', validateRequest(updateProductSchema), productController.updateProduct);
 router.patch('/products/:id/active', validateRequest(toggleProductActiveSchema), productController.toggleProductActive);
 router.put('/products/:id/images', validateRequest(setProductImagesSchema), productController.setProductImages);
+router.post('/products/:id/translate', validateRequest(idParamSchema), productController.retranslateProduct);
 
 // Product image file upload/removal (multipart). RBAC: same ADMIN/SUPER_ADMIN
 // gate applied router-wide above; no additional roles are introduced here.

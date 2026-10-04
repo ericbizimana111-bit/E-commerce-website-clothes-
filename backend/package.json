@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Uganda Food Marketplace Backend API",
+  "description": "UgaMarket backend API (marketplace + home services, Uganda)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,9 +13,9 @@
   },
   "keywords": [
     "uganda",
-    "food",
     "marketplace",
     "ecommerce",
+    "home-services",
     "api"
   ],
   "author": "",
@@ -38,5 +38,13 @@
     "jest": "^29.7.0",
     "nodemon": "^3.1.14",
     "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "globalTeardown": "./tests/helpers/teardown.js",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/helpers/"
+    ]
   }
 }

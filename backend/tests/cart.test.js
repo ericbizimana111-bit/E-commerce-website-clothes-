@@ -131,7 +131,7 @@ describe('Shopping Cart & Checkout Preparation (Phase 4)', () => {
     });
 
     test('unauthenticated checkout preview returns 401', async () => {
-      const res = await request(app).post('/api/checkout/preview').send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 });
+      const res = await request(app).post('/api/checkout/preview').send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: '00000000-0000-0000-0000-000000000001' });
       expect(res.statusCode).toBe(401);
     });
 

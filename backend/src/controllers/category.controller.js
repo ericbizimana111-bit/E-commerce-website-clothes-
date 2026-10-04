@@ -37,6 +37,15 @@ async function getPublicCategoryById(req, res, next) {
   }
 }
 
+async function retranslateCategory(req, res, next) {
+  try {
+    const category = await categoryService.retranslateCategory(req.params.id);
+    res.json({ success: true, message: 'Translations regenerated', data: category });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Admin endpoints
 async function listAdminCategories(req, res, next) {
   try {
@@ -128,6 +137,7 @@ async function removeCategoryImage(req, res, next) {
 }
 
 module.exports = {
+  retranslateCategory,
   listPublicCategories,
   getPublicCategoryBySlug,
   getPublicCategoryById,

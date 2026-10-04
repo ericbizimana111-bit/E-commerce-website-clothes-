@@ -29,22 +29,28 @@ const statusEnum = z.enum([
   'REFUNDED',
 ]);
 
+// UgaMarket is delivery-only: every order goes to a validated customer
+// address. fulfillmentMethod is optional for backwards compatibility but
+// may only be HOME_DELIVERY; pickup requests are refused with a clear message.
+const deliveryOnlyMethod = z
+  .enum(['HOME_DELIVERY', 'PICKUP_STATION'], {
+    errorMap: () => ({ message: 'fulfillmentMethod must be HOME_DELIVERY' }),
+  })
+  .optional()
+  .default('HOME_DELIVERY')
+  .refine((m) => m === 'HOME_DELIVERY', {
+    message: 'Pickup is no longer available. UgaMarket delivers every order to your address.',
+  });
+
 const createOrderSchema = {
   body: z
     .object({
-      fulfillmentMethod: z.enum(['HOME_DELIVERY', 'PICKUP_STATION'], {
-        errorMap: () => ({ message: 'fulfillmentMethod must be HOME_DELIVERY or PICKUP_STATION' }),
-      }),
+      fulfillmentMethod: deliveryOnlyMethod,
       addressId: uuidSchema.nullable().optional(),
-      pickupStationId: z
-        .number({ invalid_type_error: 'pickupStationId must be a number' })
-        .int('pickupStationId must be an integer')
-        .positive('pickupStationId must be a positive integer')
-        .nullable()
-        .optional(),
       notes: z.string().trim().max(1000).optional(),
       language: orderLanguageSchema,
       // Mass-assignment protection: these are ALWAYS server-derived and stripped
+      pickupStationId: z.unknown().optional(),
       userId: z.unknown().optional(),
       orderNumber: z.unknown().optional(),
       status: z.unknown().optional(),
@@ -57,22 +63,15 @@ const createOrderSchema = {
       items: z.unknown().optional(),
     })
     .transform((body) => ({
-      fulfillmentMethod: body.fulfillmentMethod,
+      fulfillmentMethod: 'HOME_DELIVERY',
       addressId: body.addressId ?? null,
-      pickupStationId: body.pickupStationId ?? null,
       notes: body.notes ?? null,
       language: body.language,
     }))
-    .refine(
-      (body) => {
-        if (body.fulfillmentMethod === 'HOME_DELIVERY') return !!body.addressId;
-        return !!body.pickupStationId;
-      },
-      {
-        message: 'addressId is required for HOME_DELIVERY and pickupStationId is required for PICKUP_STATION',
-        path: ['fulfillmentMethod'],
-      }
-    ),
+    .refine((body) => !!body.addressId, {
+      message: 'addressId is required: choose or add a delivery address',
+      path: ['addressId'],
+    }),
 };
 
 const orderLanguageQuerySchema = {
@@ -88,6 +87,7 @@ const listOrdersQuerySchema = {
     status: z.string().trim().max(200).optional(),
     fulfillmentMethod: z.enum(['HOME_DELIVERY', 'PICKUP_STATION']).optional(),
     search: z.string().trim().max(100).optional(),
+    district: z.string().trim().max(100).optional(),
     lang: orderLanguageSchema,
   }),
 };
@@ -129,6 +129,7 @@ const adminUpdateStatusSchema = {
 };
 
 module.exports = {
+  deliveryOnlyMethod,
   createOrderSchema,
   orderLanguageQuerySchema,
   listOrdersQuerySchema,

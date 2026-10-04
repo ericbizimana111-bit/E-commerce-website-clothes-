@@ -8,14 +8,17 @@ const { applyOrderStatusTransition } = require('./order.service');
 const { logAudit } = require('./audit.service');
 const { normalizeUgandaPhone } = require('../utils/phone');
 const logger = require('../utils/logger');
+const notifications = require('./notification.service');
+const { formatUGX } = require('../utils/currency');
 
 // Customer-selected payment rails (Phase 12 Step 2). NOT financially
 // authoritative — amount/currency/order/purpose stay server-decided. Only
 // providers that implement the chosen rail receive it; unsupported rails
 // fail initiation with a clear business error rather than faking support.
+// UgaMarket accepts mobile money only: MTN MoMo and Airtel Money.
 const PROVIDER_METHOD_SUPPORT = {
-  MOCK: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD']),
-  FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD']),
+  MOCK: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']),
+  FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']),
 };
 
 // Provider initiation result fields that may be surfaced to the frontend.
@@ -252,19 +255,6 @@ function resolveCustomerIdentity(user, method) {
     if (!user.email) {
       throw new AppError(
         'A customer email address is required for mobile money payments. Add an email to your account and try again.',
-        422
-      );
-    }
-    return {
-      fullName: user.fullName || null,
-      email: user.email,
-      phoneE164: phone.normalized,
-    };
-  }
-  if (method === 'CARD') {
-    if (!user.email) {
-      throw new AppError(
-        'A customer email address is required for card payments. Add an email to your account and try again.',
         422
       );
     }
@@ -867,15 +857,17 @@ async function processWebhook(rawBody, headers) {
         });
         updatedOrder = completion.updatedOrder;
 
-        // In-app customer notification
-        await tx.notification.create({
-          data: {
-            userId: payment.order.userId,
+        // In-app customer notification (persisted in this transaction, pushed live)
+        await notifications.notifyCustomer(
+          payment.order.userId,
+          {
+            type: 'ORDER_UPDATE',
             title: 'Order Completed',
             message: `Your balance payment of UGX ${payment.amountUgx.toLocaleString()} was successful. Order ${payment.order.orderNumber} is now complete!`,
-            type: 'ORDER_UPDATE',
+            linkUrl: `/account/orders/${payment.orderId}`,
           },
-        });
+          tx
+        );
 
         postCommitAudits.push({
           action: 'BALANCE_PAYMENT_APPLIED',
@@ -918,7 +910,72 @@ async function processWebhook(rawBody, headers) {
     await logAudit(audit);
   }
 
+  await notifyPaymentOutcome(result);
+
   return result;
+}
+
+/**
+ * Post-commit staff + customer notifications for a processed webhook.
+ * Duplicates/ignored events notify nobody. Never throws.
+ */
+async function notifyPaymentOutcome(result) {
+  if (!result || result.duplicate || result.ignored || !result.payment) return;
+  try {
+    const payment = result.payment;
+    const order = await prisma.order.findUnique({
+      where: { id: payment.orderId },
+      select: { id: true, orderNumber: true, userId: true, totalAmount: true, addressSnapshot: true, user: { select: { fullName: true } } },
+    });
+    if (!order) return;
+    const method = (payment.payload && payment.payload.method) || null;
+    const methodLabel = method === 'AIRTEL_MONEY' ? 'Airtel Money' : method === 'MTN_MOBILE_MONEY' ? 'MTN MoMo' : 'mobile money';
+    const place = order.addressSnapshot ? [order.addressSnapshot.division, order.addressSnapshot.district].filter(Boolean).join(', ') : '';
+
+    if (result.failed) {
+      await notifications.notifyCustomer(order.userId, {
+        type: 'PAYMENT_UPDATE',
+        title: 'Payment not completed',
+        message: `Your ${methodLabel} payment of ${formatUGX(payment.amountUgx)} for order ${order.orderNumber} did not go through. You can try again from the order page.`,
+        linkUrl: `/account/orders/${order.id}`,
+      });
+      await notifications.notifyAdmins({
+        type: notifications.ADMIN_NOTIFICATION_TYPES.PAYMENT_FAILED,
+        title: `Payment failed — ${order.orderNumber}`,
+        message: `${order.user.fullName}'s ${methodLabel} payment of ${formatUGX(payment.amountUgx)} failed.`,
+        linkUrl: `/orders/${order.id}`,
+        orderId: order.id,
+      });
+      return;
+    }
+
+    if (payment.purpose === 'COMMITMENT') {
+      await notifications.notifyAdmins({
+        type: notifications.ADMIN_NOTIFICATION_TYPES.PAYMENT_RECEIVED,
+        title: `Deposit paid — ${order.orderNumber}`,
+        message: `${order.user.fullName} paid ${formatUGX(payment.amountUgx)} via ${methodLabel}${place ? ` (delivery to ${place})` : ''}. Confirm and start preparing the order.`,
+        linkUrl: `/orders/${order.id}`,
+        orderId: order.id,
+        metadata: { orderNumber: order.orderNumber, amountUgx: payment.amountUgx, method },
+      });
+      await notifications.notifyCustomer(order.userId, {
+        type: 'PAYMENT_UPDATE',
+        title: 'Deposit received',
+        message: `We received your deposit of ${formatUGX(payment.amountUgx)} for order ${order.orderNumber}. We will confirm it shortly.`,
+        linkUrl: `/account/orders/${order.id}`,
+      });
+    } else if (payment.purpose === 'BALANCE') {
+      await notifications.notifyAdmins({
+        type: notifications.ADMIN_NOTIFICATION_TYPES.BALANCE_PAID,
+        title: `Balance paid — ${order.orderNumber}`,
+        message: `${order.user.fullName} paid the balance of ${formatUGX(payment.amountUgx)} via ${methodLabel}. The order is complete.`,
+        linkUrl: `/orders/${order.id}`,
+        orderId: order.id,
+      });
+    }
+  } catch (error) {
+    logger.error('[payment] outcome notification failed:', error.message);
+  }
 }
 
 // ============================================================

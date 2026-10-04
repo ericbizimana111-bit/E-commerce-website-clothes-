@@ -85,47 +85,75 @@ const optionalSafeImageUrlSchema = z
     'Image URL must be an absolute http(s) URL or a relative /images/ path (no traversal)'
   );
 
+// English-only content: admins write the English name/description and the
+// backend machine-translates the other languages (translator.service).
+const englishName = (max) => z.string().trim().min(2, 'Name must be at least 2 characters').max(max);
+const englishDescription = z.string().trim().max(5000).optional().nullable().or(z.literal(''));
+
+const slugSchema = (max) =>
+  z
+    .string()
+    .trim()
+    .min(2, 'Slug must be at least 2 characters')
+    .max(max)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens (e.g. smart-phones)');
+
+const iconSchema = z
+  .string()
+  .trim()
+  .max(50)
+  .regex(/^[a-z0-9-]*$/, 'Icon must be an icon key such as "smartphone"')
+  .optional()
+  .nullable();
+
+const specificationsSchema = z
+  .array(
+    z.object({
+      label: z.string().trim().min(1, 'Specification label is required').max(60),
+      value: z.string().trim().min(1, 'Specification value is required').max(200),
+    })
+  )
+  .max(30, 'At most 30 specifications')
+  .optional()
+  .nullable();
+
+const translationsArray = z
+  .array(translationItemSchema)
+  .refine(
+    (items) => new Set(items.map((i) => i.language.toUpperCase())).size === items.length,
+    'Duplicate translation languages are not allowed'
+  );
+
+/** A create payload must carry an English name (top-level or EN translation). */
+const hasEnglishName = (body) =>
+  Boolean(body.name) || (Array.isArray(body.translations) && body.translations.some((t) => t.language.toUpperCase() === 'EN'));
+
 // Category Validators
 const createCategorySchema = {
-  body: z.object({
-    slug: z
-      .string({ required_error: 'Slug is required' })
-      .trim()
-      .min(2, 'Slug must be at least 2 characters')
-      .max(100)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens (e.g. fresh-produce)'),
-    displayOrder: z.coerce.number().int().min(0).optional().default(0),
-    imageUrl: optionalSafeImageUrlSchema,
-    isActive: z.boolean().optional().default(true),
-    translations: z
-      .array(translationItemSchema)
-      .min(1, 'At least one translation is required')
-      .refine(
-        (items) => new Set(items.map((i) => i.language.toUpperCase())).size === items.length,
-        'Duplicate translation languages are not allowed'
-      ),
-  }),
+  body: z
+    .object({
+      name: englishName(100).optional(),
+      description: englishDescription,
+      slug: slugSchema(100).optional(),
+      icon: iconSchema,
+      displayOrder: z.coerce.number().int().min(0).optional().default(0),
+      imageUrl: optionalSafeImageUrlSchema,
+      isActive: z.boolean().optional().default(true),
+      translations: translationsArray.optional(),
+    })
+    .refine(hasEnglishName, { message: 'An English name is required', path: ['name'] }),
 };
 
 const updateCategorySchema = {
   body: z.object({
-    slug: z
-      .string()
-      .trim()
-      .min(2)
-      .max(100)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
-      .optional(),
+    name: englishName(100).optional(),
+    description: englishDescription,
+    slug: slugSchema(100).optional(),
+    icon: iconSchema,
     displayOrder: z.coerce.number().int().min(0).optional(),
     imageUrl: optionalSafeImageUrlSchema,
     isActive: z.boolean().optional(),
-    translations: z
-      .array(translationItemSchema)
-      .optional()
-      .refine(
-        (items) => !items || new Set(items.map((i) => i.language.toUpperCase())).size === items.length,
-        'Duplicate translation languages are not allowed'
-      ),
+    translations: translationsArray.optional(),
   }),
 };
 
@@ -136,64 +164,56 @@ const toggleCategoryActiveSchema = {
 };
 
 // Product Validators
+const productCommonFields = {
+  name: englishName(200).optional(),
+  description: englishDescription,
+  brand: z.string().trim().max(100).optional().nullable(),
+  specifications: specificationsSchema,
+  compareAtPriceUgx: z.coerce.number().int().min(0).optional().nullable(),
+  isFeatured: z.boolean().optional(),
+  sku: z.string().trim().max(50).optional().nullable(),
+  unit: z.string().trim().max(50).optional(),
+  isActive: z.boolean().optional(),
+  translations: translationsArray.optional(),
+};
+
 const createProductSchema = {
-  body: z.object({
-    categoryId: z.coerce.number({ required_error: 'categoryId is required' }).int().positive(),
-    slug: z
-      .string({ required_error: 'Slug is required' })
-      .trim()
-      .min(2)
-      .max(200)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens (e.g. fresh-green-matooke)'),
-    sku: z.string().trim().max(50).optional().nullable(),
-    priceUgx: z.coerce
-      .number({ required_error: 'priceUgx is required' })
-      .int('Price must be an integer (UGX)')
-      .min(0, 'Price cannot be negative'),
-    stockQuantity: z.coerce
-      .number()
-      .int('Stock quantity must be an integer')
-      .min(0, 'Initial stock cannot be negative')
-      .optional()
-      .default(0),
-    unit: z.string().trim().max(50).optional().default('piece'),
-    isActive: z.boolean().optional().default(true),
-    translations: z
-      .array(translationItemSchema)
-      .min(1, 'At least one translation is required')
-      .refine(
-        (items) => new Set(items.map((i) => i.language.toUpperCase())).size === items.length,
-        'Duplicate translation languages are not allowed'
-      ),
-    images: z.array(imageItemSchema).optional().default([]),
-  }),
+  body: z
+    .object({
+      ...productCommonFields,
+      categoryId: z.coerce.number({ required_error: 'categoryId is required' }).int().positive(),
+      slug: slugSchema(200).optional(),
+      priceUgx: z.coerce
+        .number({ required_error: 'priceUgx is required' })
+        .int('Price must be an integer (UGX)')
+        .min(0, 'Price cannot be negative'),
+      stockQuantity: z.coerce
+        .number()
+        .int('Stock quantity must be an integer')
+        .min(0, 'Initial stock cannot be negative')
+        .optional()
+        .default(0),
+      unit: z.string().trim().max(50).optional().default('piece'),
+      isActive: z.boolean().optional().default(true),
+      images: z.array(imageItemSchema).optional().default([]),
+    })
+    .refine(hasEnglishName, { message: 'An English product name is required', path: ['name'] })
+    .refine((b) => b.compareAtPriceUgx === undefined || b.compareAtPriceUgx === null || b.compareAtPriceUgx === 0 || b.compareAtPriceUgx > b.priceUgx, {
+      message: 'The "was" price must be higher than the selling price',
+      path: ['compareAtPriceUgx'],
+    }),
 };
 
 const updateProductSchema = {
   body: z.object({
+    ...productCommonFields,
     categoryId: z.coerce.number().int().positive().optional(),
-    slug: z
-      .string()
-      .trim()
-      .min(2)
-      .max(200)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
-      .optional(),
-    sku: z.string().trim().max(50).optional().nullable(),
+    slug: slugSchema(200).optional(),
     priceUgx: z.coerce
       .number()
       .int('Price must be an integer (UGX)')
       .min(0, 'Price cannot be negative')
       .optional(),
-    unit: z.string().trim().max(50).optional(),
-    isActive: z.boolean().optional(),
-    translations: z
-      .array(translationItemSchema)
-      .optional()
-      .refine(
-        (items) => !items || new Set(items.map((i) => i.language.toUpperCase())).size === items.length,
-        'Duplicate translation languages are not allowed'
-      ),
   }),
 };
 
@@ -246,6 +266,12 @@ const publicProductQuerySchema = {
     minPrice: z.coerce.number().int().min(0).optional(),
     maxPrice: z.coerce.number().int().min(0).optional(),
     search: z.string().trim().max(100, 'Search term is too long').optional(),
+    brand: z.string().trim().max(100).optional(),
+    featured: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((val) => (val === undefined ? undefined : val === 'true')),
+    sort: z.enum(['newest', 'price_asc', 'price_desc', 'name']).optional().default('newest'),
     lang: languageQuerySchema.optional().default('en'),
   }),
 };

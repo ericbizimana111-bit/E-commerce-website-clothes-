@@ -5,6 +5,7 @@ const env = require('../src/config/env');
 const { signAdminToken } = require('../src/services/token.service');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
 const bcrypt = require('bcryptjs');
+const { createTestAddress } = require('./helpers/fixtures');
 
 // Under full parallel suite load, setup (registrations + bcrypt) exceeds Jest's 5s default
 jest.setTimeout(60000);
@@ -25,7 +26,6 @@ describe('Phase 7 Delivery & Fulfillment', () => {
   let otherStaffId = null;
   let address = null;
   let addressId = null;
-  let station = null;
   let product = null;
   let pricingConfigOriginal = null;
 
@@ -61,7 +61,6 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       .send({
         fulfillmentMethod: opts.fulfillmentMethod || 'HOME_DELIVERY',
         addressId: opts.addressId !== undefined ? opts.addressId : addressId,
-        pickupStationId: opts.fulfillmentMethod === 'PICKUP_STATION' ? station.id : undefined,
         ...opts.body,
       });
     return res;
@@ -154,28 +153,11 @@ describe('Phase 7 Delivery & Fulfillment', () => {
     });
     createdProductIds.push(product.id);
 
-    address = await prisma.address.create({
-      data: {
-        userId: customerId,
-        title: 'Home',
-        district: 'Kampala',
-        streetAddress: '7 Fulfillment Way',
-        isDefault: true,
-      },
-    });
+    address = await createTestAddress(customerId, { streetAddress: '7 Fulfillment Way' });
     addressId = address.id;
 
     // Other customer's address (IDOR target)
-    await prisma.address.create({
-      data: {
-        userId: otherUserId,
-        title: 'Home',
-        district: 'Entebbe',
-        streetAddress: '88 Not Your Road',
-      },
-    });
-
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
+    await createTestAddress(otherUserId, { district: 'Wakiso', division: 'Entebbe', streetAddress: '88 Not Your Road', latitude: 0.0512, longitude: 32.4637 });
 
     pricingConfigOriginal = await prisma.deliveryPricingConfig.findFirst({ where: { isActive: true } });
   });
@@ -231,20 +213,23 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       expect(delivery).not.toHaveProperty('notes');
     });
 
-    test('pickup order creates pickup fulfillment with station snapshot and zero fee', async () => {
-      const res = await addToCartAndOrder(customerToken, { fulfillmentMethod: 'PICKUP_STATION' });
+    test('delivery records road/estimated distance and ETA at order creation', async () => {
+      const res = await addToCartAndOrder(customerToken);
       expect(res.statusCode).toBe(201);
       createdOrderIds.push(res.body.data.order.id);
 
-      const dv = await request(app)
-        .get(`/api/orders/${res.body.data.order.id}/delivery`)
-        .set('Authorization', `Bearer ${customerToken}`);
-      expect(dv.statusCode).toBe(200);
-      const delivery = dv.body.data.delivery;
-      expect(delivery.fulfillmentType).toBe('PICKUP_STATION');
-      expect(delivery.deliveryFeeUgx).toBe(0);
-      expect(delivery.stationSnapshot).not.toBeNull();
-      expect(delivery.addressSnapshot).toBeNull();
+      const row = await prisma.delivery.findUnique({ where: { orderId: res.body.data.order.id } });
+      expect(Number(row.distanceKm)).toBeGreaterThan(0);
+      expect(Number(row.straightLineKm)).toBeGreaterThan(0);
+      expect(Number(row.distanceKm)).toBeGreaterThanOrEqual(Number(row.straightLineKm));
+      expect(row.etaMinutes).toBeGreaterThan(0);
+      expect(['ROUTED', 'ESTIMATED']).toContain(row.distanceSource);
+    });
+
+    test('pickup requests are refused: every order is delivered', async () => {
+      const res = await addToCartAndOrder(customerToken, { fulfillmentMethod: 'PICKUP_STATION' });
+      expect(res.statusCode).toBe(400);
+      await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerToken}`);
     });
 
     test('foreign addressId is rejected (IDOR) and does not create a delivery', async () => {
@@ -253,29 +238,16 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       expect([400, 403, 404]).toContain(res.statusCode);
     });
 
-    test('inactive pickup station is rejected at order creation', async () => {
-      const inactive = await prisma.pickupStation.create({
-        data: {
-          name: 'Inactive Test Station ' + Date.now(),
-          district: 'Kampala',
-          addressText: 'Closed Lane',
-          contactPhone: '+256700000000',
-          operatingHours: 'Mon-Fri 9am-5pm',
-          isActive: false,
-        },
-      });
+    test('addresses beyond the configured max delivery distance are refused', async () => {
+      const cfg = await prisma.deliveryPricingConfig.findFirst({ where: { isActive: true } });
+      await prisma.deliveryPricingConfig.update({ where: { id: cfg.id }, data: { maxDeliveryKm: 1 } });
       try {
-        await request(app)
-          .post('/api/cart/items')
-          .set('Authorization', `Bearer ${customerToken}`)
-          .send({ productId: product.id, quantity: 1 });
-        const res = await request(app)
-          .post('/api/orders')
-          .set('Authorization', `Bearer ${customerToken}`)
-          .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: inactive.id });
-        expect([400, 404, 422]).toContain(res.statusCode);
+        const res = await addToCartAndOrder(customerToken);
+        expect(res.statusCode).toBe(422);
+        expect(res.body.message).toMatch(/deliver within 1 km/);
       } finally {
-        await prisma.pickupStation.delete({ where: { id: inactive.id } });
+        await prisma.deliveryPricingConfig.update({ where: { id: cfg.id }, data: { maxDeliveryKm: null } });
+        await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerToken}`);
       }
     });
   });
@@ -292,8 +264,8 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       const order = res.body.data.order;
       createdOrderIds.push(order.id);
 
-      // Server fee comes from the DB config + Haversine (address has no
-      // coordinates -> minimum fee fallback), never from the client body.
+      // Server fee comes from the DB config + route distance, never from
+      // the client body.
       const dv = await request(app)
         .get(`/api/orders/${order.id}/delivery`)
         .set('Authorization', `Bearer ${customerToken}`);
@@ -354,6 +326,8 @@ describe('Phase 7 Delivery & Fulfillment', () => {
         where: { id: addressId },
         data: { streetAddress: '7 Fulfillment Way', district: 'Kampala' },
       });
+      // Re-read so later orders use the address's current updatedAt.
+      address = await prisma.address.findUnique({ where: { id: addressId } });
     });
   });
 
@@ -418,38 +392,6 @@ describe('Phase 7 Delivery & Fulfillment', () => {
         .get(`/api/orders/${order.id}`)
         .set('Authorization', `Bearer ${customerToken}`);
       expect(od.body.data.order.status).toBe('DELIVERED');
-    });
-
-    test('full pickup flow: READY_FOR_PICKUP then PICKED_UP', async () => {
-      const res = await addToCartAndOrder(customerToken, { fulfillmentMethod: 'PICKUP_STATION' });
-      expect(res.statusCode).toBe(201);
-      const order = res.body.data.order;
-      createdOrderIds.push(order.id);
-
-      await payCommitment(order);
-      for (const status of ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP']) {
-        const r = await request(app)
-          .patch(`/api/admin/orders/${order.id}/status`)
-          .set('Authorization', `Bearer ${adminToken}`)
-          .send({ status });
-        expect(r.statusCode).toBe(200);
-      }
-      const dv = await request(app)
-        .get(`/api/orders/${order.id}/delivery`)
-        .set('Authorization', `Bearer ${customerToken}`);
-      expect(dv.body.data.delivery.status).toBe('READY');
-
-      const od = await request(app)
-        .patch(`/api/admin/orders/${order.id}/status`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'PICKED_UP' });
-      expect(od.statusCode).toBe(200);
-
-      const dv2 = await request(app)
-        .get(`/api/orders/${order.id}/delivery`)
-        .set('Authorization', `Bearer ${customerToken}`);
-      expect(dv2.body.data.delivery.status).toBe('PICKED_UP');
-      expect(dv2.body.data.delivery.completedAt).not.toBeNull();
     });
 
     test('invalid delivery transitions are rejected centrally', async () => {
@@ -587,22 +529,6 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       expect(reassign.statusCode).toBe(409);
     });
 
-    test('pickup fulfillments cannot be assigned to staff', async () => {
-      const res = await addToCartAndOrder(customerToken, { fulfillmentMethod: 'PICKUP_STATION' });
-      expect(res.statusCode).toBe(201);
-      createdOrderIds.push(res.body.data.order.id);
-      const dv = await request(app)
-        .get(`/api/orders/${res.body.data.order.id}/delivery`)
-        .set('Authorization', `Bearer ${customerToken}`);
-      const deliveryId = dv.body.data.delivery.id;
-
-      const assign = await request(app)
-        .patch(`/api/admin/deliveries/${deliveryId}/assign`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ assignedAdminId: adminId });
-      expect(assign.statusCode).toBe(409);
-    });
-
     test('concurrent assignment yields one valid final state', async () => {
       const res = await addToCartAndOrder(customerToken);
       expect(res.statusCode).toBe(201);
@@ -725,40 +651,6 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       expect(od.status).toBe('DELIVERED');
       const deliveredHistory = od.statusHistory.filter((h) => h.statusTo === 'DELIVERED');
       expect(deliveredHistory).toHaveLength(1); // exactly one history entry
-    });
-
-    test('concurrent pickup completion: one PICKED_UP transition, no duplicate history', async () => {
-      const res = await addToCartAndOrder(customerToken, { fulfillmentMethod: 'PICKUP_STATION' });
-      expect(res.statusCode).toBe(201);
-      const order = res.body.data.order;
-      createdOrderIds.push(order.id);
-
-      await payCommitment(order);
-      for (const status of ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP']) {
-        await request(app)
-          .patch(`/api/admin/orders/${order.id}/status`)
-          .set('Authorization', `Bearer ${adminToken}`)
-          .send({ status });
-      }
-
-      const dv = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      expect(dv.status).toBe('READY');
-
-      const results = await Promise.all(
-        Array.from({ length: 5 }, () =>
-          request(app)
-            .patch(`/api/admin/deliveries/${dv.id}/status`)
-            .set('Authorization', `Bearer ${adminToken}`)
-            .send({ status: 'PICKED_UP' })
-        )
-      );
-      results.forEach((r) => expect([200, 409]).toContain(r.statusCode));
-
-      const final = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      expect(final.status).toBe('PICKED_UP');
-      const od = await prisma.order.findUnique({ where: { id: order.id }, include: { statusHistory: true } });
-      expect(od.status).toBe('PICKED_UP');
-      expect(od.statusHistory.filter((h) => h.statusTo === 'PICKED_UP')).toHaveLength(1);
     });
   });
 });

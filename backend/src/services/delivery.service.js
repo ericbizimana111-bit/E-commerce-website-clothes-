@@ -29,23 +29,14 @@ const { logAudit } = require('./audit.service');
  */
 
 // ============================================================
-// Pricing core (Phase 5 implementation, re-exported unchanged)
+// Pricing core: fee from ROAD distance (OSRM) with a straight-line fallback
 // ============================================================
 
-const EARTH_RADIUS_KM = 6371;
+const { haversineKm } = require('./geo.service');
+const { getRoute } = require('./routing.service');
 
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(a)));
-}
-
-async function getActiveDeliveryConfig() {
-  return prisma.deliveryPricingConfig.findFirst({
+async function getActiveDeliveryConfig(client = prisma) {
+  return client.deliveryPricingConfig.findFirst({
     where: { isActive: true },
     orderBy: { updatedAt: 'desc' },
   });
@@ -68,56 +59,71 @@ function calculateDeliveryFee(config, distanceKm) {
   return Math.max(rawFee, config.minimumFeeUgx || 0);
 }
 
-/**
- * Resolve the delivery fee for an order's fulfillment choice.
- * Returns integer UGX (0 for pickup).
- */
-async function resolveDeliveryFee({ fulfillmentMethod, address }) {
-  if (fulfillmentMethod === 'PICKUP_STATION') {
-    return 0; // pickup: no delivery fee
-  }
-
-  const config = await getActiveDeliveryConfig();
-  if (!config) {
-    throw new AppError('Delivery pricing is not configured. Home delivery is temporarily unavailable.', 400);
-  }
-
-  const warehouseLat = Number(config.warehouseLat);
-  const warehouseLng = Number(config.warehouseLng);
-  const addressLat = address.latitude !== null && address.latitude !== undefined ? Number(address.latitude) : null;
-  const addressLng = address.longitude !== null && address.longitude !== undefined ? Number(address.longitude) : null;
-
-  if (addressLat === null || addressLng === null) {
-    // Address without coordinates: charge the minimum fee (safe fallback)
-    return Math.max(config.minimumFeeUgx || 0, config.baseFeeUgx || 0);
-  }
-
-  const distanceKm = haversineKm(warehouseLat, warehouseLng, addressLat, addressLng);
-  return calculateDeliveryFee(config, distanceKm);
+function coordsOf(address) {
+  const lat = address && address.latitude !== null && address.latitude !== undefined ? Number(address.latitude) : null;
+  const lng = address && address.longitude !== null && address.longitude !== undefined ? Number(address.longitude) : null;
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
 /**
- * Independent, deterministic quote helper (distance + fee) for a given
- * address/config pair. Used by tests and available for future quote endpoints.
+ * Full delivery quote for an address: road distance, straight-line distance,
+ * ETA and fee. Throws a customer-readable 4xx when delivery is impossible.
+ */
+async function quoteDelivery(address, { config = null, geometry = false } = {}) {
+  const cfg = config || (await getActiveDeliveryConfig());
+  if (!cfg) {
+    throw new AppError('Delivery pricing is not configured. Delivery is temporarily unavailable.', 400);
+  }
+  const to = coordsOf(address);
+  if (!to) {
+    throw new AppError('This address has no map location. Please edit it and pin your exact location on the map.', 422);
+  }
+  const from = { lat: Number(cfg.warehouseLat), lng: Number(cfg.warehouseLng) };
+  const route = await getRoute(from, to, { geometry });
+
+  if (cfg.maxDeliveryKm !== null && cfg.maxDeliveryKm !== undefined && route.distanceKm > Number(cfg.maxDeliveryKm)) {
+    throw new AppError(
+      `Sorry, this address is ${route.distanceKm.toFixed(1)} km away. We currently deliver within ${Number(cfg.maxDeliveryKm)} km.`,
+      422
+    );
+  }
+
+  return {
+    deliveryFeeUgx: calculateDeliveryFee(cfg, route.distanceKm),
+    distanceKm: route.distanceKm,
+    straightLineKm: route.straightLineKm,
+    etaMinutes: route.durationMinutes,
+    distanceSource: route.source,
+    geometry: route.geometry || null,
+    origin: { ...from, name: cfg.warehouseName || null },
+    destination: to,
+  };
+}
+
+/**
+ * Resolve the delivery fee for an order's fulfillment choice (integer UGX).
+ * Pickup is no longer offered; for legacy callers it returns 0.
+ */
+async function resolveDeliveryFee({ fulfillmentMethod, address }) {
+  if (fulfillmentMethod === 'PICKUP_STATION') return 0;
+  const quote = await quoteDelivery(address);
+  return quote.deliveryFeeUgx;
+}
+
+/**
+ * Deterministic, synchronous straight-line quote (no network). Kept for
+ * tests and offline tooling.
  */
 function calculateDeliveryQuote({ config, address }) {
-  const addressLat = address.latitude !== null && address.latitude !== undefined ? Number(address.latitude) : null;
-  const addressLng = address.longitude !== null && address.longitude !== undefined ? Number(address.longitude) : null;
-
-  if (addressLat === null || addressLng === null) {
+  const to = coordsOf(address);
+  if (!to) {
     return {
       distanceKm: null,
       deliveryFeeUgx: config ? Math.max(config.minimumFeeUgx || 0, config.baseFeeUgx || 0) : null,
       note: 'NO_COORDINATES_MINIMUM_FEE',
     };
   }
-
-  const distanceKm = haversineKm(
-    Number(config.warehouseLat),
-    Number(config.warehouseLng),
-    addressLat,
-    addressLng
-  );
+  const distanceKm = haversineKm(Number(config.warehouseLat), Number(config.warehouseLng), to.lat, to.lng);
   return { distanceKm, deliveryFeeUgx: calculateDeliveryFee(config, distanceKm), note: null };
 }
 
@@ -126,20 +132,9 @@ function calculateDeliveryQuote({ config, address }) {
 // ============================================================
 
 async function notifyDeliveryEvent(userId, { title, message, linkUrl = null }) {
-  try {
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: String(title).slice(0, 150),
-        message: String(message).slice(0, 1000),
-        type: 'DELIVERY_UPDATE',
-        linkUrl,
-      },
-    });
-  } catch (error) {
-    // Notification failure must never corrupt an operational transaction
-    require('../utils/logger').error('Delivery notification failed:', error.message);
-  }
+  // Persisted + pushed live; failures are logged, never thrown.
+  const { notifyCustomer } = require('./notification.service');
+  await notifyCustomer(userId, { type: 'DELIVERY_UPDATE', title, message, linkUrl });
 }
 
 // ============================================================
@@ -152,13 +147,17 @@ async function notifyDeliveryEvent(userId, { title, message, linkUrl = null }) {
  * Phase 5 snapshots (single source of historical truth).
  * Uniqueness: deliveries.order_id is UNIQUE at the DB level.
  */
-async function createDeliveryForOrder(tx, order) {
+async function createDeliveryForOrder(tx, order, quote = null) {
   return tx.delivery.create({
     data: {
       orderId: order.id,
       fulfillmentType: order.deliveryType, // HOME_DELIVERY | PICKUP_STATION
       status: DELIVERY_STATUSES.PENDING,
       deliveryFeeUgx: order.deliveryFee,
+      distanceKm: quote ? quote.distanceKm : undefined,
+      straightLineKm: quote ? quote.straightLineKm : undefined,
+      etaMinutes: quote ? quote.etaMinutes : undefined,
+      distanceSource: quote ? quote.distanceSource : undefined,
       addressSnapshot: order.deliveryType === 'HOME_DELIVERY' ? order.addressSnapshot : undefined,
       stationSnapshot: order.deliveryType === 'PICKUP_STATION' ? order.stationSnapshot : undefined,
     },
@@ -178,6 +177,9 @@ function buildCustomerDeliveryResponse(delivery) {
     status: d.status,
     deliveryFeeUgx: d.deliveryFeeUgx,
     distanceKm: d.distanceKm !== null && d.distanceKm !== undefined ? Number(d.distanceKm) : null,
+    straightLineKm: d.straightLineKm !== null && d.straightLineKm !== undefined ? Number(d.straightLineKm) : null,
+    etaMinutes: d.etaMinutes ?? null,
+    distanceSource: d.distanceSource || null,
     addressSnapshot: d.addressSnapshot || null,
     stationSnapshot: d.stationSnapshot || null,
     scheduledAt: d.scheduledAt,
@@ -629,16 +631,67 @@ async function updateDeliveryStatus({ deliveryId, toStatus, changedByType = 'ADM
       FAILED: { title: 'Delivery attempt issue', message: `There was an issue fulfilling your order ${order.orderNumber}. We are retrying or contacting you.` },
     }[toStatus];
     if (notify && order.userId) {
-      await notifyDeliveryEvent(order.userId, notify);
+      await notifyDeliveryEvent(order.userId, { ...notify, linkUrl: `/account/orders/${order.id}` });
     }
   }
 
   return result;
 }
 
+// ============================================================
+// Admin map: route from the dispatch point to the order address
+// ============================================================
+
+/**
+ * Route for an order's delivery (admin map). Uses the order's immutable
+ * address snapshot, so the map matches what the customer confirmed. Also
+ * returns what the CURRENT tariff would charge for this distance, so staff
+ * can compare with the fee the customer was quoted.
+ */
+async function getOrderDeliveryRoute(orderId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, orderNumber: true, deliveryType: true, deliveryFee: true, addressSnapshot: true },
+  });
+  if (!order) throw new AppError('Order not found', 404);
+  if (order.deliveryType !== 'HOME_DELIVERY' || !order.addressSnapshot) {
+    throw new AppError('This order has no delivery address to route to', 409);
+  }
+  const config = await getActiveDeliveryConfig();
+  if (!config) throw new AppError('Delivery pricing is not configured', 400);
+
+  const to = coordsOf(order.addressSnapshot);
+  if (!to) throw new AppError('The delivery address of this order has no map location', 409);
+  const from = { lat: Number(config.warehouseLat), lng: Number(config.warehouseLng) };
+  const route = await getRoute(from, to, { geometry: true });
+
+  return {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    origin: { ...from, name: config.warehouseName || 'UgaMarket dispatch' },
+    destination: { ...to, label: order.addressSnapshot.formattedAddress || order.addressSnapshot.streetAddress },
+    distanceKm: route.distanceKm,
+    straightLineKm: route.straightLineKm,
+    etaMinutes: route.durationMinutes,
+    distanceSource: route.source,
+    geometry: route.geometry,
+    chargedFeeUgx: order.deliveryFee,
+    currentTariffFeeUgx: calculateDeliveryFee(config, route.distanceKm),
+    tariff: {
+      baseFeeUgx: config.baseFeeUgx,
+      freeRadiusKm: Number(config.freeRadiusKm),
+      perKmRateUgx: config.perKmRateUgx,
+      minimumFeeUgx: config.minimumFeeUgx,
+    },
+  };
+}
+
 module.exports = {
   // pricing
   haversineKm,
+  quoteDelivery,
+  getOrderDeliveryRoute,
+  coordsOf,
   calculateDeliveryFee,
   calculateDeliveryQuote,
   resolveDeliveryFee,

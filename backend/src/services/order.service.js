@@ -7,17 +7,20 @@ const {
 const { resolveTranslation, normalizeLanguage } = require('../utils/translation');
 const { calculateCommitment } = require('../utils/currency');
 const {
-  resolveDeliveryFee,
+  quoteDelivery,
   createDeliveryForOrder,
   cancelDeliveryForOrder,
   syncDeliveryForOrderTransition,
 } = require('./delivery.service');
 const { logAudit } = require('./audit.service');
+const { buildAddressSnapshot } = require('./address.service');
+const notifications = require('./notification.service');
+const { formatUGX } = require('../utils/currency');
 
 const MAX_QTY_PER_LINE = 1000;
 
 // ============================================================
-// Order reference: FB-YYYYMMDD-XXXXXX (timestamp + random suffix,
+// Order reference: UM-YYYYMMDD-XXXXXX (timestamp + random suffix,
 // collision-checked against the DB inside the creation transaction)
 // ============================================================
 function generateOrderNumber() {
@@ -28,7 +31,7 @@ function generateOrderNumber() {
   const rand = Math.floor(Math.random() * 1000000)
     .toString()
     .padStart(6, '0');
-  return `FB-${y}${m}${d}-${rand}`;
+  return `UM-${y}${m}${d}-${rand}`;
 }
 
 // ============================================================
@@ -63,51 +66,42 @@ function calculateOrderAmounts({ lines, deliveryFeeUgx, commitmentRule }) {
 }
 
 // ============================================================
-// Fulfillment validation + snapshots (ownership/validity enforced)
+// Fulfillment: UgaMarket is delivery-only. The quote (road distance, ETA,
+// fee) is computed BEFORE the order transaction so a slow routing provider
+// never holds row locks; inside the transaction we re-check the address is
+// still the customer's and unchanged since it was quoted.
 // ============================================================
-async function resolveFulfillment(tx, userId, { fulfillmentMethod, addressId, pickupStationId }) {
-  if (fulfillmentMethod === 'HOME_DELIVERY') {
-    const address = await tx.address.findFirst({
-      where: { id: addressId, userId }, // IDOR-safe: must belong to the customer
-    });
-    if (!address) {
-      throw new AppError('Delivery address not found or does not belong to you', 404);
-    }
-    return {
-      deliveryType: 'HOME_DELIVERY',
-      deliveryAddressId: address.id,
-      pickupStationId: null,
-      deliveryFeeUgx: await resolveDeliveryFee({ fulfillmentMethod, address }),
-      snapshot: {
-        title: address.title,
-        district: address.district,
-        division: address.division,
-        streetAddress: address.streetAddress,
-        latitude: address.latitude !== null && address.latitude !== undefined ? Number(address.latitude) : null,
-        longitude: address.longitude !== null && address.longitude !== undefined ? Number(address.longitude) : null,
-      },
-    };
+async function prepareDelivery(userId, { fulfillmentMethod = 'HOME_DELIVERY', addressId }) {
+  if (fulfillmentMethod !== 'HOME_DELIVERY') {
+    throw new AppError('Pickup is no longer available. UgaMarket delivers every order to your address.', 400);
   }
-
-  // PICKUP_STATION
-  const station = await tx.pickupStation.findFirst({
-    where: { id: pickupStationId, isActive: true },
+  const address = await prisma.address.findFirst({
+    where: { id: addressId, userId }, // IDOR-safe: must belong to the customer
   });
-  if (!station) {
-    throw new AppError('Pickup station not found or is inactive', 404);
+  if (!address) {
+    throw new AppError('Delivery address not found or does not belong to you', 404);
   }
+  const quote = await quoteDelivery(address);
+  return { address, quote };
+}
+
+async function resolveFulfillment(tx, userId, prepared) {
+  const { address, quote } = prepared;
+  const current = await tx.address.findFirst({ where: { id: address.id, userId } });
+  if (!current) {
+    throw new AppError('Delivery address not found or does not belong to you', 404);
+  }
+  if (current.updatedAt.getTime() !== address.updatedAt.getTime()) {
+    throw new AppError('Your delivery address changed while placing the order. Please review and try again.', 409);
+  }
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { fullName: true, phone: true } });
   return {
-    deliveryType: 'PICKUP_STATION',
-    deliveryAddressId: null,
-    pickupStationId: station.id,
-    deliveryFeeUgx: 0,
-    snapshot: {
-      name: station.name,
-      district: station.district,
-      addressText: station.addressText,
-      contactPhone: station.contactPhone,
-      operatingHours: station.operatingHours,
-    },
+    deliveryType: 'HOME_DELIVERY',
+    deliveryAddressId: current.id,
+    pickupStationId: null,
+    deliveryFeeUgx: quote.deliveryFeeUgx,
+    quote,
+    snapshot: buildAddressSnapshot(current, user),
   };
 }
 
@@ -176,6 +170,15 @@ function formatOrder(order, lang = 'EN', { includeHistory = true } = {}) {
       ...(order.deliveryType === 'HOME_DELIVERY'
         ? { addressId: order.deliveryAddressId, address: order.addressSnapshot || null }
         : { pickupStationId: order.pickupStationId, station: order.stationSnapshot || null }),
+      ...(order.delivery
+        ? {
+            distanceKm: order.delivery.distanceKm !== null ? Number(order.delivery.distanceKm) : null,
+            straightLineKm: order.delivery.straightLineKm !== null ? Number(order.delivery.straightLineKm) : null,
+            etaMinutes: order.delivery.etaMinutes ?? null,
+            distanceSource: order.delivery.distanceSource || null,
+            deliveryStatus: order.delivery.status,
+          }
+        : {}),
     },
     pricing: {
       currency: order.currency,
@@ -191,6 +194,7 @@ function formatOrder(order, lang = 'EN', { includeHistory = true } = {}) {
     items: (order.items || []).map((item) => ({
       id: item.id,
       productId: item.productId,
+      imageUrl: item.product ? item.product.imageUrl || null : null,
       productName: localizedItemName(item),
       snapshotName: item.productName,
       unit: item.unit,
@@ -226,8 +230,10 @@ function formatOrder(order, lang = 'EN', { includeHistory = true } = {}) {
 // ============================================================
 // CREATE ORDER (single atomic transaction)
 // ============================================================
-async function createOrderFromCart(userId, { fulfillmentMethod, addressId, pickupStationId, notes = null }) {
-  return prisma.$transaction(async (tx) => {
+async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY', addressId, notes = null }) {
+  const prepared = await prepareDelivery(userId, { fulfillmentMethod, addressId });
+
+  const order = await prisma.$transaction(async (tx) => {
     // 1. Cart must exist and belong to this customer.
     //    The cart row is locked FOR UPDATE *before* its items are read, so cart
     //    consumption is serialized: a concurrent double-click/retry blocks here,
@@ -244,11 +250,7 @@ async function createOrderFromCart(userId, { fulfillmentMethod, addressId, picku
     }
 
     // 2. Fulfillment validation + snapshots + fee (address/station locked to their tables)
-    const fulfillment = await resolveFulfillment(tx, userId, {
-      fulfillmentMethod,
-      addressId,
-      pickupStationId,
-    });
+    const fulfillment = await resolveFulfillment(tx, userId, prepared);
 
     // 3. Revalidate cart lines against authoritative product data
     const lines = await buildOrderLinesFromCart(tx, cart.id);
@@ -374,10 +376,66 @@ async function createOrderFromCart(userId, { fulfillmentMethod, addressId, picku
     // deliveries.order_id is UNIQUE at the DB level). Snapshots come from the
     // order's permanent Phase 5 snapshots. DB-level uniqueness makes retries
     // safe even across processes.
-    await createDeliveryForOrder(tx, order);
+    await createDeliveryForOrder(tx, order, fulfillment.quote);
 
     return order;
   });
+
+  await announceNewOrder(order.id);
+  return order;
+}
+
+/**
+ * Post-commit: tell staff a new order arrived with everything needed to
+ * dispatch it, and confirm receipt to the customer. Never throws.
+ */
+async function announceNewOrder(orderId) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, delivery: true, user: { select: { id: true, fullName: true, phone: true } } },
+    });
+    if (!order) return;
+    const addr = order.addressSnapshot || {};
+    const area = [addr.division, addr.district].filter(Boolean).join(', ');
+    const itemCount = order.items.reduce((n, i) => n + Math.trunc(Number(i.quantity)), 0);
+    const distance = order.delivery && order.delivery.distanceKm !== null ? Number(order.delivery.distanceKm) : null;
+
+    await notifications.notifyAdmins({
+      type: notifications.ADMIN_NOTIFICATION_TYPES.NEW_ORDER,
+      title: `New order ${order.orderNumber}`,
+      message:
+        `${order.user.fullName} (${addr.contactPhone || order.user.phone}) ordered ${itemCount} item(s) worth ${formatUGX(order.totalAmount)}` +
+        ` for delivery to ${area || 'their address'}` +
+        (distance !== null ? ` — ${distance.toFixed(1)} km away.` : '.') +
+        ' Awaiting deposit payment.',
+      linkUrl: `/orders/${order.id}`,
+      orderId: order.id,
+      metadata: {
+        orderNumber: order.orderNumber,
+        customerName: order.user.fullName,
+        customerPhone: addr.contactPhone || order.user.phone,
+        totalUgx: order.totalAmount,
+        itemCount,
+        district: addr.district || null,
+        area: addr.division || null,
+        street: addr.streetAddress || null,
+        landmark: addr.landmark || null,
+        latitude: addr.latitude ?? null,
+        longitude: addr.longitude ?? null,
+        distanceKm: distance,
+        etaMinutes: order.delivery ? order.delivery.etaMinutes : null,
+      },
+    });
+    await notifications.notifyCustomer(order.userId, {
+      type: 'ORDER_UPDATE',
+      title: 'Order received',
+      message: `We received your order ${order.orderNumber}. Pay the deposit of ${formatUGX(order.commitmentAmount)} to confirm it.`,
+      linkUrl: `/account/orders/${order.id}`,
+    });
+  } catch (error) {
+    require('../utils/logger').error('[order] new-order announcement failed:', error.message);
+  }
 }
 
 // ============================================================
@@ -429,6 +487,7 @@ async function getCustomerOrder(userId, orderId, lang = 'EN') {
       items: { include: { product: { include: { translations: true } } } },
       statusHistory: { orderBy: { createdAt: 'asc' } },
       payments: true,
+      delivery: true,
     },
   });
   if (!order) {
@@ -441,7 +500,7 @@ async function getCustomerOrder(userId, orderId, lang = 'EN') {
 // CUSTOMER: cancel own order (status-gated, restores stock once)
 // ============================================================
 async function cancelCustomerOrder(userId, orderId, reason = null) {
-  return prisma.$transaction(async (tx) => {
+  const cancelled = await prisma.$transaction(async (tx) => {
     // Lock the order row: concurrent cancel/admin-transition serializes here
     const rows = await tx.$queryRaw`
       SELECT id, status, "user_id" AS "userId"
@@ -506,12 +565,22 @@ async function cancelCustomerOrder(userId, orderId, reason = null) {
 
     return cancelled;
   });
+
+  await notifications.notifyAdmins({
+    type: notifications.ADMIN_NOTIFICATION_TYPES.ORDER_CANCELLED,
+    title: `Order ${cancelled.orderNumber} cancelled by customer`,
+    message: reason ? `Reason: ${String(reason).slice(0, 300)}` : 'The customer cancelled this order. Stock has been restored.',
+    linkUrl: `/orders/${orderId}`,
+    orderId,
+    metadata: { orderNumber: cancelled.orderNumber },
+  });
+  return cancelled;
 }
 
 // ============================================================
 // ADMIN: list orders (paginated, filtered, searchable)
 // ============================================================
-async function listAdminOrders({ page = 1, limit = 20, status = null, fulfillmentMethod = null, search = null } = {}) {
+async function listAdminOrders({ page = 1, limit = 20, status = null, fulfillmentMethod = null, search = null, district = null } = {}) {
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
   const skip = (pageNum - 1) * limitNum;
@@ -533,7 +602,11 @@ async function listAdminOrders({ page = 1, limit = 20, status = null, fulfillmen
       { orderNumber: { contains: q, mode: 'insensitive' } },
       { user: { phone: { contains: q } } },
       { user: { email: { contains: q, mode: 'insensitive' } } },
+      { user: { fullName: { contains: q, mode: 'insensitive' } } },
     ];
+  }
+  if (district && String(district).trim()) {
+    where.addressSnapshot = { path: ['district'], equals: String(district).trim() };
   }
 
   const [total, orders] = await Promise.all([
@@ -545,6 +618,7 @@ async function listAdminOrders({ page = 1, limit = 20, status = null, fulfillmen
       take: limitNum,
       include: {
         items: true,
+        delivery: true,
         user: {
           select: { id: true, fullName: true, phone: true, email: true }, // never passwordHash
         },
@@ -576,13 +650,28 @@ async function getAdminOrder(orderId) {
       items: { include: { product: { include: { translations: true } } } },
       statusHistory: { orderBy: { createdAt: 'asc' } },
       payments: true,
-      user: { select: { id: true, fullName: true, phone: true, email: true } },
+      delivery: { include: { assignedAdmin: { select: { id: true, fullName: true, role: true } } } },
+      user: { select: { id: true, fullName: true, phone: true, email: true, createdAt: true } },
     },
   });
   if (!order) {
     throw new AppError('Order not found', 404);
   }
-  return { ...formatOrder(order), customer: order.user };
+  const previousOrders = await prisma.order.count({ where: { userId: order.userId, id: { not: order.id } } });
+  return {
+    ...formatOrder(order),
+    customer: { ...order.user, previousOrders },
+    delivery: order.delivery
+      ? {
+          id: order.delivery.id,
+          status: order.delivery.status,
+          assignedAdmin: order.delivery.assignedAdmin || null,
+          scheduledAt: order.delivery.scheduledAt,
+          startedAt: order.delivery.startedAt,
+          completedAt: order.delivery.completedAt,
+        }
+      : null,
+  };
 }
 
 // ============================================================
@@ -635,7 +724,36 @@ async function applyOrderStatusTransition(tx, { orderId, toStatus, changedByType
 // ============================================================
 // ADMIN: status transition (map-validated, audited, restores stock on cancel)
 // ============================================================
-async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null, ipAddress = null }) {
+const CUSTOMER_STATUS_MESSAGES = {
+  CONFIRMED: ['Order confirmed', 'Your order {n} is confirmed and will be prepared shortly.'],
+  PREPARING: ['Preparing your order', 'We are packing your order {n}.'],
+  READY_FOR_DELIVERY: ['Ready for dispatch', 'Your order {n} is packed and waiting for a rider.'],
+  OUT_FOR_DELIVERY: ['Out for delivery', 'Your order {n} is on the way. Keep your phone nearby.'],
+  DELIVERED: ['Order delivered', 'Your order {n} has been delivered. Please pay the remaining balance.'],
+  COMPLETED: ['Order completed', 'Your order {n} is complete. Thank you for shopping with UgaMarket!'],
+  CANCELLED: ['Order cancelled', 'Your order {n} was cancelled. Contact us through Messages if you have questions.'],
+  DELIVERY_FAILED: ['Delivery attempt failed', 'We could not deliver order {n}. We will contact you to arrange another attempt.'],
+  REFUNDED: ['Order refunded', 'Your order {n} has been refunded.'],
+};
+
+async function adminUpdateOrderStatus(args) {
+  const updated = await applyAdminOrderStatus(args);
+  const template = CUSTOMER_STATUS_MESSAGES[args.toStatus];
+  if (template) {
+    const order = await prisma.order.findUnique({ where: { id: args.orderId }, select: { userId: true, orderNumber: true } });
+    if (order) {
+      await notifications.notifyCustomer(order.userId, {
+        type: 'ORDER_UPDATE',
+        title: template[0],
+        message: template[1].replace('{n}', order.orderNumber),
+        linkUrl: `/account/orders/${args.orderId}`,
+      });
+    }
+  }
+  return updated;
+}
+
+async function applyAdminOrderStatus({ orderId, toStatus, admin, reason = null, ipAddress = null }) {
   return prisma.$transaction(async (tx) => {
     const { previousStatus, orderNumber, updatedOrder } = await applyOrderStatusTransition(tx, {
       orderId,
@@ -694,6 +812,7 @@ async function adminUpdateOrderStatus({ orderId, toStatus, admin, reason = null,
 }
 
 module.exports = {
+  prepareDelivery,
   generateOrderNumber,
   calculateOrderAmounts,
   createOrderFromCart,

@@ -1,4 +1,4 @@
-// Uganda Food Marketplace - Prisma Schema
+// UgaMarket - Prisma Schema (multi-category marketplace + home services, Uganda)
 
 generator client {
   provider = "prisma-client-js"
@@ -136,12 +136,13 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  addresses     Address[]
-  cart          Cart?
-  orders        Order[]
-  notifications Notification[]
-  wishlists     Wishlist[]
-  conversation  Conversation?
+  addresses       Address[]
+  cart            Cart?
+  orders          Order[]
+  notifications   Notification[]
+  wishlists       Wishlist[]
+  conversation    Conversation?
+  serviceRequests ServiceRequest[]
 
   @@map("users")
 }
@@ -161,6 +162,7 @@ model Admin {
   assignedDeliveries    Delivery[]              @relation("DeliveryAssignee")
   notificationReads     AdminNotificationRead[]
   chatMessages          ChatMessage[]
+  serviceRequestEvents  ServiceRequestEvent[]
 
   @@map("admins")
 }
@@ -186,8 +188,9 @@ model Address {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders Order[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  serviceRequests ServiceRequest[]
 
   @@index([userId])
   @@map("addresses")
@@ -252,22 +255,29 @@ model CategoryTranslation {
 }
 
 model Product {
-  id            Int      @id @default(autoincrement())
-  categoryId    Int      @map("category_id")
-  slug          String   @unique @db.VarChar(200)
-  sku           String?  @unique @db.VarChar(50)
-  priceUgx      Int      @map("price_ugx")
-  stockQuantity Int      @default(0) @map("stock_quantity")
-  unit          String   @default("piece") @db.VarChar(50)
-  imageUrl      String?  @map("image_url") @db.Text
-  isActive      Boolean  @default(true) @map("is_active")
-  nameEn        String?  @map("name_en") @db.VarChar(200)
-  nameLg        String?  @map("name_lg") @db.VarChar(200)
-  descriptionEn String?  @map("description_en") @db.Text
-  descriptionLg String?  @map("description_lg") @db.Text
-  stock         Decimal? @default(0) @db.Decimal(10, 2)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  categoryId        Int      @map("category_id")
+  slug              String   @unique @db.VarChar(200)
+  sku               String?  @unique @db.VarChar(50)
+  priceUgx          Int      @map("price_ugx")
+  stockQuantity     Int      @default(0) @map("stock_quantity")
+  unit              String   @default("piece") @db.VarChar(50)
+  imageUrl          String?  @map("image_url") @db.Text
+  isActive          Boolean  @default(true) @map("is_active")
+  nameEn            String?  @map("name_en") @db.VarChar(200)
+  nameLg            String?  @map("name_lg") @db.VarChar(200)
+  descriptionEn     String?  @map("description_en") @db.Text
+  descriptionLg     String?  @map("description_lg") @db.Text
+  stock             Decimal? @default(0) @db.Decimal(10, 2)
+  // General-merchandise fields (electronics, fashion, household...).
+  brand             String?  @db.VarChar(100)
+  // Ordered key/value specs, e.g. [{"label":"Storage","value":"128 GB"}].
+  specifications    Json?
+  // Optional "was" price shown struck-through when greater than priceUgx.
+  compareAtPriceUgx Int?     @map("compare_at_price_ugx")
+  isFeatured        Boolean  @default(false) @map("is_featured")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   category              Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   cartItems             CartItem[]
@@ -281,6 +291,7 @@ model Product {
   @@index([isActive])
   @@index([stockQuantity])
   @@index([priceUgx])
+  @@index([brand])
   @@map("products")
 }
 
@@ -510,6 +521,10 @@ model DeliveryPricingConfig {
   freeRadiusKm  Decimal  @default(3.0) @map("free_radius_km") @db.Decimal(6, 2)
   perKmRateUgx  Int      @default(1200) @map("per_km_rate_ugx")
   minimumFeeUgx Int      @default(3000) @map("minimum_fee_ugx")
+  // Human-readable dispatch point shown to staff (e.g. "Nakasero, Kampala").
+  warehouseName String?  @map("warehouse_name") @db.VarChar(200)
+  // Orders farther than this road distance are refused (null = no limit).
+  maxDeliveryKm Decimal? @map("max_delivery_km") @db.Decimal(7, 2)
   isActive      Boolean  @default(true) @map("is_active")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -648,18 +663,160 @@ model Conversation {
 }
 
 model ChatMessage {
-  id             String     @id @default(uuid()) @db.Uuid
-  conversationId String     @map("conversation_id") @db.Uuid
-  senderType     ChatSender @map("sender_type")
-  senderAdminId  String?    @map("sender_admin_id") @db.Uuid
-  body           String     @db.Text
-  orderId        String?    @map("order_id") @db.Uuid
-  createdAt      DateTime   @default(now()) @map("created_at")
+  id               String     @id @default(uuid()) @db.Uuid
+  conversationId   String     @map("conversation_id") @db.Uuid
+  senderType       ChatSender @map("sender_type")
+  senderAdminId    String?    @map("sender_admin_id") @db.Uuid
+  body             String     @db.Text
+  orderId          String?    @map("order_id") @db.Uuid
+  serviceRequestId String?    @map("service_request_id") @db.Uuid
+  createdAt        DateTime   @default(now()) @map("created_at")
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderAdmin  Admin?       @relation(fields: [senderAdminId], references: [id], onDelete: SetNull)
-  order        Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderAdmin    Admin?          @relation(fields: [senderAdminId], references: [id], onDelete: SetNull)
+  order          Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@map("chat_messages")
+}
+
+// ============================================================
+// Home services (plumbing, electrical, cleaning, repairs...).
+// Admin curates the service catalogue and the technicians; customers book a
+// visit to a verified address; staff confirm, quote, assign and complete.
+// ============================================================
+enum ServicePriceType {
+  FIXED // priceFromUgx is the full price of the job
+  HOURLY // priceFromUgx per hour on site
+  INSPECTION // priceFromUgx is the call-out fee; the job is quoted on site
+}
+
+enum ServiceRequestStatus {
+  PENDING
+  CONFIRMED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ServicePaymentStatus {
+  UNPAID
+  PAID
+}
+
+model Service {
+  id            Int              @id @default(autoincrement())
+  slug          String           @unique @db.VarChar(120)
+  // English is the source of truth; other languages are machine-translated
+  // into `translations` ({ "LG": { "name": "...", "description": "..." } }).
+  nameEn        String           @map("name_en") @db.VarChar(150)
+  descriptionEn String?          @map("description_en") @db.Text
+  translations  Json?
+  icon          String?          @db.VarChar(50)
+  imageUrl      String?          @map("image_url") @db.Text
+  priceType     ServicePriceType @default(INSPECTION) @map("price_type")
+  priceFromUgx  Int              @default(0) @map("price_from_ugx")
+  // Typical job duration shown to customers, e.g. "1-2 hours".
+  durationText  String?          @map("duration_text") @db.VarChar(60)
+  displayOrder  Int              @default(0) @map("display_order")
+  isActive      Boolean          @default(true) @map("is_active")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  requests  ServiceRequest[]
+  providers ServiceProviderSkill[]
+
+  @@index([isActive])
+  @@map("services")
+}
+
+model ServiceProvider {
+  id        String   @id @default(uuid()) @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(150)
+  phone     String   @db.VarChar(30)
+  // Areas the technician covers, free text (e.g. "Kampala, Wakiso").
+  coverage  String?  @db.VarChar(300)
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  skills   ServiceProviderSkill[]
+  requests ServiceRequest[]
+
+  @@map("service_providers")
+}
+
+model ServiceProviderSkill {
+  providerId String @map("provider_id") @db.Uuid
+  serviceId  Int    @map("service_id")
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service  Service         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([providerId, serviceId])
+  @@map("service_provider_skills")
+}
+
+model ServiceRequest {
+  id              String               @id @default(uuid()) @db.Uuid
+  requestNumber   String               @unique @map("request_number") @db.VarChar(30)
+  userId          String               @map("user_id") @db.Uuid
+  serviceId       Int                  @map("service_id")
+  addressId       String?              @map("address_id") @db.Uuid
+  // Immutable copy of the verified address at booking time.
+  addressSnapshot Json                 @map("address_snapshot")
+  description     String               @db.Text
+  preferredDate   DateTime             @map("preferred_date") @db.Date
+  preferredSlot   String               @map("preferred_slot") @db.VarChar(20)
+  contactPhone    String               @map("contact_phone") @db.VarChar(30)
+  status          ServiceRequestStatus @default(PENDING)
+  // Snapshot of the advertised price at booking time.
+  priceType       ServicePriceType     @map("price_type")
+  priceFromUgx    Int                  @map("price_from_ugx")
+  // Final price agreed by staff (set when confirming or after inspection).
+  quotedPriceUgx  Int?                 @map("quoted_price_ugx")
+  distanceKm      Decimal?             @map("distance_km") @db.Decimal(8, 3)
+  etaMinutes      Int?                 @map("eta_minutes")
+  distanceSource  String?              @map("distance_source") @db.VarChar(20)
+  providerId      String?              @map("provider_id") @db.Uuid
+  scheduledAt     DateTime?            @map("scheduled_at")
+  completedAt     DateTime?            @map("completed_at")
+  paymentStatus   ServicePaymentStatus @default(UNPAID) @map("payment_status")
+  paymentMethod   PaymentProvider?     @map("payment_method")
+  paymentRef      String?              @map("payment_ref") @db.VarChar(100)
+  cancelReason    String?              @map("cancel_reason") @db.VarChar(500)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  service      Service               @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  address      Address?              @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  provider     ServiceProvider?      @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  events       ServiceRequestEvent[]
+  chatMessages ChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("service_requests")
+}
+
+model ServiceRequestEvent {
+  id         Int                   @id @default(autoincrement())
+  requestId  String                @map("request_id") @db.Uuid
+  statusFrom ServiceRequestStatus? @map("status_from")
+  statusTo   ServiceRequestStatus  @map("status_to")
+  actorType  ActorType             @map("actor_type")
+  adminId    String?               @map("admin_id") @db.Uuid
+  note       String?               @db.VarChar(500)
+  createdAt  DateTime              @default(now()) @map("created_at")
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  admin   Admin?         @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@map("service_request_events")
 }

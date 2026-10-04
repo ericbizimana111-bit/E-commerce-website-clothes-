@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const { createTestAddress } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
@@ -19,12 +20,12 @@ describe('Phase 6 Payment API', () => {
   let customerId = null;
   let otherToken = null;
   let otherUserId = null;
-  let station = null;
   let category = null;
   let product = null;
   let adminToken = null;
 
   const createdUserIds = [];
+  const addressByToken = {};
   const createdProductIds = [];
   const createdOrderIds = [];
 
@@ -37,6 +38,8 @@ describe('Phase 6 Payment API', () => {
       const id = reg.body.data.user.id;
       createdUserIds.push(id);
       const login = await request(app).post('/api/auth/login').send({ phone, password: 'PayPass123!' });
+      const address = await createTestAddress(id);
+      addressByToken[login.body.data.token] = address.id;
       return { token: login.body.data.token, id };
     }
     throw new Error('could not create payment test customer');
@@ -47,9 +50,9 @@ describe('Phase 6 Payment API', () => {
     expect(res.statusCode).toBe(201);
   }
 
-  async function createPickupOrder() {
+  async function createDeliveryOrder() {
     await addToCart(product.id, 1);
-    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[customerToken] });
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;
     createdOrderIds.push(order.id);
@@ -95,8 +98,6 @@ describe('Phase 6 Payment API', () => {
     const b = await makeCustomer('Pay Customer B');
     otherToken = b.token;
     otherUserId = b.id;
-
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
     category = await prisma.category.findFirst();
     product = await prisma.product.create({
       data: {
@@ -145,7 +146,7 @@ describe('Phase 6 Payment API', () => {
   // ============================================================
   describe('Payment initiation', () => {
     test('new order is PENDING_PAYMENT with no payment rows; initiation creates PENDING attempt at the authoritative amount', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       expect(order.status).toBe('PENDING_PAYMENT');
       expect(await prisma.payment.count({ where: { orderId: order.id } })).toBe(0);
 
@@ -164,7 +165,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('initiation retry reuses the same active attempt (no duplicate)', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const r1 = await initiate(order.id);
       expect(r1.statusCode).toBe(200);
       const r2 = await initiate(order.id);
@@ -179,7 +180,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('IDOR: customer B cannot initiate or view customer A payment', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const steal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${otherToken}`).send({});
       expect(steal.statusCode).toBe(404);
       const peek = await request(app).get(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${otherToken}`);
@@ -190,7 +191,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('client cannot tamper with amount, currency, or status via the initiation body', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id, {
         amount: 1,
         amountUgx: 1,
@@ -215,7 +216,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('wrong order state: paying a cancelled order is rejected', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const cancel = await request(app).post(`/api/orders/${order.id}/cancel`).set('Authorization', `Bearer ${customerToken}`).send({});
       expect(cancel.statusCode).toBe(200);
       const res = await initiate(order.id);
@@ -223,7 +224,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('admin can view payments read-only; customer token cannot reach admin endpoint', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       await initiate(order.id);
       const adminView = await request(app).get(`/api/admin/orders/${order.id}/payment`).set('Authorization', `Bearer ${adminToken}`);
       expect(adminView.statusCode).toBe(200);
@@ -238,7 +239,7 @@ describe('Phase 6 Payment API', () => {
   // ============================================================
   describe('Verification & order transition', () => {
     test('signed SUCCESS webhook: payment SUCCESS + order COMMITMENT_PAID + exactly one history entry', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id);
       const payment = res.body.data.payment;
       const post = webhookPoster(payment, order);
@@ -262,7 +263,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('payment FAILED webhook does not mark the order paid; successful retry works', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id);
       const payment = res.body.data.payment;
       const post = webhookPoster(payment, order);
@@ -293,7 +294,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('mismatched amount / currency / order reference / unknown payment are rejected', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id);
       const payment = res.body.data.payment;
       const post = webhookPoster(payment, order);
@@ -313,7 +314,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('cancelled order: late webhook must NOT transition CANCELLED → COMMITMENT_PAID', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id);
       const payment = res.body.data.payment;
 
@@ -330,7 +331,7 @@ describe('Phase 6 Payment API', () => {
     });
 
     test('client cannot force status via customer endpoints; Phase 5 map stays authoritative after payment', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const res = await initiate(order.id);
       const payment = res.body.data.payment;
       await webhookPoster(payment, order)('SUCCESS');
@@ -353,7 +354,7 @@ describe('Phase 6 Payment API', () => {
     }, 20000);
 
     test('payment amount snapshot: changing product price afterwards does not alter payment amount', async () => {
-      const order = await createPickupOrder();
+      const order = await createDeliveryOrder();
       const commitment = order.pricing.commitmentUgx;
       const res = await initiate(order.id);
       const payment = res.body.data.payment;

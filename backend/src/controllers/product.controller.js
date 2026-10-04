@@ -38,6 +38,25 @@ async function getPublicProductById(req, res, next) {
   }
 }
 
+async function getPublicFacets(req, res, next) {
+  try {
+    const categorySlug = typeof req.query.categorySlug === 'string' ? req.query.categorySlug.slice(0, 100) : null;
+    const facets = await productService.getPublicFacets({ categorySlug });
+    res.json({ success: true, data: facets });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function retranslateProduct(req, res, next) {
+  try {
+    const product = await productService.retranslateProduct(req.params.id);
+    res.json({ success: true, message: 'Translations regenerated', data: product });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Admin endpoints
 async function listAdminProducts(req, res, next) {
   try {
@@ -126,6 +145,8 @@ async function setProductImages(req, res, next) {
 }
 
 module.exports = {
+  getPublicFacets,
+  retranslateProduct,
   listPublicProducts,
   getPublicProductBySlug,
   getPublicProductById,

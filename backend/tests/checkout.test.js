@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/config/db');
 const { signCustomerToken } = require('../src/services/token.service');
+const { createTestAddress } = require('./helpers/fixtures');
 
 // Under full parallel suite load, setup (registrations + bcrypt) exceeds Jest's 5s default
 jest.setTimeout(30000);
@@ -12,7 +13,6 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
   let otherToken = null;
   let otherUserId = null;
   let address = null;
-  let station = null;
   let product = null;
   let cartItemId = null;
 
@@ -60,27 +60,10 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
     });
     createdProductIds.push(product.id);
 
-    address = await prisma.address.create({
-      data: {
-        userId,
-        title: 'Home',
-        district: 'Kampala',
-        streetAddress: '12 Test Lane, Nakawa',
-        isDefault: true,
-      },
-    });
-
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
+    address = await createTestAddress(userId);
 
     // Address for the OTHER customer (IDOR target)
-    await prisma.address.create({
-      data: {
-        userId: otherUserId,
-        title: 'Home',
-        district: 'Entebbe',
-        streetAddress: '99 Other Road',
-      },
-    });
+    await createTestAddress(otherUserId, { district: 'Wakiso', division: 'Entebbe', latitude: 0.0512, longitude: 32.4637 });
   });
 
   afterAll(async () => {
@@ -123,12 +106,13 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       expect(res.statusCode).toBe(400);
     });
 
-    test('PICKUP_STATION without pickupStationId returns 400', async () => {
+    test('PICKUP_STATION is refused: UgaMarket is delivery-only (400)', async () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: null });
+        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 });
       expect(res.statusCode).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/Pickup is no longer available/);
     });
 
     test('nonexistent address returns 404', async () => {
@@ -149,13 +133,18 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       expect(res.statusCode).toBe(404);
     });
 
-    test('nonexistent pickup station returns 404', async () => {
+    test('legacy address without a map pin is refused with a clear message (422)', async () => {
       await addToCart(product.id, 1);
+      const legacy = await prisma.address.create({
+        data: { userId, title: 'Old', district: 'Kampala', streetAddress: 'No pin road' },
+      });
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 999999 });
-      expect(res.statusCode).toBe(404);
+        .send({ addressId: legacy.id });
+      expect(res.statusCode).toBe(422);
+      expect(res.body.message).toMatch(/pin your exact location/i);
+      await prisma.address.delete({ where: { id: legacy.id } });
     });
   });
 
@@ -166,7 +155,7 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(res.statusCode).toBe(400);
       expect(res.body.message).toMatch(/empty/i);
     });
@@ -178,7 +167,7 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
 
       expect(res.statusCode).toBe(200);
       expect(res.body.data.checkout.ready).toBe(false);
@@ -194,7 +183,7 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
 
       expect(res.statusCode).toBe(200);
       const issue = res.body.data.checkout.issues.find((i) => i.issue === 'INSUFFICIENT_STOCK');
@@ -211,7 +200,7 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
 
       const item = res.body.data.checkout.items[0];
       expect(item.priceIsStale).toBe(true);
@@ -228,11 +217,11 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       await addToCart(product.id, 2); // 17000 x 2 = 34000
     });
 
-    test('valid pickup preview returns server-calculated pricing', async () => {
+    test('valid delivery preview returns server-calculated pricing incl. distance-based fee', async () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ addressId: address.id });
 
       expect(res.statusCode).toBe(200);
       const checkout = res.body.data.checkout;
@@ -245,11 +234,19 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const expectedSubtotal = checkout.items.reduce((s, i) => s + i.lineSubtotalUgx, 0);
       expect(expectedSubtotal).toBeGreaterThan(0);
       expect(checkout.pricing.subtotalUgx).toBe(expectedSubtotal);
-      expect(checkout.pricing.totalUgx).toBe(expectedSubtotal);
+
+      const fee = checkout.fulfillment.deliveryFeeUgx;
+      expect(Number.isInteger(fee)).toBe(true);
+      expect(fee).toBeGreaterThan(0);
+      expect(checkout.fulfillment.distanceKm).toBeGreaterThan(0);
+      expect(checkout.fulfillment.etaMinutes).toBeGreaterThan(0);
+      expect(['ROUTED', 'ESTIMATED']).toContain(checkout.fulfillment.distanceSource);
+      const expectedTotal = expectedSubtotal + fee;
+      expect(checkout.pricing.totalUgx).toBe(expectedTotal);
 
       // commitment from server config: PERCENTAGE 30%, min 5000 — total > min here
-      expect(checkout.pricing.commitmentUgx).toBe(Math.round((expectedSubtotal * 30) / 100));
-      expect(checkout.pricing.remainingBalanceUgx).toBe(expectedSubtotal - checkout.pricing.commitmentUgx);
+      expect(checkout.pricing.commitmentUgx).toBe(Math.round((expectedTotal * 30) / 100));
+      expect(checkout.pricing.remainingBalanceUgx).toBe(expectedTotal - checkout.pricing.commitmentUgx);
     });
 
     test('valid home delivery preview with owned address succeeds', async () => {
@@ -274,7 +271,7 @@ describe('Checkout Preparation Preview (Phase 4, read-only)', () => {
       const res = await request(app)
         .post('/api/checkout/preview')
         .set('Authorization', `Bearer ${token}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(res.statusCode).toBe(200);
 
       const productsAfter = await prisma.product.findUnique({ where: { id: product.id }, select: { stockQuantity: true } });

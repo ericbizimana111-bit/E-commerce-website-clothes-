@@ -12,8 +12,8 @@
  *   - AIRTEL_MONEY      → network "AIRTEL"
  *   Networks are taken EXPLICITLY from the caller; phone-prefix inference is
  *   deliberately NOT used (number portability makes prefixes unreliable).
- *   CARD → hosted-checkout via POST /v3/payments; customer redirected to
- *   FLW_RETURN_URL; webhook is the canonical result channel (Phase 14).
+ *   Card payments are intentionally NOT supported: UgaMarket accepts only
+ *   MTN Mobile Money and Airtel Money.
  *
  * API (v3, verified against developer.flutterwave.com and the official
  * flutterwave-node-v3 SDK sources):
@@ -245,77 +245,16 @@ module.exports = {
    *
    * payment: {
    *   transactionRef, providerRef?, amountUgx, currency, purpose,
-   *   method,        ← MTN_MOBILE_MONEY | AIRTEL_MONEY | CARD (from request)
+   *   method,        ← MTN_MOBILE_MONEY | AIRTEL_MONEY (from request)
    *   customer: { fullName?, email, phoneE164 }
    * }
    *
    * Returns one of:
    *   { ok:true, providerRef, checkoutUrl?, outcome, resultCode, raw }   (initiated)
    *   { ok:false, outcome:'FAILED', resultCode, failureMessage, httpStatus? } (provider refused/unreachable)
-   *
-   * CARD: uses the standard payment-link endpoint (POST /v3/payments) which
-   * returns a hosted-checkout URL. The customer is redirected there; on
-   * completion Flutterwave redirects to FLW_RETURN_URL and sends a webhook.
    */
   async initiatePayment({ payment } = {}) {
     assertConfigured();
-
-    // CARD: hosted checkout via POST /v3/payments (payment link)
-    if (payment.method === 'CARD') {
-      if (!payment.customer || !payment.customer.email) {
-        return {
-          ok: false,
-          outcome: 'FAILED',
-          resultCode: 'INVALID_REFERENCE',
-          failureMessage: 'Customer email is required for card payments',
-        };
-      }
-      if (!env.FLW_RETURN_URL) {
-        return {
-          ok: false,
-          outcome: 'FAILED',
-          resultCode: 'CONFIGURATION_ERROR',
-          failureMessage: 'Card payment return URL is not configured (FLW_RETURN_URL)',
-        };
-      }
-      const paymentLinkBody = {
-        tx_ref: payment.transactionRef,
-        amount: payment.amountUgx,
-        currency: payment.currency || 'UGX',
-        redirect_url: env.FLW_RETURN_URL,
-        customer: {
-          email: payment.customer.email,
-          phonenumber: payment.customer.phoneE164 || undefined,
-          name: payment.customer.fullName || undefined,
-        },
-        customizations: {
-          title: 'UgaMarket',
-          description: `Order payment – ${payment.purpose || 'COMMITMENT'}`,
-          logo: '',
-        },
-      };
-      try {
-        const response = await flwRequest('POST', '/v3/payments', { body: paymentLinkBody });
-        if (!response || response.status !== 'success' || !response.data?.link) {
-          return {
-            ok: false,
-            outcome: 'FAILED',
-            resultCode: 'PROVIDER_ERROR',
-            failureMessage: 'Card payment provider did not return a checkout link',
-          };
-        }
-        return {
-          ok: true,
-          providerRef: null, // established later via webhook/verification
-          checkoutUrl: response.data.link,
-          outcome: 'PENDING',
-          resultCode: 'NONE',
-          raw: { status: response.status, message: response.message },
-        };
-      } catch (error) {
-        return toFailureResult(error);
-      }
-    }
 
     const network = NETWORK_BY_METHOD[payment.method];
     if (!network) {

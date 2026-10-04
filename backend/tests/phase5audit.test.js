@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const { createTestAddress } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 
@@ -17,14 +18,12 @@ describe('Phase 5 Final Audit (five areas)', () => {
   let customerBToken = null;
   let customerBId = null;
   let address = null;
-  let station = null;
   let category = null;
   let product = null;
 
   const createdUserIds = [];
   const createdProductIds = [];
   const createdOrderIds = [];
-  const createdStationIds = [];
   const createdCategoryIds = [];
 
   async function makeCustomer(prefix) {
@@ -43,22 +42,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
     throw new Error('could not create audit customer');
   }
 
-  async function makeStation(name) {
-    const s = await prisma.pickupStation.create({
-      data: {
-        name,
-        district: 'Audit District',
-        addressText: '1 Audit Lane',
-        contactPhone: '+256701234567',
-        operatingHours: '08:00-20:00',
-        pickupFeeUgx: 0,
-        isActive: true,
-      },
-    });
-    createdStationIds.push(s.id);
-    return s;
-  }
-
   async function addToCart(token, productId, quantity) {
     const res = await request(app)
       .post('/api/cart/items')
@@ -67,11 +50,11 @@ describe('Phase 5 Final Audit (five areas)', () => {
     expect(res.statusCode).toBe(201);
   }
 
-  async function createPickupOrder(token, stationId) {
+  async function createDeliveryOrder(token) {
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: stationId });
+      .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;
     createdOrderIds.push(order.id);
@@ -97,18 +80,8 @@ describe('Phase 5 Final Audit (five areas)', () => {
     customerBToken = b.token;
     customerBId = b.id;
 
-    address = await prisma.address.create({
-      data: {
-        userId: customerId,
-        title: 'Audit Home',
-        district: 'Kampala',
-        streetAddress: '9 Audit Road',
-        latitude: 0.35,
-        longitude: 32.62,
-      },
-    });
+    address = await createTestAddress(customerId, { title: 'Audit Home', streetAddress: '9 Audit Road' });
 
-    station = await makeStation('Audit Station Original');
     category = await prisma.category.findFirst();
     product = await prisma.product.create({
       data: {
@@ -143,9 +116,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
       await prisma.productImage.deleteMany({ where: { productId: pid } });
       await prisma.inventoryTransaction.deleteMany({ where: { productId: pid } });
       await prisma.product.deleteMany({ where: { id: pid } });
-    }
-    for (const sid of createdStationIds) {
-      await prisma.pickupStation.deleteMany({ where: { id: sid } });
     }
     // Orders owned by audit customers (safety net: catches any order whose id
     // was not pushed to createdOrderIds, so user deletion never FK-fails)
@@ -183,8 +153,8 @@ describe('Phase 5 Final Audit (five areas)', () => {
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
-          fulfillmentMethod: 'PICKUP_STATION',
-          pickupStationId: station.id,
+          fulfillmentMethod: 'HOME_DELIVERY',
+          addressId: address.id,
           // payment-tampering attempts (must all be ignored/stripped)
           status: 'COMMITMENT_PAID',
           paymentStatus: 'SUCCESS',
@@ -242,16 +212,16 @@ describe('Phase 5 Final Audit (five areas)', () => {
     test('sequential retry after successful order is rejected (empty cart), no duplicate', async () => {
       await addToCart(customerToken, product.id, 1);
       const before = await countOrders();
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       // immediate retry: cart already cleared -> must NOT create a second order
       const retry = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(retry.statusCode).toBe(400);
       expect(await countOrders()).toBe(before + 1);
-      expect(order.orderNumber).toMatch(/^FB-\d{8}-\d{6}$/);
+      expect(order.orderNumber).toMatch(/^UM-\d{8}-\d{6}$/);
     });
 
     test('CONCURRENT double-click produces exactly ONE order (no duplicate, no oversell)', async () => {
@@ -264,11 +234,11 @@ describe('Phase 5 Final Audit (five areas)', () => {
         request(app)
           .post('/api/orders')
           .set('Authorization', `Bearer ${customerToken}`)
-          .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id }),
+          .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
         request(app)
           .post('/api/orders')
           .set('Authorization', `Bearer ${customerToken}`)
-          .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id }),
+          .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
       ]);
 
       const statuses = [r1.status, r2.status];
@@ -310,7 +280,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
         // fix it would read the still-present cart items and race ahead to a
         // duplicate order.
         bPromise = orderService
-          .createOrderFromCart(customerId, { fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id })
+          .createOrderFromCart(customerId, { fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id })
           .then((o) => ({ ok: true, order: o }))
           .catch((e) => ({ ok: false, message: e.message }));
 
@@ -320,10 +290,10 @@ describe('Phase 5 Final Audit (five areas)', () => {
         // A completes its checkout and commits: one order + cart cleared.
         const aOrder = await txA.order.create({
           data: {
-            orderNumber: `FB-TEST-${Date.now()}`,
+            orderNumber: `UM-TEST-${Date.now()}`,
             userId: customerId,
-            deliveryType: 'PICKUP_STATION',
-            pickupStationId: station.id,
+            deliveryType: 'HOME_DELIVERY',
+            deliveryAddressId: address.id,
             itemsSubtotal: 5000,
             deliveryFee: 0,
             totalAmount: 5000,
@@ -356,30 +326,30 @@ describe('Phase 5 Final Audit (five areas)', () => {
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
-          fulfillmentMethod: 'PICKUP_STATION',
-          pickupStationId: station.id,
+          fulfillmentMethod: 'HOME_DELIVERY',
+          addressId: address.id,
           orderNumber: 'FB-DUPLICATE-000001',
           id: '11111111-1111-1111-1111-111111111111',
         });
       expect(res.statusCode).toBe(201);
       createdOrderIds.push(res.body.data.order.id);
       expect(res.body.data.order.orderNumber).not.toBe('FB-DUPLICATE-000001');
-      expect(res.body.data.order.orderNumber).toMatch(/^FB-\d{8}-\d{6}$/);
+      expect(res.body.data.order.orderNumber).toMatch(/^UM-\d{8}-\d{6}$/);
 
       // retry with same client orderNumber must not resurrect/attach to it
       const retry = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(retry.statusCode).toBe(400);
     });
 
     test('legitimate second order after completing the first is still possible', async () => {
       await addToCart(customerToken, product.id, 1);
-      const first = await createPickupOrder(customerToken, station.id);
+      const first = await createDeliveryOrder(customerToken);
 
       // advance to a terminal state via valid transitions
-      for (const status of ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'BALANCE_PAID', 'COMPLETED']) {
+      for (const status of ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'BALANCE_PAID', 'COMPLETED']) {
         const r = await request(app)
           .patch(`/api/admin/orders/${first.id}/status`)
           .set('Authorization', `Bearer ${superAdminToken}`)
@@ -389,7 +359,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
 
       // customer can place a brand-new order afterwards
       await addToCart(customerToken, product.id, 1);
-      const second = await createPickupOrder(customerToken, station.id);
+      const second = await createDeliveryOrder(customerToken);
       expect(second.id).not.toBe(first.id);
       expect(second.status).toBe('PENDING_PAYMENT');
     });
@@ -415,7 +385,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       createdProductIds.push(stockProduct.id);
 
       await addToCart(customerToken, stockProduct.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       // stock 2 -> 1
       let stock = (await prisma.product.findUnique({ where: { id: stockProduct.id } })).stockQuantity;
@@ -475,7 +445,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
 
     test('ownership: customer B cannot cancel customer A order', async () => {
       await addToCart(customerToken, product.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       const steal = await request(app)
         .post(`/api/orders/${order.id}/cancel`)
@@ -496,7 +466,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
 
     test('cancellation not allowed from non-cancellable status', async () => {
       await addToCart(customerToken, product.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       // advance beyond customer-cancellable window (PREPARING)
       for (const status of ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING']) {
@@ -519,7 +489,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
   // AREA 4 — ORDER SNAPSHOT IMMUTABILITY
   // ==========================================================
   describe('Area 4: Snapshot immutability', () => {
-    test('product name/price/category/active changes and station edits never alter historical orders', async () => {
+    test('product name/price/category/active changes and address edits never alter historical orders', async () => {
       const snapProduct = await prisma.product.create({
         data: {
           categoryId: category.id,
@@ -533,7 +503,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
         },
       });
       createdProductIds.push(snapProduct.id);
-      const snapStation = await makeStation('Audit Snap Station');
       const otherCategory = await prisma.category.create({
         data: { slug: 'audit-snap-category-' + Date.now(), nameEn: 'Audit Snap Category', isActive: true },
       });
@@ -549,10 +518,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const hd = hdOrder.body.data.order;
       createdOrderIds.push(hd.id);
 
-      // 2. PICKUP order (station snapshot)
-      await addToCart(customerToken, snapProduct.id, 1);
-      const pkOrder = await createPickupOrder(customerToken, snapStation.id);
-
       // recorded order-time values
       expect(hd.items[0].unitPriceUgx).toBe(5000);
       expect(hd.items[0].quantity).toBe(2);
@@ -560,9 +525,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       expect(hd.items[0].snapshotName).toBe('Audit Snapshot Product');
       expect(hd.fulfillment.address.streetAddress).toBe('9 Audit Road');
 
-      expect(pkOrder.items[0].unitPriceUgx).toBe(5000);
-      expect(pkOrder.fulfillment.station.name).toBe('Audit Snap Station');
-      expect(pkOrder.fulfillment.station.addressText).toBe('1 Audit Lane');
+      expect(hd.fulfillment.address.contactPhone).toBe('+256772000111');
 
       // 3. MUTATE all underlying sources
       await prisma.product.update({
@@ -572,10 +535,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
       await prisma.address.update({
         where: { id: address.id },
         data: { streetAddress: 'MOVED AFTER ORDER', district: 'Changed District' },
-      });
-      await prisma.pickupStation.update({
-        where: { id: snapStation.id },
-        data: { name: 'STATION RENAMED AFTER ORDER', addressText: 'Relocated' },
       });
 
       // 4. historical orders unchanged
@@ -590,14 +549,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
       expect(hdFetched.fulfillment.address.streetAddress).toBe('9 Audit Road'); // original snapshot
       expect(hdFetched.fulfillment.address.district).toBe('Kampala');
 
-      const pkAfter = await request(app)
-        .get(`/api/orders/${pkOrder.id}`)
-        .set('Authorization', `Bearer ${customerToken}`);
-      const pkFetched = pkAfter.body.data.order;
-      expect(pkFetched.items[0].unitPriceUgx).toBe(5000);
-      expect(pkFetched.fulfillment.station.name).toBe('Audit Snap Station'); // original snapshot
-      expect(pkFetched.fulfillment.station.addressText).toBe('1 Audit Lane');
-
       // restore product for other tests (category move would break shared reuse)
       await prisma.product.update({
         where: { id: snapProduct.id },
@@ -606,10 +557,6 @@ describe('Phase 5 Final Audit (five areas)', () => {
       await prisma.address.update({
         where: { id: address.id },
         data: { streetAddress: '9 Audit Road', district: 'Kampala' },
-      });
-      await prisma.pickupStation.update({
-        where: { id: snapStation.id },
-        data: { name: 'Audit Snap Station', addressText: '1 Audit Lane' },
       });
     });
   });
@@ -620,7 +567,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
   describe('Area 5: Status transition enforcement', () => {
     test('illegal transitions are rejected at every probed edge and never write history', async () => {
       await addToCart(customerToken, product.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       const illegalAttempts = async (orderId, fromLabel) => {
         const attempts = [
@@ -685,8 +632,8 @@ describe('Phase 5 Final Audit (five areas)', () => {
       expect(history[1].statusFrom).toBe('PENDING_PAYMENT');
       expect(history[1].changedByType).toBe('ADMIN');
 
-      // finish pickup branch to COMPLETED
-      for (const status of ['READY_FOR_PICKUP', 'PICKED_UP', 'BALANCE_PAID', 'COMPLETED']) {
+      // finish delivery branch to COMPLETED
+      for (const status of ['READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'BALANCE_PAID', 'COMPLETED']) {
         r = await request(app)
           .patch(`/api/admin/orders/${order.id}/status`)
           .set('Authorization', `Bearer ${superAdminToken}`)
@@ -701,7 +648,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
         .send({ status: 'PREPARING' });
       expect(r.statusCode).toBe(409);
 
-      // total history = 1 creation + 7 transitions, nothing else
+      // total history = 1 creation + 8 transitions, nothing else
       const finalHistory = await prisma.orderStatusHistory.findMany({
         where: { orderId: order.id },
         orderBy: { createdAt: 'asc' },
@@ -711,8 +658,9 @@ describe('Phase 5 Final Audit (five areas)', () => {
         'COMMITMENT_PAID',
         'CONFIRMED',
         'PREPARING',
-        'READY_FOR_PICKUP',
-        'PICKED_UP',
+        'READY_FOR_DELIVERY',
+        'OUT_FOR_DELIVERY',
+        'DELIVERED',
         'BALANCE_PAID',
         'COMPLETED',
       ]);
@@ -720,7 +668,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
 
     test('CANCELLED -> PREPARING rejected (cancelled is terminal)', async () => {
       await addToCart(customerToken, product.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
       const cancel = await request(app)
         .post(`/api/orders/${order.id}/cancel`)
         .set('Authorization', `Bearer ${customerToken}`)
@@ -736,7 +684,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
 
     test('customer cannot set status on customer endpoints; customer token rejected on admin endpoint', async () => {
       await addToCart(customerToken, product.id, 1);
-      const order = await createPickupOrder(customerToken, station.id);
+      const order = await createDeliveryOrder(customerToken);
 
       // customer cancel endpoint ignores arbitrary status field entirely
       const viaCancel = await request(app)

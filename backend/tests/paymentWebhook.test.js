@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const { createTestAddress } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
 
@@ -12,11 +13,11 @@ jest.setTimeout(60000);
  */
 describe('Phase 6 Webhook Security & Idempotency', () => {
   let customerToken = null;
-  let station = null;
   let category = null;
   let product = null;
 
   const createdUserIds = [];
+  const addressByToken = {};
   const createdProductIds = [];
   const createdOrderIds = [];
 
@@ -29,6 +30,8 @@ describe('Phase 6 Webhook Security & Idempotency', () => {
       const id = reg.body.data.user.id;
       createdUserIds.push(id);
       const login = await request(app).post('/api/auth/login').send({ phone, password: 'HookPass123!' });
+      const address = await createTestAddress(id);
+      addressByToken[login.body.data.token] = address.id;
       return { token: login.body.data.token, id };
     }
     throw new Error('could not create webhook test customer');
@@ -39,7 +42,7 @@ describe('Phase 6 Webhook Security & Idempotency', () => {
     await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerToken}`);
     const add = await request(app).post('/api/cart/items').set('Authorization', `Bearer ${customerToken}`).send({ productId: product.id, quantity: 1 });
     expect(add.statusCode).toBe(201);
-    const o = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+    const o = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[customerToken] });
     expect(o.statusCode).toBe(201);
     const order = o.body.data.order;
     createdOrderIds.push(order.id);
@@ -65,7 +68,6 @@ describe('Phase 6 Webhook Security & Idempotency', () => {
   beforeAll(async () => {
     const a = await makeCustomer('Hook Customer');
     customerToken = a.token;
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
     category = await prisma.category.findFirst();
     product = await prisma.product.create({
       data: {

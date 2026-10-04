@@ -2,7 +2,7 @@
  * Phase 12 Step 2 verification — payment controller method-hint routing.
  *
  * The initiation endpoint accepts an OPTIONAL, NON-authoritative payment
- * `method` (MTN_MOBILE_MONEY | AIRTEL_MONEY | CARD) as a rail hint. The
+ * `method` (MTN_MOBILE_MONEY | AIRTEL_MONEY) as a rail hint. The
  * validator preserves it; this suite pins the controller wiring so the hint
  * actually reaches payment.service (a regression here silently breaks
  * provider rail selection for providers that require an explicit network,
@@ -103,7 +103,7 @@ describe('payment controller — method hint passthrough', () => {
     const req = {
       user: { id: 'user-1' },
       params: { id: 'order-1' },
-      body: { purpose: 'COMMITMENT', method: 'CARD' },
+      body: { purpose: 'COMMITMENT', method: 'AIRTEL_MONEY' },
     };
     const next = jest.fn();
     await paymentController.initiatePayment(req, makeRes(), next);

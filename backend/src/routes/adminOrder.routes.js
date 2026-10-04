@@ -11,6 +11,7 @@ const {
 } = require('../validators/order.validator');
 const { adminPaymentParamsSchema } = require('../validators/payment.validator');
 const paymentController = require('../controllers/payment.controller');
+const { getOrderDeliveryRoute } = require('../services/delivery.service');
 
 // All admin order routes require an admin JWT.
 // DISPATCHER may view orders and advance delivery statuses (their operational role);
@@ -30,6 +31,16 @@ router.get(
   validateRequest(adminPaymentParamsSchema),
   paymentController.adminGetOrderPayment
 );
+// Map: road route, distance, ETA and tariff check for the order's address
+router.get('/:id/route', validateRequest(orderIdParamsSchema), async (req, res, next) => {
+  try {
+    const route = await getOrderDeliveryRoute(req.params.id);
+    res.json({ success: true, data: { route } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.patch(
   '/:id/status',
   validateRequest(adminUpdateStatusSchema),

@@ -3,6 +3,8 @@ const { AppError } = require('../middleware/errorHandler');
 const { normalizeLanguage, resolveTranslation } = require('../utils/translation');
 const { logAudit } = require('./audit.service');
 const imageService = require('./image.service');
+const translator = require('./translator.service');
+const { uniqueSlug, mergeEnglish } = require('../utils/slug');
 
 /**
  * Format category entity for public responses with localized translation
@@ -21,6 +23,7 @@ function formatLocalizedCategory(category, requestedLang) {
     name: localized.name,
     description: localized.description || null,
     imageUrl: category.imageUrl,
+    icon: category.icon || null,
     displayOrder: category.displayOrder,
     language: localized.language,
     productCount: category._count?.products ?? 0,
@@ -48,6 +51,7 @@ async function listPublicCategories(lang = 'EN') {
     },
   });
 
+  translator.backfillMissing('category', categories, normLang);
   return categories.map((cat) => formatLocalizedCategory(cat, normLang));
 }
 
@@ -163,7 +167,10 @@ async function listAdminCategories({ page = 1, limit = 50, search = null, isActi
  * Admin: Create a new category with translations
  */
 async function createCategory(data, adminId = null, ipAddress = null) {
-  const { slug, displayOrder = 0, imageUrl = null, isActive = true, translations = [] } = data;
+  const { displayOrder = 0, imageUrl = null, isActive = true, icon = null } = data;
+  const translations = mergeEnglish(data.translations, data.name, data.description);
+  const englishName = (translations.find((t) => t.language === 'EN') || translations[0] || {}).name;
+  const slug = data.slug || (await uniqueSlug(englishName, async (s) => Boolean(await prisma.category.findUnique({ where: { slug: s } })), 100));
 
   const existing = await prisma.category.findUnique({ where: { slug } });
   if (existing) {
@@ -180,6 +187,7 @@ async function createCategory(data, adminId = null, ipAddress = null) {
         displayOrder: displayOrder || 0,
         imageUrl: imageUrl || null,
         isActive: isActive !== false,
+        icon: icon || null,
         nameEn: enTrans ? enTrans.name : null,
       },
     });
@@ -212,15 +220,17 @@ async function createCategory(data, adminId = null, ipAddress = null) {
     ipAddress,
   });
 
+  translator.scheduleCategory(category.id, { force: false });
   return category;
 }
 
 /**
  * Admin: Update category and upsert translations
  */
-async function updateCategory(id, data, adminId = null, ipAddress = null) {
+async function updateCategory(id, input, adminId = null, ipAddress = null) {
   const categoryId = parseInt(id, 10);
-  const existing = await prisma.category.findUnique({ where: { id: categoryId } });
+  const data = { ...input, translations: mergeEnglish(input.translations, input.name, input.description) };
+  const existing = await prisma.category.findUnique({ where: { id: categoryId }, include: { translations: true } });
   if (!existing) {
     throw new AppError(`Category with ID ${id} not found`, 404);
   }
@@ -238,6 +248,7 @@ async function updateCategory(id, data, adminId = null, ipAddress = null) {
     if (data.displayOrder !== undefined) updatePayload.displayOrder = data.displayOrder;
     if (data.imageUrl !== undefined) updatePayload.imageUrl = data.imageUrl || null;
     if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+    if (data.icon !== undefined) updatePayload.icon = data.icon || null;
 
     if (Array.isArray(data.translations) && data.translations.length > 0) {
       let enName = null;
@@ -254,6 +265,7 @@ async function updateCategory(id, data, adminId = null, ipAddress = null) {
           update: {
             name: t.name.trim(),
             description: t.description ? t.description.trim() : null,
+            isAuto: false,
           },
           create: {
             categoryId,
@@ -279,9 +291,15 @@ async function updateCategory(id, data, adminId = null, ipAddress = null) {
     action: 'CATEGORY_UPDATE',
     entityName: 'Category',
     entityId: categoryId,
-    details: data,
+    details: input,
     ipAddress,
   });
+
+  const prevEn = existing.translations.find((t) => t.language === 'EN');
+  const nextEn = updated.translations.find((t) => t.language === 'EN');
+  const englishChanged = Boolean(nextEn) && (!prevEn || prevEn.name !== nextEn.name);
+  const manualOther = (data.translations || []).some((t) => t.language !== 'EN');
+  translator.scheduleCategory(categoryId, { force: englishChanged && !manualOther });
 
   return updated;
 }
@@ -386,7 +404,19 @@ async function removeCategoryImage(id, adminId = null, ipAddress = null) {
   return updated;
 }
 
+async function retranslateCategory(id) {
+  const categoryId = parseInt(id, 10);
+  const exists = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
+  if (!exists) throw new AppError(`Category with ID ${id} not found`, 404);
+  if (!translator.isEnabled()) {
+    throw new AppError('Automatic translation is disabled (TRANSLATION_PROVIDER=NONE)', 409);
+  }
+  await translator.syncCategoryTranslations(categoryId, { force: true });
+  return prisma.category.findUnique({ where: { id: categoryId }, include: { translations: true } });
+}
+
 module.exports = {
+  retranslateCategory,
   formatLocalizedCategory,
   listPublicCategories,
   getPublicCategoryBySlug,

@@ -60,6 +60,29 @@ const envSchema = z.object({
   COMMITMENT_RULE_TYPE: z.enum(['PERCENTAGE', 'FLAT', 'TIERED']).default('PERCENTAGE'),
   COMMITMENT_PERCENTAGE: z.coerce.number().default(30.0),
   COMMITMENT_MIN_AMOUNT: z.coerce.number().default(5000),
+
+  // Location services. NONE disables network calls (tests default to NONE;
+  // addresses are then validated offline against the Uganda district data).
+  // NOMINATIM works with the public OpenStreetMap server (respect its usage
+  // policy: <=1 req/s, identifying User-Agent) or a self-hosted instance.
+  GEOCODER_PROVIDER: z.enum(['NOMINATIM', 'NONE']).optional(),
+  NOMINATIM_URL: z.string().default('https://nominatim.openstreetmap.org'),
+  // Contact sent in the User-Agent, required by the OSM usage policy.
+  GEO_CONTACT_EMAIL: z.string().default('support@ugamarket.ug'),
+  // Road routing for distance/ETA/route lines (OSRM public demo or self-hosted).
+  ROUTING_PROVIDER: z.enum(['OSRM', 'NONE']).optional(),
+  OSRM_URL: z.string().default('https://router.project-osrm.org'),
+  // Straight-line distance x factor = estimated road distance when routing is off.
+  ROAD_DISTANCE_FACTOR: z.coerce.number().min(1).max(3).default(1.35),
+
+  // Automatic product/category/service name translation (English source).
+  // MYMEMORY needs no key; LIBRETRANSLATE needs LIBRETRANSLATE_URL (+ key);
+  // GOOGLE needs GOOGLE_TRANSLATE_API_KEY. Luganda support depends on provider.
+  TRANSLATION_PROVIDER: z.enum(['GOOGLE', 'LIBRETRANSLATE', 'MYMEMORY', 'NONE']).optional(),
+  GOOGLE_TRANSLATE_API_KEY: z.string().default(''),
+  LIBRETRANSLATE_URL: z.string().default(''),
+  LIBRETRANSLATE_API_KEY: z.string().default(''),
+  MYMEMORY_EMAIL: z.string().default(''),
 });
 
 const { validateProductionConfig } = require('./envValidation');
@@ -88,5 +111,12 @@ if (parsed.data.NODE_ENV === 'production') {
     process.exit(1);
   }
 }
+
+// External providers default to off under test so the suite never reaches
+// the network; everywhere else they default to the free public services.
+const isTest = parsed.data.NODE_ENV === 'test';
+parsed.data.GEOCODER_PROVIDER = parsed.data.GEOCODER_PROVIDER || (isTest ? 'NONE' : 'NOMINATIM');
+parsed.data.ROUTING_PROVIDER = parsed.data.ROUTING_PROVIDER || (isTest ? 'NONE' : 'OSRM');
+parsed.data.TRANSLATION_PROVIDER = parsed.data.TRANSLATION_PROVIDER || (isTest ? 'NONE' : 'MYMEMORY');
 
 module.exports = parsed.data;

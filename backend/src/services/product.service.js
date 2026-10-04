@@ -4,6 +4,17 @@ const { normalizeLanguage, resolveTranslation } = require('../utils/translation'
 const { formatLocalizedCategory } = require('./category.service');
 const { logAudit } = require('./audit.service');
 const imageService = require('./image.service');
+const translator = require('./translator.service');
+const { uniqueSlug, mergeEnglish } = require('../utils/slug');
+
+/** Normalize stored specifications to [{label, value}] (drops junk). */
+function normalizeSpecs(specs) {
+  if (!Array.isArray(specs)) return [];
+  return specs
+    .filter((s) => s && typeof s.label === 'string' && typeof s.value === 'string' && s.label.trim() && s.value.trim())
+    .map((s) => ({ label: s.label.trim().slice(0, 60), value: s.value.trim().slice(0, 200) }))
+    .slice(0, 30);
+}
 
 /**
  * Format product entity for public responses with localized translation and structured availability
@@ -30,6 +41,9 @@ function formatLocalizedProduct(product, requestedLang) {
       sortOrder: img.sortOrder,
     }));
 
+  const compareAt =
+    product.compareAtPriceUgx && product.compareAtPriceUgx > product.priceUgx ? product.compareAtPriceUgx : null;
+
   return {
     id: product.id,
     slug: product.slug,
@@ -37,6 +51,11 @@ function formatLocalizedProduct(product, requestedLang) {
     name: localized.name,
     description: localized.description || null,
     price: product.priceUgx,
+    compareAtPrice: compareAt,
+    discountPercent: compareAt ? Math.round(((compareAt - product.priceUgx) / compareAt) * 100) : 0,
+    brand: product.brand || null,
+    specifications: normalizeSpecs(product.specifications),
+    isFeatured: Boolean(product.isFeatured),
     currency: 'UGX',
     unit: product.unit,
     language: localized.language,
@@ -67,6 +86,9 @@ async function listPublicProducts({
   minPrice = null,
   maxPrice = null,
   search = null,
+  brand = null,
+  featured = null,
+  sort = 'newest',
   lang = 'EN',
 } = {}) {
   const normLang = normalizeLanguage(lang);
@@ -105,12 +127,20 @@ async function listPublicProducts({
     where.priceUgx = { ...where.priceUgx, lte: parseInt(maxPrice, 10) };
   }
 
-  // Parameterized search across translations, sku, slug
+  if (brand && typeof brand === 'string' && brand.trim()) {
+    where.brand = { equals: brand.trim(), mode: 'insensitive' };
+  }
+  if (featured === true || featured === 'true') {
+    where.isFeatured = true;
+  }
+
+  // Parameterized search across translations, sku, slug, brand
   if (search && typeof search === 'string' && search.trim().length > 0) {
     const q = search.trim();
     where.OR = [
       { slug: { contains: q, mode: 'insensitive' } },
       { sku: { contains: q, mode: 'insensitive' } },
+      { brand: { contains: q, mode: 'insensitive' } },
       {
         translations: {
           some: {
@@ -124,11 +154,18 @@ async function listPublicProducts({
     ];
   }
 
+  const ORDER_BY = {
+    newest: [{ id: 'desc' }],
+    price_asc: [{ priceUgx: 'asc' }, { id: 'desc' }],
+    price_desc: [{ priceUgx: 'desc' }, { id: 'desc' }],
+    name: [{ nameEn: 'asc' }, { id: 'desc' }],
+  };
+
   const [total, products] = await Promise.all([
     prisma.product.count({ where }),
     prisma.product.findMany({
       where,
-      orderBy: [{ id: 'desc' }],
+      orderBy: ORDER_BY[sort] || ORDER_BY.newest,
       skip,
       take: limitNum,
       include: {
@@ -140,6 +177,8 @@ async function listPublicProducts({
       },
     }),
   ]);
+
+  translator.backfillMissing('product', products, normLang);
 
   return {
     items: products.map((p) => formatLocalizedProduct(p, normLang)),
@@ -177,6 +216,7 @@ async function getPublicProductBySlug(slug, lang = 'EN') {
     throw new AppError(`Product '${slug}' not found or is currently unavailable`, 404);
   }
 
+  translator.backfillMissing('product', [product], normLang);
   return formatLocalizedProduct(product, normLang);
 }
 
@@ -205,7 +245,33 @@ async function getPublicProductById(id, lang = 'EN') {
     throw new AppError(`Product with ID ${id} not found or is currently unavailable`, 404);
   }
 
+  translator.backfillMissing('product', [product], normLang);
   return formatLocalizedProduct(product, normLang);
+}
+
+/**
+ * Public: filter facets for the catalogue sidebar (brands + price range),
+ * scoped to a category when given.
+ */
+async function getPublicFacets({ categorySlug = null } = {}) {
+  const where = { isActive: true, category: { isActive: true } };
+  if (categorySlug) where.category = { isActive: true, slug: String(categorySlug).trim().toLowerCase() };
+
+  const [brands, price] = await Promise.all([
+    prisma.product.groupBy({
+      by: ['brand'],
+      where: { ...where, brand: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { brand: 'desc' } },
+      take: 30,
+    }),
+    prisma.product.aggregate({ where, _min: { priceUgx: true }, _max: { priceUgx: true } }),
+  ]);
+
+  return {
+    brands: brands.filter((b) => b.brand && b.brand.trim()).map((b) => ({ name: b.brand, count: b._count._all })),
+    priceRange: { min: price._min.priceUgx ?? 0, max: price._max.priceUgx ?? 0 },
+  };
 }
 
 /**
@@ -289,15 +355,20 @@ async function listAdminProducts({
 async function createProduct(data, adminId = null, ipAddress = null) {
   const {
     categoryId,
-    slug,
     sku = null,
     priceUgx,
     stockQuantity = 0,
     unit = 'piece',
     isActive = true,
-    translations = [],
     images = [],
+    brand = null,
+    specifications = null,
+    compareAtPriceUgx = null,
+    isFeatured = false,
   } = data;
+  const translations = mergeEnglish(data.translations, data.name, data.description);
+  const englishName = (translations.find((t) => t.language === 'EN') || translations[0] || {}).name;
+  const slug = data.slug || (await uniqueSlug(englishName, async (s) => Boolean(await prisma.product.findUnique({ where: { slug: s } }))));
 
   if (priceUgx < 0) {
     throw new AppError('Product price cannot be negative', 400);
@@ -339,7 +410,12 @@ async function createProduct(data, adminId = null, ipAddress = null) {
         unit: unit ? unit.trim() : 'piece',
         isActive: isActive !== false,
         nameEn: enTrans ? enTrans.name : null,
+        descriptionEn: enTrans && enTrans.description ? enTrans.description : null,
         imageUrl: images && images.length > 0 ? images[0].imageUrl : null,
+        brand: brand ? String(brand).trim() : null,
+        specifications: normalizeSpecs(specifications).length ? normalizeSpecs(specifications) : undefined,
+        compareAtPriceUgx: compareAtPriceUgx ? parseInt(compareAtPriceUgx, 10) : null,
+        isFeatured: Boolean(isFeatured),
       },
     });
 
@@ -407,15 +483,19 @@ async function createProduct(data, adminId = null, ipAddress = null) {
     ipAddress,
   });
 
+  // Machine-translate the English content into the other languages.
+  translator.scheduleProduct(product.id, { force: false });
+
   return product;
 }
 
 /**
  * Admin: Update product details and upsert translations
  */
-async function updateProduct(id, data, adminId = null, ipAddress = null) {
+async function updateProduct(id, input, adminId = null, ipAddress = null) {
   const productId = parseInt(id, 10);
-  const existing = await prisma.product.findUnique({ where: { id: productId } });
+  const data = { ...input, translations: mergeEnglish(input.translations, input.name, input.description) };
+  const existing = await prisma.product.findUnique({ where: { id: productId }, include: { translations: true } });
   if (!existing) {
     throw new AppError(`Product with ID ${id} not found`, 404);
   }
@@ -453,6 +533,15 @@ async function updateProduct(id, data, adminId = null, ipAddress = null) {
     if (data.priceUgx !== undefined) updatePayload.priceUgx = parseInt(data.priceUgx, 10);
     if (data.unit) updatePayload.unit = data.unit.trim();
     if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
+    if (data.brand !== undefined) updatePayload.brand = data.brand ? String(data.brand).trim() : null;
+    if (data.specifications !== undefined) {
+      const specs = normalizeSpecs(data.specifications);
+      updatePayload.specifications = specs.length ? specs : require('@prisma/client').Prisma.DbNull;
+    }
+    if (data.compareAtPriceUgx !== undefined) {
+      updatePayload.compareAtPriceUgx = data.compareAtPriceUgx ? parseInt(data.compareAtPriceUgx, 10) : null;
+    }
+    if (data.isFeatured !== undefined) updatePayload.isFeatured = Boolean(data.isFeatured);
 
     if (Array.isArray(data.translations) && data.translations.length > 0) {
       let enName = null;
@@ -473,6 +562,7 @@ async function updateProduct(id, data, adminId = null, ipAddress = null) {
           update: {
             name: t.name.trim(),
             description: t.description ? t.description.trim() : null,
+            isAuto: false,
           },
           create: {
             productId,
@@ -503,9 +593,18 @@ async function updateProduct(id, data, adminId = null, ipAddress = null) {
     action: 'PRODUCT_UPDATE',
     entityName: 'Product',
     entityId: productId,
-    details: data,
+    details: input,
     ipAddress,
   });
+
+  // English is the source of truth: when it changed, regenerate every other
+  // language; otherwise just fill any language still missing.
+  const prevEn = existing.translations.find((t) => t.language === 'EN');
+  const nextEn = updated.translations.find((t) => t.language === 'EN');
+  const englishChanged =
+    Boolean(nextEn) && (!prevEn || prevEn.name !== nextEn.name || (prevEn.description || '') !== (nextEn.description || ''));
+  const manualOther = (data.translations || []).some((t) => t.language !== 'EN');
+  translator.scheduleProduct(productId, { force: englishChanged && !manualOther });
 
   return updated;
 }
@@ -730,7 +829,24 @@ async function setProductImages(id, images = [], adminId = null, ipAddress = nul
   return updated;
 }
 
+/**
+ * Admin: regenerate machine translations now (e.g. after fixing wording).
+ * Runs synchronously so the admin sees the result.
+ */
+async function retranslateProduct(id) {
+  const productId = parseInt(id, 10);
+  const exists = await prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+  if (!exists) throw new AppError(`Product with ID ${id} not found`, 404);
+  if (!translator.isEnabled()) {
+    throw new AppError('Automatic translation is disabled (TRANSLATION_PROVIDER=NONE)', 409);
+  }
+  await translator.syncProductTranslations(productId, { force: true });
+  return getProductByIdForAdmin(productId);
+}
+
 module.exports = {
+  getPublicFacets,
+  retranslateProduct,
   formatLocalizedProduct,
   listPublicProducts,
   getPublicProductBySlug,

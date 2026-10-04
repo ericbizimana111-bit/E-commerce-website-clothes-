@@ -3,6 +3,7 @@ const app = require('../src/app');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signCustomerToken } = require('../src/services/token.service');
+const { createTestAddress } = require('./helpers/fixtures');
 
 jest.setTimeout(45000);
 
@@ -15,7 +16,6 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
   let customerBId = null;
   let addressA = null;
   let addressB = null;
-  let station = null;
   let product = null;
   let dispatcherRecord = null;
   const createdUserIds = [];
@@ -33,7 +33,8 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const id = reg.body.data.user.id;
       createdUserIds.push(id);
       const login = await request(app).post('/api/auth/login').send({ phone, password: 'OrderPass123!' });
-      return { token: login.body.data.token, id };
+      const address = await createTestAddress(id);
+      return { token: login.body.data.token, id, addressId: address.id };
     }
     throw new Error('could not create customer');
   }
@@ -66,22 +67,9 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
     customerBToken = b.token;
     customerBId = b.id;
 
-    addressA = await prisma.address.create({
-      data: {
-        userId: customerAId,
-        title: 'Home',
-        district: 'Kampala',
-        streetAddress: '1 Order Test Road',
-        // Kampala warehouse coords: 0.3136, 32.5811 -> within free radius => fee 0... use distance instead
-        latitude: 0.35, // ~4km away
-        longitude: 32.62,
-      },
-    });
-    addressB = await prisma.address.create({
-      data: { userId: customerBId, title: 'Home', district: 'Entebbe', streetAddress: '2 Other Road' },
-    });
-
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
+    // Validated Kampala addresses (~5 km from the dispatch point -> paid delivery)
+    addressA = await prisma.address.findFirst({ where: { userId: customerAId } });
+    addressB = await prisma.address.findFirst({ where: { userId: customerBId } });
 
     const category = await prisma.category.findFirst();
     product = await prisma.product.create({
@@ -137,27 +125,31 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
     });
 
-    test('successful pickup order: snapshots, stock deducted, history, cart cleared', async () => {
+    test('successful delivery order: snapshots, stock deducted, history, cart cleared', async () => {
       await addToCart(customerAToken, product.id, 2);
       const stockBefore = (await prisma.product.findUnique({ where: { id: product.id } })).stockQuantity;
 
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
 
       expect(res.statusCode).toBe(201);
       const order = res.body.data.order;
       createdOrderIds.push(order.id);
 
       expect(order.status).toBe('PENDING_PAYMENT');
-      expect(order.orderNumber).toMatch(/^FB-\d{8}-\d{6}$/);
+      expect(order.orderNumber).toMatch(/^UM-\d{8}-\d{6}$/);
       expect(order.pricing.currency).toBe('UGX');
       expect(order.pricing.itemsSubtotalUgx).toBe(40000);
-      expect(order.pricing.deliveryFeeUgx).toBe(0);
-      expect(order.pricing.totalUgx).toBe(40000);
-      expect(order.pricing.commitmentUgx + order.pricing.remainingBalanceUgx).toBe(40000);
-      expect(order.fulfillment.station.name).toBe(station.name); // snapshot
+      expect(order.pricing.deliveryFeeUgx).toBeGreaterThan(0);
+      expect(order.pricing.totalUgx).toBe(40000 + order.pricing.deliveryFeeUgx);
+      expect(order.pricing.commitmentUgx + order.pricing.remainingBalanceUgx).toBe(order.pricing.totalUgx);
+      // immutable address snapshot carries everything the rider needs
+      expect(order.fulfillment.address.district).toBe('Kampala');
+      expect(order.fulfillment.address.contactPhone).toBe('+256772000111');
+      expect(order.fulfillment.address.latitude).toBeCloseTo(0.354, 3);
+      expect(order.fulfillment.address.recipientName).toMatch(/Order Tester A/);
       expect(order.statusHistory[0].fromStatus).toBeNull();
       expect(order.statusHistory[0].toStatus).toBe('PENDING_PAYMENT');
 
@@ -191,7 +183,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
 
       expect(order.fulfillment.method).toBe('HOME_DELIVERY');
       expect(order.fulfillment.address.district).toBe('Kampala'); // snapshot
-      expect(order.pricing.deliveryFeeUgx).toBeGreaterThan(0); // ~4km > 3km free radius
+      expect(order.pricing.deliveryFeeUgx).toBeGreaterThan(0); // ~5km > 3km free radius
       expect(order.pricing.totalUgx).toBe(order.pricing.itemsSubtotalUgx + order.pricing.deliveryFeeUgx);
     });
 
@@ -199,7 +191,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(400);
     });
 
@@ -229,25 +221,32 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
     });
 
-    test('inactive pickup station rejected', async () => {
+    test('pickup is refused: UgaMarket is delivery-only', async () => {
       await addToCart(customerAToken, product.id, 1);
-      const inactive = await prisma.pickupStation.create({
-        data: {
-          name: 'Inactive Station ' + Date.now(),
-          district: 'X',
-          addressText: 'Nowhere',
-          contactPhone: '+256700000000',
-          operatingHours: 'never',
-          pickupFeeUgx: 0,
-          isActive: false,
-        },
-      });
+      const ordersBefore = await prisma.order.count();
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: inactive.id });
-      expect(res.statusCode).toBe(404);
-      await prisma.pickupStation.delete({ where: { id: inactive.id } });
+        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/Pickup is no longer available/);
+      expect(await prisma.order.count()).toBe(ordersBefore);
+      await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
+    });
+
+    test('address without a map pin is refused (422) and no order created', async () => {
+      await addToCart(customerAToken, product.id, 1);
+      const legacy = await prisma.address.create({
+        data: { userId: customerAId, title: 'Old', district: 'Kampala', streetAddress: 'Unpinned road' },
+      });
+      const ordersBefore = await prisma.order.count();
+      const res = await request(app)
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${customerAToken}`)
+        .send({ addressId: legacy.id });
+      expect(res.statusCode).toBe(422);
+      expect(await prisma.order.count()).toBe(ordersBefore);
+      await prisma.address.delete({ where: { id: legacy.id } });
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
     });
 
@@ -259,7 +258,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(409);
       expect(await prisma.order.count()).toBe(ordersBefore);
       await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: 10 } });
@@ -272,7 +271,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(400);
       await prisma.product.update({ where: { id: product.id }, data: { isActive: true } });
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
@@ -286,8 +285,9 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
         .send({
-          fulfillmentMethod: 'PICKUP_STATION',
-          pickupStationId: station.id,
+          fulfillmentMethod: 'HOME_DELIVERY',
+          addressId: addressA.id,
+          pickupStationId: 42,
           subtotalUgx: 1,
           totalUgx: 1,
           commitmentUgx: 0,
@@ -351,7 +351,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -397,12 +397,12 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
       // simulate lifecycle through valid admin transitions
-      const flow = ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'BALANCE_PAID', 'COMPLETED'];
+      const flow = ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'BALANCE_PAID', 'COMPLETED'];
       for (const status of flow) {
         const r = await request(app)
           .patch(`/api/admin/orders/${order.id}/status`)
@@ -475,7 +475,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerBToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressB.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -573,9 +573,9 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       }
 
       const results = await Promise.allSettled([
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c1.token}`).send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id }),
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c2.token}`).send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id }),
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c3.token}`).send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c1.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c1.addressId }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c2.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c2.addressId }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c3.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c3.addressId }),
       ]);
 
       const statuses = results.map((r) => (r.status === 'fulfilled' ? r.value.statusCode : 'REJECTED'));
@@ -614,8 +614,8 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const orderService = require('../src/services/order.service');
       await expect(
         orderService.createOrderFromCart(customerAId, {
-          fulfillmentMethod: 'PICKUP_STATION',
-          pickupStationId: 999999, // fails after cart read, before deduction
+          fulfillmentMethod: 'HOME_DELIVERY',
+          addressId: '00000000-0000-0000-0000-000000000999', // fails before any write
         })
       ).rejects.toThrow();
 

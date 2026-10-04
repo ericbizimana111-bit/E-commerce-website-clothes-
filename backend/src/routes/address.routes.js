@@ -1,97 +1,57 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../config/db');
 const { authenticateCustomer } = require('../middleware/auth');
-const { AppError } = require('../middleware/errorHandler');
+const validateRequest = require('../middleware/requestValidator');
+const addressService = require('../services/address.service');
+const { createAddressSchema, updateAddressSchema, addressIdSchema } = require('../validators/address.validator');
 
 router.use(authenticateCustomer);
 
-// GET /api/addresses — list customer's saved addresses
+// GET /api/addresses — customer's saved, validated delivery addresses
 router.get('/', async (req, res, next) => {
   try {
-    const addresses = await prisma.address.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        district: true,
-        division: true,
-        streetAddress: true,
-        latitude: true,
-        longitude: true,
-        isDefault: true,
-        createdAt: true,
-      },
-    });
-
-    res.json({
-      success: true,
-      data: { addresses },
-    });
+    const addresses = await addressService.listAddresses(req.user.id);
+    res.json({ success: true, data: { addresses } });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /api/addresses — add a new address for the customer
-router.post('/', async (req, res, next) => {
+// POST /api/addresses — validated against Uganda districts + map pin
+router.post('/', validateRequest(createAddressSchema), async (req, res, next) => {
   try {
-    const { title, district, division, streetAddress, latitude, longitude, isDefault } = req.body;
-
-    if (!district || !streetAddress) {
-      throw new AppError('District and street address are required', 400);
-    }
-
-    if (isDefault) {
-      await prisma.address.updateMany({
-        where: { userId: req.user.id },
-        data: { isDefault: false },
-      });
-    }
-
-    const address = await prisma.address.create({
-      data: {
-        userId: req.user.id,
-        title: title ? String(title).trim() : 'Home',
-        district: String(district).trim(),
-        division: division ? String(division).trim() : null,
-        streetAddress: String(streetAddress).trim(),
-        latitude: latitude !== undefined && latitude !== null ? Number(latitude) : null,
-        longitude: longitude !== undefined && longitude !== null ? Number(longitude) : null,
-        isDefault: !!isDefault,
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Address added successfully',
-      data: { address },
-    });
+    const address = await addressService.createAddress(req.user.id, req.body);
+    res.status(201).json({ success: true, message: 'Address saved', data: { address } });
   } catch (error) {
     next(error);
   }
 });
 
-// DELETE /api/addresses/:id — delete own address
-router.delete('/:id', async (req, res, next) => {
+// PUT /api/addresses/:id — full re-validation on edit
+router.put('/:id', validateRequest(updateAddressSchema), async (req, res, next) => {
   try {
-    const address = await prisma.address.findFirst({
-      where: { id: req.params.id, userId: req.user.id },
-    });
+    const address = await addressService.updateAddress(req.user.id, req.params.id, req.body);
+    res.json({ success: true, message: 'Address updated', data: { address } });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    if (!address) {
-      throw new AppError('Address not found or does not belong to you', 404);
-    }
+// PATCH /api/addresses/:id/default
+router.patch('/:id/default', validateRequest(addressIdSchema), async (req, res, next) => {
+  try {
+    const addresses = await addressService.setDefaultAddress(req.user.id, req.params.id);
+    res.json({ success: true, data: { addresses } });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    await prisma.address.delete({
-      where: { id: req.params.id },
-    });
-
-    res.json({
-      success: true,
-      message: 'Address deleted successfully',
-    });
+// DELETE /api/addresses/:id — delete own address (orders keep their snapshot)
+router.delete('/:id', validateRequest(addressIdSchema), async (req, res, next) => {
+  try {
+    await addressService.deleteAddress(req.user.id, req.params.id);
+    res.json({ success: true, message: 'Address deleted successfully' });
   } catch (error) {
     next(error);
   }

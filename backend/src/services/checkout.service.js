@@ -1,7 +1,7 @@
 const prisma = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 const cartService = require('./cart.service');
-const { resolveDeliveryFee } = require('./delivery.service');
+const { quoteDelivery } = require('./delivery.service');
 
 /**
  * Checkout PREPARATION service — READ-ONLY.
@@ -10,31 +10,19 @@ const { resolveDeliveryFee } = require('./delivery.service');
  * cartService.validateCartForCheckout + inventory row locks in a single transaction.
  */
 
-async function buildCheckoutPreview(userId, { fulfillmentMethod, addressId, pickupStationId }) {
+async function buildCheckoutPreview(userId, { addressId }) {
   // 1. Validate + recalculate the cart (authoritative prices, stock, activity)
   const { items, issues, subtotalUgx } = await cartService.validateCartForCheckout(userId);
 
-  // 2. Fulfillment validation + real delivery fee (shared with order creation)
-  let deliveryFeeUgx = null;
-
-  if (fulfillmentMethod === 'HOME_DELIVERY') {
-    const address = await prisma.address.findFirst({
-      where: { id: addressId, userId }, // ownership enforced here — IDOR-safe
-    });
-    if (!address) {
-      throw new AppError('Delivery address not found or does not belong to you', 404);
-    }
-    deliveryFeeUgx = await resolveDeliveryFee({ fulfillmentMethod, address });
+  // 2. Delivery quote: road distance, ETA and fee (shared with order creation)
+  const address = await prisma.address.findFirst({
+    where: { id: addressId, userId }, // ownership enforced here — IDOR-safe
+  });
+  if (!address) {
+    throw new AppError('Delivery address not found or does not belong to you', 404);
   }
-
-  if (fulfillmentMethod === 'PICKUP_STATION') {
-    const station = await prisma.pickupStation.findFirst({
-      where: { id: pickupStationId, isActive: true },
-    });
-    if (!station) {
-      throw new AppError('Pickup station not found or is inactive', 404);
-    }
-  }
+  const quote = await quoteDelivery(address);
+  const deliveryFeeUgx = quote.deliveryFeeUgx;
 
   // 3. Commitment preview from existing server configuration (commitment_rule_config)
   const rule = await prisma.commitmentRuleConfig.findFirst({
@@ -63,9 +51,12 @@ async function buildCheckoutPreview(userId, { fulfillmentMethod, addressId, pick
       ready: issues.length === 0,
       issues,
       fulfillment: {
-        fulfillmentMethod,
-        ...(fulfillmentMethod === 'HOME_DELIVERY' ? { addressId } : { pickupStationId }),
+        fulfillmentMethod: 'HOME_DELIVERY',
+        addressId,
         deliveryFeeUgx,
+        distanceKm: quote.distanceKm,
+        etaMinutes: quote.etaMinutes,
+        distanceSource: quote.distanceSource,
       },
       pricing: {
         currency: 'UGX',

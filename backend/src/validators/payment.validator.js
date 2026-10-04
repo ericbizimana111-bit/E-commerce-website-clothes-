@@ -18,7 +18,8 @@ const orderLanguageSchema = z
 // meaningful values (amount, currency, status, providerRef, etc.) are
 // stripped by the transform (server is authoritative). Payment outcomes come
 // ONLY from signed provider webhooks — never from this endpoint.
-const PAYMENT_METHODS = ['MTN_MOBILE_MONEY', 'AIRTEL_MONEY', 'CARD'];
+// Mobile money only (MTN MoMo, Airtel Money). Cards are not accepted.
+const PAYMENT_METHODS = ['MTN_MOBILE_MONEY', 'AIRTEL_MONEY'];
 
 const initiatePaymentSchema = {
   params: z.object({
@@ -27,7 +28,9 @@ const initiatePaymentSchema = {
   body: z
     .object({
       purpose: z.enum(['COMMITMENT', 'BALANCE']).optional(),
-      method: z.enum(PAYMENT_METHODS).optional(),
+      method: z
+        .enum(PAYMENT_METHODS, { errorMap: () => ({ message: 'Choose MTN Mobile Money or Airtel Money' }) })
+        .optional(),
       language: orderLanguageSchema,
       // Mass-assignment protection: always stripped (incl. dev/test levers)
       mockOutcome: z.unknown().optional(),

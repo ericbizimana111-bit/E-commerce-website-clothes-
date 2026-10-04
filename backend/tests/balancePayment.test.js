@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const { createTestAddress } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
@@ -10,7 +11,7 @@ jest.setTimeout(60000);
  * Phase 8 — Balance Payment, Order Completion & Final Financial Lifecycle
  *
  * Covers:
- * 1. Fulfillment eligibility boundary (home delivery DELIVERED, pickup PICKED_UP)
+ * 1. Fulfillment eligibility boundary (home delivery must be DELIVERED)
  * 2. Server-authoritative balance calculation (amount/currency tampering protection)
  * 3. Initiation idempotency and attempt reuse
  * 4. Webhook security (signature, amount, currency, purpose verification)
@@ -29,10 +30,10 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
   let customerBToken = null;
   let customerBId = null;
   let adminToken = null;
-  let station = null;
   let product = null;
 
   const createdUserIds = [];
+  const addressByToken = {};
   const createdOrderIds = [];
 
   async function makeCustomer(name) {
@@ -48,12 +49,14 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
       const login = await request(app)
         .post('/api/auth/login')
         .send({ phone, password: 'BalancePass123!' });
+      const address = await createTestAddress(id);
+      addressByToken[login.body.data.token] = address.id;
       return { token: login.body.data.token, id };
     }
     throw new Error('could not create balance test customer');
   }
 
-  async function createPickupOrder(token) {
+  async function createDeliveryOrder(token) {
     const cartRes = await request(app)
       .post('/api/cart/items')
       .set('Authorization', `Bearer ${token}`)
@@ -63,7 +66,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: station.id });
+      .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[token] });
 
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;
@@ -103,8 +106,6 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     const b = await makeCustomer('Balance Cust B');
     customerBToken = b.token;
     customerBId = b.id;
-
-    station = await prisma.pickupStation.findFirst({ where: { isActive: true } });
     const category = await prisma.category.findFirst();
     product = await prisma.product.create({
       data: {
@@ -144,7 +145,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('1. Fulfillment Eligibility Boundary', () => {
     test('rejects balance payment before fulfillment is completed', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       // Order is PENDING_PAYMENT
       const resPending = await request(app)
@@ -165,7 +166,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
       const postCommitWebhook = webhookPoster(commitPayment, order);
       await postCommitWebhook('SUCCESS');
 
-      // Advance through admin to READY_FOR_PICKUP
+      // Advance through admin to READY_FOR_DELIVERY
       await request(app)
         .patch(`/api/admin/orders/${order.id}/status`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -177,9 +178,13 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
       await request(app)
         .patch(`/api/admin/orders/${order.id}/status`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'READY_FOR_PICKUP' });
+        .send({ status: 'READY_FOR_DELIVERY' });
+      await request(app)
+        .patch(`/api/admin/orders/${order.id}/status`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'OUT_FOR_DELIVERY' });
 
-      // Still cannot initiate balance payment while READY_FOR_PICKUP
+      // Still cannot initiate balance payment while OUT_FOR_DELIVERY
       const resReady = await request(app)
         .post(`/api/orders/${order.id}/payment`)
         .set('Authorization', `Bearer ${customerAToken}`)
@@ -187,16 +192,16 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
       expect(resReady.statusCode).toBe(409);
       expect(resReady.body.message).toContain('Fulfillment must be completed first');
 
-      // Now complete pickup
+      // Now complete the delivery
       const pickupRes = await request(app)
         .patch(`/api/admin/orders/${order.id}/status`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ status: 'PICKED_UP' });
+        .send({ status: 'DELIVERED' });
       expect(pickupRes.statusCode).toBe(200);
 
-      // Also sync delivery row to PICKED_UP
+      // Delivery row is synced to DELIVERED by the order transition
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       // NOW balance payment CAN be initiated
       const resEligible = await request(app)
@@ -211,7 +216,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('2. Server-Authoritative Balance & Tampering Protection', () => {
     test('calculates balance strictly on the server and strips client tampering', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       // Complete commitment & fulfillment
       const initCommit = await request(app)
@@ -223,10 +228,11 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const expectedBalance = order.pricing.totalUgx - order.pricing.commitmentUgx;
 
@@ -252,7 +258,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('3. Idempotent Initiation & Attempt Reuse', () => {
     test('re-initiating returns the existing pending balance attempt without creating a second one', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app)
         .post(`/api/orders/${order.id}/payment`)
@@ -262,10 +268,11 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const first = await request(app)
         .post(`/api/orders/${order.id}/payment`)
@@ -289,17 +296,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('4. Webhook Security & Tampering Rejections', () => {
     test('rejects unsigned, invalidly signed, or tampered webhooks', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBalance = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const balPayment = initBalance.body.data.payment;
@@ -329,17 +337,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('5. Failed Balance Payment & Retry Lifecycle', () => {
     test('failed balance payment leaves order unpaid and retry creates a fresh attempt', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const init1 = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const pay1 = init1.body.data.payment;
@@ -349,9 +358,9 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
       expect(failRes.statusCode).toBe(200);
       expect(failRes.body.event).toBe('PAYMENT_FAILED_RECORDED');
 
-      // Order remains in PICKED_UP
+      // Order remains in DELIVERED
       const checkOrder = await prisma.order.findUnique({ where: { id: order.id } });
-      expect(checkOrder.status).toBe('PICKED_UP');
+      expect(checkOrder.status).toBe('DELIVERED');
 
       // Retry initiation creates a NEW pending attempt
       const init2 = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
@@ -371,17 +380,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('6. Successful Balance Payment -> Order Completion & Notifications', () => {
     test('completes order atomically, sets balance to zero, and records notification and audits', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const payBal = initBal.body.data.payment;
@@ -426,17 +436,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('7. Webhook Replay & Duplicate Balance Payment Protection', () => {
     test('replay of SUCCESS webhook is completely idempotent and does not create duplicate transitions', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const payBal = initBal.body.data.payment;
@@ -473,7 +484,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('8. Cancellation Interactions & Terminal Immutability', () => {
     test('order cancelled before balance initiation rejects balance payment', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       // Cancel before payment
       const cancelRes = await request(app)
@@ -492,17 +503,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     });
 
     test('completed order is immutable: cannot be cancelled and cannot accept further payments', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       await webhookPoster(initBal.body.data.payment, order)('SUCCESS');
@@ -537,7 +549,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('9. Customer IDOR & Admin RBAC', () => {
     test('customer B cannot initiate or peek at customer A balance payment', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const stealInit = await request(app)
         .post(`/api/orders/${order.id}/payment`)
@@ -552,7 +564,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     });
 
     test('admin can view balance payment read-only and no secrets are leaked', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const custAdmin = await request(app)
         .get(`/api/admin/orders/${order.id}/payment`)
@@ -573,17 +585,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
 
   describe('10. Concurrency Tests', () => {
     test('Test 1 — 5 simultaneous balance initiation requests result in a single attempt', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       // Run 5 simultaneous initiation calls
       const requests = Array.from({ length: 5 }, () =>
@@ -606,17 +619,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     });
 
     test('Test 2 — 4 simultaneous SUCCESS webhooks result in exactly one successful payment and completion', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const payBal = initBal.body.data.payment;
@@ -651,17 +665,18 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     });
 
     test('Test 3 — Cancellation racing with balance SUCCESS webhook produces consistent valid state', async () => {
-      const order = await createPickupOrder(customerAToken);
+      const order = await createDeliveryOrder(customerAToken);
 
       const initCommit = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({});
       await webhookPoster(initCommit.body.data.payment, order)('SUCCESS');
 
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'CONFIRMED' });
       await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PREPARING' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_PICKUP' });
-      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'PICKED_UP' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'READY_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'OUT_FOR_DELIVERY' });
+      await request(app).patch(`/api/admin/orders/${order.id}/status`).set('Authorization', `Bearer ${adminToken}`).send({ status: 'DELIVERED' });
       const del = await prisma.delivery.findUnique({ where: { orderId: order.id } });
-      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'PICKED_UP' } });
+      await prisma.delivery.update({ where: { id: del.id }, data: { status: 'DELIVERED' } });
 
       const initBal = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerAToken}`).send({ purpose: 'BALANCE' });
       const payBal = initBal.body.data.payment;
