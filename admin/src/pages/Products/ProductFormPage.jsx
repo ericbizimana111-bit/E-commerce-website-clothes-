@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Save, Star, Trash2 } from 'lucide-react';
+import { Languages, Plus, RefreshCw, Save, Star, Trash2, X } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -11,37 +11,38 @@ import { ErrorState } from '../../components/ui/states';
 import './ProductFormPage.css';
 
 /**
- * Product create/edit.
- * Contract (verified against backend validators/routes):
- *  - POST /api/admin/catalog/products            { categoryId, slug, priceUgx, stockQuantity?, unit?, sku?, isActive?, translations:[{language,name,description?}] }
- *  - GET  /api/admin/catalog/products/:id        -> { success, data: { ...product, category, translations, images } }
- *  - PUT  /api/admin/catalog/products/:id        (partial update; untouched fields preserved server-side)
- *  - POST /api/admin/catalog/products/:id/images (multipart "image" file; JPEG/PNG/WebP/GIF, max 5MB)
- *  - PUT  /api/admin/catalog/products/:id/images { images: [{ imageUrl, altText?, isPrimary?, sortOrder? }] }
- *  - DELETE /api/admin/catalog/products/:id/images/:imageId
- *  - slug: lowercase alphanumeric with hyphens; priceUgx integer UGX
- *  - languages: en, lg, fr, sw; at least one translation required on create
- * Prices/stock are entered as integers and sent as integers — no client-side
- * financial arithmetic; the backend remains authoritative. Stock on edit is
- * intentionally NOT editable here: inventory restock/adjust owns it.
+ * Product create/edit (general merchandise: food, phones, fashion, home...).
+ * Contract (backend validators/routes):
+ *  - POST /api/admin/catalog/products  { categoryId, name, description?, priceUgx, stockQuantity?, unit?,
+ *                                         sku?, brand?, compareAtPriceUgx?, isFeatured?, specifications?, slug? }
+ *  - PUT  /api/admin/catalog/products/:id (partial update)
+ *  - POST /api/admin/catalog/products/:id/translate (regenerate machine translations)
+ *  - image endpoints unchanged (multipart upload, primary, delete)
+ * Admins write ENGLISH only: Luganda, Kiswahili and French are generated
+ * automatically by the backend and refreshed whenever the English changes.
+ * Stock on edit is not editable here: inventory restock/adjust owns it.
  */
 
-const LANGUAGES = [
-  { code: 'en', label: 'English (en)' },
-  { code: 'lg', label: 'Luganda (lg)' },
-  { code: 'fr', label: 'French (fr)' },
-  { code: 'sw', label: 'Kiswahili (sw)' },
+const AUTO_LANGS = [
+  { code: 'LG', label: 'Luganda' },
+  { code: 'SW', label: 'Kiswahili' },
+  { code: 'FR', label: 'French' },
 ];
 
 const EMPTY_FORM = {
+  name: '',
+  description: '',
   slug: '',
   categoryId: '',
   priceUgx: '',
+  compareAtPriceUgx: '',
   stockQuantity: '0',
   unit: 'piece',
   sku: '',
+  brand: '',
+  isFeatured: false,
   isActive: true,
-  translations: { en: { name: '', description: '' }, lg: { name: '', description: '' }, fr: { name: '', description: '' }, sw: { name: '', description: '' } },
+  specifications: [],
 };
 
 const PLACEHOLDER = '/img-placeholder.svg';
@@ -85,6 +86,8 @@ export default function ProductFormPage() {
   const [loadError, setLoadError] = useState(null);
   const [validation, setValidation] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [translations, setTranslations] = useState([]);
+  const [retranslating, setRetranslating] = useState(false);
 
   useEffect(() => {
     api
@@ -103,20 +106,22 @@ export default function ProductFormPage() {
       if (!product) {
         throw new Error('Product not found.');
       }
-      const translations = {};
-      (product.translations || []).forEach((t) => {
-        const key = String(t.language || '').toLowerCase();
-        if (key) translations[key] = { name: t.name || '', description: t.description || '' };
-      });
+      const en = (product.translations || []).find((t) => t.language === 'EN');
+      setTranslations(product.translations || []);
       setForm({
+        name: en?.name || product.nameEn || '',
+        description: en?.description || product.descriptionEn || '',
         slug: product.slug || '',
         categoryId: product.categoryId != null ? String(product.categoryId) : '',
         priceUgx: product.priceUgx != null ? String(product.priceUgx) : '',
+        compareAtPriceUgx: product.compareAtPriceUgx != null ? String(product.compareAtPriceUgx) : '',
         stockQuantity: product.stockQuantity != null ? String(product.stockQuantity) : '0',
         unit: product.unit || 'piece',
         sku: product.sku || '',
+        brand: product.brand || '',
+        isFeatured: Boolean(product.isFeatured),
         isActive: Boolean(product.isActive),
-        translations: { ...EMPTY_FORM.translations, ...translations },
+        specifications: Array.isArray(product.specifications) ? product.specifications : [],
       });
       setImages(Array.isArray(product.images) ? product.images : []);
     } catch (err) {
@@ -141,18 +146,31 @@ export default function ProductFormPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const setTranslation = (lang, field, value) => {
+  const setSpec = (index, field, value) => {
     setForm((prev) => ({
       ...prev,
-      translations: { ...prev.translations, [lang]: { ...prev.translations[lang], [field]: value } },
+      specifications: prev.specifications.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
     }));
+  };
+
+  const regenerateTranslations = async () => {
+    setRetranslating(true);
+    try {
+      const res = await api.post(`/admin/catalog/products/${id}/translate`);
+      setTranslations(res?.data?.translations || []);
+      showToast('Translations regenerated from the English text.', { type: 'success' });
+    } catch (err) {
+      showToast(err.message || 'Could not regenerate translations.', { type: 'error' });
+    } finally {
+      setRetranslating(false);
+    }
   };
 
   const validate = () => {
     const errors = {};
+    if (form.name.trim().length < 2) errors.name = 'Enter the product name in English.';
     const finalSlug = slugify(form.slug.trim());
-    if (!finalSlug) errors.slug = 'Slug is required.';
-    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
+    if (form.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
       errors.slug = 'Slug must be lowercase letters/numbers separated by hyphens.';
     }
     if (!form.categoryId) errors.categoryId = 'Select a category.';
@@ -164,9 +182,12 @@ export default function ProductFormPage() {
     if (form.stockQuantity !== '' && (!Number.isInteger(stock) || stock < 0)) {
       errors.stockQuantity = 'Stock must be a non-negative integer.';
     }
-    const named = LANGUAGES.filter((l) => form.translations[l.code]?.name?.trim());
-    if (named.length === 0) {
-      errors.translations = 'At least one language name is required.';
+    if (form.compareAtPriceUgx !== '') {
+      const was = Number(form.compareAtPriceUgx);
+      if (!Number.isInteger(was) || was <= price) errors.compareAtPriceUgx = 'The "was" price must be a whole number higher than the price.';
+    }
+    if (form.specifications.some((s) => !s.label?.trim() || !s.value?.trim())) {
+      errors.specifications = 'Fill in or remove empty specification rows.';
     }
     setValidation(errors);
     return Object.keys(errors).length === 0;
@@ -293,16 +314,17 @@ export default function ProductFormPage() {
     setSubmitting(true);
     try {
       const payload = {
-        slug: slugify(form.slug.trim()),
+        name: form.name.trim(),
+        description: form.description.trim() || null,
         categoryId: Number(form.categoryId),
         priceUgx: Math.round(Number(form.priceUgx)),
+        compareAtPriceUgx: form.compareAtPriceUgx === '' ? null : Math.round(Number(form.compareAtPriceUgx)),
+        brand: form.brand.trim() || null,
+        isFeatured: form.isFeatured,
         isActive: form.isActive,
-        translations: LANGUAGES.filter((l) => form.translations[l.code]?.name?.trim()).map((l) => ({
-          language: l.code,
-          name: form.translations[l.code].name.trim(),
-          description: form.translations[l.code].description?.trim() || undefined,
-        })),
+        specifications: form.specifications.map((s) => ({ label: s.label.trim(), value: s.value.trim() })),
       };
+      if (form.slug.trim()) payload.slug = slugify(form.slug.trim());
       if (form.stockQuantity !== '' && !isEdit) {
         payload.stockQuantity = Math.round(Number(form.stockQuantity));
       }
@@ -368,18 +390,44 @@ export default function ProductFormPage() {
 
       <form onSubmit={handleSubmit} noValidate className="product-form__body panel panel-pad">
         <fieldset>
-          <legend>Basics</legend>
+          <legend>Product details (English)</legend>
+          <div className="form-field">
+            <label htmlFor="pf-name" className="required">
+              Product name
+            </label>
+            <input
+              id="pf-name"
+              type="text"
+              value={form.name}
+              onChange={(e) => setField('name', e.target.value)}
+              placeholder="e.g. Samsung Galaxy A15 (128 GB)"
+              disabled={submitting}
+            />
+            {validation.name && <span className="field-error">{validation.name}</span>}
+          </div>
+          <div className="form-field">
+            <label htmlFor="pf-desc">Description</label>
+            <textarea
+              id="pf-desc"
+              rows={4}
+              value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
+              placeholder="What it is, key features, what's in the box…"
+              disabled={submitting}
+            />
+            <span className="field-hint">
+              <Languages size={12} aria-hidden="true" /> Write in English only — Luganda, Kiswahili and French are translated automatically.
+            </span>
+          </div>
           <div className="form-row">
             <div className="form-field">
-              <label htmlFor="pf-slug" className="required">
-                Slug
-              </label>
+              <label htmlFor="pf-slug">URL slug (optional)</label>
               <input
                 id="pf-slug"
                 type="text"
                 value={form.slug}
                 onChange={(e) => setField('slug', normalizeSlugInput(e.target.value))}
-                placeholder="fresh-green-matooke"
+                placeholder={slugify(form.name) || 'generated from the name'}
                 disabled={submitting}
               />
               {validation.slug && <span className="field-error">{validation.slug}</span>}
@@ -397,7 +445,7 @@ export default function ProductFormPage() {
                 <option value="">Select category…</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.slug}
+                    {(c.translations || []).find((t) => t.language === 'EN')?.name || c.nameEn || c.slug}
                   </option>
                 ))}
               </select>
@@ -444,13 +492,41 @@ export default function ProductFormPage() {
 
           <div className="form-row">
             <div className="form-field">
+              <label htmlFor="pf-was">“Was” price (UGX, optional)</label>
+              <input
+                id="pf-was"
+                type="number"
+                min="0"
+                step="1"
+                value={form.compareAtPriceUgx}
+                onChange={(e) => setField('compareAtPriceUgx', e.target.value)}
+                placeholder="Shown struck-through for deals"
+                disabled={submitting}
+              />
+              {validation.compareAtPriceUgx && <span className="field-error">{validation.compareAtPriceUgx}</span>}
+            </div>
+            <div className="form-field">
+              <label htmlFor="pf-brand">Brand</label>
+              <input
+                id="pf-brand"
+                type="text"
+                value={form.brand}
+                onChange={(e) => setField('brand', e.target.value.slice(0, 100))}
+                placeholder="e.g. Tecno, Samsung, Hisense"
+                disabled={submitting}
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-field">
               <label htmlFor="pf-unit">Unit</label>
               <input
                 id="pf-unit"
                 type="text"
                 value={form.unit}
                 onChange={(e) => setField('unit', e.target.value)}
-                placeholder="kg, bunch, crate…"
+                placeholder="piece, kg, pair, pack, bunch…"
                 disabled={submitting}
               />
             </div>
@@ -478,43 +554,76 @@ export default function ProductFormPage() {
               Active (visible to customers)
             </label>
           </div>
+          <div className="form-field product-form__check">
+            <input
+              id="pf-featured"
+              type="checkbox"
+              checked={form.isFeatured}
+              onChange={(e) => setField('isFeatured', e.target.checked)}
+              disabled={submitting}
+            />
+            <label htmlFor="pf-featured" style={{ fontWeight: 600 }}>
+              Featured on the home page
+            </label>
+          </div>
         </fieldset>
 
         <fieldset>
-          <legend>Multilingual content</legend>
-          {validation.translations && (
-            <div className="alert alert--error" role="alert" style={{ marginBottom: 12 }}>
-              <span>{validation.translations}</span>
-            </div>
-          )}
-          {LANGUAGES.map((lang) => (
-            <div key={lang.code} className="product-form__lang">
-              <div className="product-form__lang-label">{lang.label}</div>
-              <div className="form-row">
-                <div className="form-field">
-                  <label htmlFor={`pf-name-${lang.code}`}>Name</label>
-                  <input
-                    id={`pf-name-${lang.code}`}
-                    type="text"
-                    value={form.translations[lang.code]?.name || ''}
-                    onChange={(e) => setTranslation(lang.code, 'name', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor={`pf-desc-${lang.code}`}>Description</label>
-                  <textarea
-                    id={`pf-desc-${lang.code}`}
-                    rows={2}
-                    value={form.translations[lang.code]?.description || ''}
-                    onChange={(e) => setTranslation(lang.code, 'description', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
+          <legend>Specifications</legend>
+          <p className="field-hint product-form__hint">Key facts shown in a table on the product page (e.g. Storage: 128 GB, Size: XL, Weight: 2 kg).</p>
+          {form.specifications.map((s, i) => (
+            <div key={i} className="spec-row">
+              <input type="text" value={s.label} onChange={(e) => setSpec(i, 'label', e.target.value.slice(0, 60))} placeholder="Label" aria-label={`Specification ${i + 1} label`} disabled={submitting} />
+              <input type="text" value={s.value} onChange={(e) => setSpec(i, 'value', e.target.value.slice(0, 200))} placeholder="Value" aria-label={`Specification ${i + 1} value`} disabled={submitting} />
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => setField('specifications', form.specifications.filter((_, j) => j !== i))}
+                aria-label={`Remove specification ${i + 1}`}
+                disabled={submitting}
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
             </div>
           ))}
+          {validation.specifications && <span className="field-error">{validation.specifications}</span>}
+          {form.specifications.length < 30 && (
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              onClick={() => setField('specifications', [...form.specifications, { label: '', value: '' }])}
+              disabled={submitting}
+            >
+              <Plus size={13} aria-hidden="true" /> Add specification
+            </button>
+          )}
         </fieldset>
+
+        {isEdit && (
+          <fieldset>
+            <legend>Automatic translations</legend>
+            <p className="field-hint product-form__hint">
+              Generated from the English name and description and refreshed whenever you change them. Customers who pick another language see these.
+            </p>
+            <div className="auto-trans-grid">
+              {AUTO_LANGS.map((l) => {
+                const tr = translations.find((t) => t.language === l.code);
+                return (
+                  <div key={l.code} className="auto-trans-card">
+                    <span className="auto-trans-card__lang">
+                      {l.label} {tr?.isAuto && <span className="badge badge--info">auto</span>}
+                    </span>
+                    <strong>{tr?.name || <em className="text-muted">Pending…</em>}</strong>
+                    {tr?.description && <p>{tr.description}</p>}
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" className="btn btn--secondary btn--sm" onClick={regenerateTranslations} disabled={retranslating || submitting}>
+              <RefreshCw size={13} aria-hidden="true" /> {retranslating ? 'Translating…' : 'Regenerate translations'}
+            </button>
+          </fieldset>
+        )}
 
         <fieldset>
           <legend>Images</legend>

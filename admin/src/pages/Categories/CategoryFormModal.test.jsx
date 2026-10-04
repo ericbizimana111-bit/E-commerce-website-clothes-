@@ -104,8 +104,8 @@ describe('CategoryFormModal — image', () => {
     await user.upload(screen.getByLabelText('Choose category image'), png());
     expect(calls).toHaveLength(0); // nothing uploaded yet
 
-    await user.type(screen.getByLabelText(/^Slug/), 'dairy');
-    await user.type(screen.getByLabelText('Name', { selector: '#cat-name-en' }), 'Dairy');
+    // English name only; the slug is optional and translations are automatic.
+    await user.type(screen.getByLabelText(/Category name/), 'Dairy');
     await user.click(screen.getByRole('button', { name: /create category/i }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Category created successfully.'));
@@ -113,5 +113,8 @@ describe('CategoryFormModal — image', () => {
       'POST /api/admin/catalog/categories',
       'POST /api/admin/catalog/categories/9/image',
     ]);
+    const created = JSON.parse(calls[0].body);
+    expect(created).toMatchObject({ name: 'Dairy' });
+    expect(created.translations).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import en from './en';
 import lg from './lg';
 import sw from './sw';
 import fr from './fr';
+import MARKET from './market';
 import { detectBrowserLanguage, translate, TRANSLATIONS } from './index';
 
 const enKeys = Object.keys(en).sort();
@@ -26,6 +27,28 @@ describe('translation dictionaries', () => {
   test('no translation is empty', () => {
     Object.entries(TRANSLATIONS).forEach(([, dict]) => {
       Object.values(dict).forEach((text) => expect(String(text).trim()).not.toBe(''));
+    });
+  });
+});
+
+describe('marketplace dictionary', () => {
+  const marketEn = Object.keys(MARKET.en).sort();
+
+  test.each(['lg', 'sw', 'fr'])('%s has exactly the same marketplace keys as English', (code) => {
+    const keys = Object.keys(MARKET[code]).sort();
+    expect(marketEn.filter((k) => !keys.includes(k))).toEqual([]);
+    expect(keys.filter((k) => !marketEn.includes(k))).toEqual([]);
+  });
+
+  test.each(['lg', 'sw', 'fr'])('%s keeps every marketplace {placeholder}', (code) => {
+    const placeholders = (text) => (String(text).match(/\{\w+\}/g) || []).sort().join(',');
+    const broken = marketEn.filter((key) => placeholders(MARKET.en[key]) !== placeholders(MARKET[code][key]));
+    expect(broken).toEqual([]);
+  });
+
+  test('Visa / MasterCard are no longer advertised', () => {
+    ['faq3A', 'trustPayDesc', 'deliveryPayDesc'].forEach((key) => {
+      Object.values(TRANSLATIONS).forEach((dict) => expect(dict[key]).not.toMatch(/visa|mastercard/i));
     });
   });
 });

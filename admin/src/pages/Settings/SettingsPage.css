@@ -1,0 +1,81 @@
+.settings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.settings-grid .field-hint,
+.settings-deposit .field-hint {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.fee-calc {
+  margin: 4px 0 16px;
+  padding: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.fee-calc h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.fee-calc__try {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+}
+
+.fee-calc__try input {
+  width: 80px;
+  height: 34px;
+  padding: 0 8px;
+  font: inherit;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.fee-calc__try strong {
+  font-size: 15px;
+  color: var(--brand-primary);
+}
+
+.fee-calc__table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.fee-calc__table td {
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+}
+
+.fee-calc__table td:last-child {
+  font-weight: 700;
+  text-align: right;
+}
+
+@media (max-width: 1000px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -2,6 +2,7 @@ import en from './en';
 import lg from './lg';
 import sw from './sw';
 import fr from './fr';
+import MARKET from './market';
 
 /**
  * Supported storefront languages. `locale` drives number/date formatting
@@ -15,7 +16,14 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'fr', name: 'French', native: 'Français', locale: 'fr' }
 ];
 
-export const TRANSLATIONS = { en, lg, sw, fr };
+// Marketplace strings are layered over the base dictionaries (and override
+// the older food-only / pickup-station copy).
+export const TRANSLATIONS = {
+  en: { ...en, ...MARKET.en },
+  lg: { ...lg, ...MARKET.lg },
+  sw: { ...sw, ...MARKET.sw },
+  fr: { ...fr, ...MARKET.fr }
+};
 
 export const DEFAULT_LANGUAGE = 'en';
 
@@ -39,11 +47,11 @@ export function translate(lang, key, params) {
   let resolvedKey = key;
   if (params && typeof params.count === 'number') {
     const pluralKey = `${key}_${params.count === 1 ? 'one' : 'other'}`;
-    if (en[pluralKey] !== undefined) resolvedKey = pluralKey;
+    if (TRANSLATIONS.en[pluralKey] !== undefined) resolvedKey = pluralKey;
   }
 
   let text = TRANSLATIONS[lang]?.[resolvedKey];
-  if (text === undefined) text = en[resolvedKey];
+  if (text === undefined) text = TRANSLATIONS.en[resolvedKey];
   if (text === undefined) return key;
 
   if (params) {

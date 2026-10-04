@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Save, Trash2, X } from 'lucide-react';
+import { Languages, Save, Trash2, X } from 'lucide-react';
 import api from '../../services/api';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import IconPicker from '../../components/ui/IconPicker';
 import ImageDropzone from '../../components/ui/ImageDropzone';
 import { validateImageFile } from '../../utils/imageFiles';
 import './CategoryFormModal.css';
 
 /**
  * Create/edit category modal.
- * Backend contract (verified): slug must be lowercase alphanumeric with
- * hyphens; at least one translation { language, name } is required on create;
- * languages en/lg/fr/sw; displayOrder is a non-negative integer.
+ * Admins write the ENGLISH name/description only; the backend translates them
+ * into Luganda, Kiswahili and French automatically. Slug is optional
+ * (generated from the name); icon is shown in the storefront menus.
  */
-const LANGUAGES = [
-  { code: 'en', label: 'English (en)' },
-  { code: 'lg', label: 'Luganda (lg)' },
-  { code: 'fr', label: 'French (fr)' },
-  { code: 'sw', label: 'Kiswahili (sw)' },
+const AUTO_LANGS = [
+  { code: 'LG', label: 'Luganda' },
+  { code: 'SW', label: 'Kiswahili' },
+  { code: 'FR', label: 'French' },
 ];
 
 function slugify(value) {
@@ -50,14 +50,10 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [translations, setTranslations] = useState(() => {
-    const initial = {};
-    (category?.translations || []).forEach((t) => {
-      const key = String(t.language || '').toLowerCase();
-      if (key) initial[key] = { name: t.name || '', description: t.description || '' };
-    });
-    return initial;
-  });
+  const english = (category?.translations || []).find((t) => t.language === 'EN');
+  const [name, setName] = useState(english?.name || category?.nameEn || '');
+  const [description, setDescription] = useState(english?.description || '');
+  const [icon, setIcon] = useState(category?.icon || '');
   const [validation, setValidation] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState(null);
@@ -123,19 +119,13 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
     }
   };
 
-  const setTranslation = (lang, field, value) => {
-    setTranslations((prev) => ({ ...prev, [lang]: { ...prev[lang], [field]: value } }));
-  };
-
   const validate = () => {
     const errors = {};
+    if (name.trim().length < 2) errors.name = 'Enter the category name in English.';
     const finalSlug = slugify(slug.trim());
-    if (!finalSlug) errors.slug = 'Slug is required.';
-    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
+    if (slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
       errors.slug = 'Lowercase letters/numbers separated by hyphens only.';
     }
-    const named = LANGUAGES.filter((l) => translations[l.code]?.name?.trim());
-    if (named.length === 0) errors.translations = 'At least one language name is required.';
     const order = Number(displayOrder);
     if (displayOrder !== '' && (!Number.isInteger(order) || order < 0)) {
       errors.displayOrder = 'Display order must be a non-negative integer.';
@@ -153,13 +143,11 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
     setSubmitting(true);
     try {
       const payload = {
-        slug: slugify(slug.trim()),
-        translations: LANGUAGES.filter((l) => translations[l.code]?.name?.trim()).map((l) => ({
-          language: l.code,
-          name: translations[l.code].name.trim(),
-          description: translations[l.code].description?.trim() || undefined,
-        })),
+        name: name.trim(),
+        description: description.trim() || null,
+        icon: icon || null,
       };
+      if (slug.trim()) payload.slug = slugify(slug.trim());
       if (displayOrder !== '') payload.displayOrder = Math.round(Number(displayOrder));
 
       if (isEdit) {
@@ -204,17 +192,29 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
         )}
 
         <form onSubmit={handleSubmit} noValidate>
+          <div className="form-field">
+            <label htmlFor="cat-name" className="required">
+              Category name (English)
+            </label>
+            <input id="cat-name" type="text" value={name} onChange={(e) => setName(e.target.value.slice(0, 100))} placeholder="e.g. Phones & Tablets" disabled={submitting} />
+            {validation.name && <span className="field-error">{validation.name}</span>}
+          </div>
+          <div className="form-field">
+            <label htmlFor="cat-desc">Description (English, optional)</label>
+            <input id="cat-desc" type="text" value={description} onChange={(e) => setDescription(e.target.value)} disabled={submitting} />
+            <span className="field-hint">
+              <Languages size={12} aria-hidden="true" /> Luganda, Kiswahili and French are translated automatically.
+            </span>
+          </div>
           <div className="form-row">
             <div className="form-field">
-              <label htmlFor="cat-slug" className="required">
-                Slug
-              </label>
+              <label htmlFor="cat-slug">URL slug (optional)</label>
               <input
                 id="cat-slug"
                 type="text"
                 value={slug}
                 onChange={(e) => setSlug(normalizeSlugInput(e.target.value))}
-                placeholder="matooke-tubers"
+                placeholder={slugify(name) || 'generated from the name'}
                 disabled={submitting}
               />
               {validation.slug && <span className="field-error">{validation.slug}</span>}
@@ -283,34 +283,26 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
             />
           </fieldset>
 
-          <div className="cat-modal__langs">
-            {LANGUAGES.map((lang) => (
-              <div key={lang.code} className="cat-modal__lang">
-                <div className="cat-modal__lang-label">{lang.label}</div>
-                <div className="form-field">
-                  <label htmlFor={`cat-name-${lang.code}`}>Name</label>
-                  <input
-                    id={`cat-name-${lang.code}`}
-                    type="text"
-                    value={translations[lang.code]?.name || ''}
-                    onChange={(e) => setTranslation(lang.code, 'name', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor={`cat-desc-${lang.code}`}>Description (optional)</label>
-                  <input
-                    id={`cat-desc-${lang.code}`}
-                    type="text"
-                    value={translations[lang.code]?.description || ''}
-                    onChange={(e) => setTranslation(lang.code, 'description', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
-            ))}
-            {validation.translations && <span className="field-error">{validation.translations}</span>}
+          <div className="form-field">
+            <label>Menu icon</label>
+            <IconPicker value={icon} onChange={setIcon} disabled={submitting} />
           </div>
+
+          {isEdit && (
+            <div className="cat-modal__langs">
+              {AUTO_LANGS.map((lang) => {
+                const tr = (category.translations || []).find((t) => t.language === lang.code);
+                return (
+                  <div key={lang.code} className="cat-modal__lang">
+                    <div className="cat-modal__lang-label">
+                      {lang.label} {tr?.isAuto ? '· automatic' : ''}
+                    </div>
+                    <span>{tr?.name || 'Pending translation…'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="cat-modal__actions">
             <button type="button" className="btn btn--secondary" onClick={onClose} disabled={submitting}>

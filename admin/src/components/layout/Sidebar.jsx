@@ -1,19 +1,25 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
+  Bell,
   Boxes,
+  CalendarCheck,
   ClipboardList,
+  HardHat,
   LayoutDashboard,
   LogOut,
-  MapPin,
+  MessageCircle,
   Package,
+  Settings,
   ShoppingBag,
   Truck,
   Users,
   Wallet,
+  Wrench,
   X,
 } from 'lucide-react';
 import { useAuth, hasRole, CATALOG_ROLES, OPERATIONS_ROLES } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import { formatRole } from '../../utils/format';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import './Sidebar.css';
@@ -31,36 +37,47 @@ const NAV_SECTIONS = [
     label: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true, roles: OPERATIONS_ROLES },
+      { to: '/notifications', label: 'Notifications', icon: Bell, roles: OPERATIONS_ROLES, badge: 'notifications' },
     ],
   },
   {
     label: 'Commerce',
     items: [
       { to: '/orders', label: 'Orders', icon: ShoppingBag, roles: OPERATIONS_ROLES },
+      { to: '/deliveries', label: 'Deliveries', icon: Truck, roles: OPERATIONS_ROLES },
       { to: '/products', label: 'Products', icon: Package, roles: CATALOG_ROLES },
       { to: '/categories', label: 'Categories', icon: Boxes, roles: CATALOG_ROLES },
       { to: '/inventory', label: 'Inventory', icon: ClipboardList, roles: CATALOG_ROLES },
     ],
   },
   {
-    label: 'Fulfillment',
+    label: 'Home services',
     items: [
-      { to: '/deliveries', label: 'Deliveries', icon: Truck, roles: OPERATIONS_ROLES },
-      { to: '/stations', label: 'Pickup Stations', icon: MapPin, roles: CATALOG_ROLES },
+      { to: '/service-requests', label: 'Bookings', icon: CalendarCheck, roles: OPERATIONS_ROLES },
+      { to: '/services', label: 'Service catalogue', icon: Wrench, roles: OPERATIONS_ROLES },
+      { to: '/technicians', label: 'Technicians', icon: HardHat, roles: OPERATIONS_ROLES },
     ],
   },
   {
-    label: 'Finance',
-    items: [{ to: '/payments', label: 'Payments', icon: Wallet, roles: OPERATIONS_ROLES }],
+    label: 'Customers',
+    items: [
+      { to: '/messages', label: 'Messages', icon: MessageCircle, roles: OPERATIONS_ROLES, badge: 'messages' },
+      { to: '/customers', label: 'Customers', icon: Users, roles: OPERATIONS_ROLES },
+    ],
   },
   {
-    label: 'Customers',
-    items: [{ to: '/customers', label: 'Customers', icon: Users, roles: OPERATIONS_ROLES }],
+    label: 'Finance & settings',
+    items: [
+      { to: '/payments', label: 'Payments', icon: Wallet, roles: OPERATIONS_ROLES },
+      { to: '/settings', label: 'Store settings', icon: Settings, roles: OPERATIONS_ROLES },
+    ],
   },
 ];
 
 export default function Sidebar({ open, onClose }) {
   const { role, admin, logout } = useAuth();
+  const { unreadNotifications, unreadMessages } = useRealtime();
+  const badges = { notifications: unreadNotifications, messages: unreadMessages };
   const navigate = useNavigate();
 
   const [confirmingLogout, setConfirmingLogout] = useState(false);
@@ -103,7 +120,8 @@ export default function Sidebar({ open, onClose }) {
               <div key={section.label} className="sidebar__section">
                 <div className="sidebar__section-label">{section.label}</div>
                 {items.map((item) => {
-                  const { to, label, icon: Icon, end } = item;
+                  const { to, label, icon: Icon, end, badge } = item;
+                  const count = badge ? badges[badge] : 0;
                   return (
                     <NavLink
                       key={to}
@@ -116,6 +134,7 @@ export default function Sidebar({ open, onClose }) {
                     >
                       <Icon size={18} aria-hidden="true" />
                       <span>{label}</span>
+                      {count > 0 && <span className="sidebar__count">{count > 99 ? '99+' : count}</span>}
                     </NavLink>
                   );
                 })}

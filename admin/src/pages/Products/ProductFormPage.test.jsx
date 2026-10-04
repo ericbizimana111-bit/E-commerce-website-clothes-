@@ -105,7 +105,7 @@ describe('ProductFormPage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Slug/i)).toHaveValue('fresh-green-matooke');
     });
-    expect(screen.getByLabelText(/Price \(UGX/i)).toHaveValue(28000);
+    expect(screen.getByLabelText(/^Price \(UGX/i)).toHaveValue(28000);
     expect(screen.getByDisplayValue('28000')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Green Matooke')).toBeInTheDocument();
 
@@ -125,8 +125,8 @@ describe('ProductFormPage', () => {
 
     await user.type(screen.getByLabelText(/Slug/i), 'new-matooke');
     await user.selectOptions(screen.getByLabelText(/^Category/i), '3');
-    await user.type(screen.getByLabelText(/Price \(UGX/i), '15000');
-    await user.type(screen.getByLabelText('Name', { selector: '#pf-name-en' }), 'New Matooke');
+    await user.type(screen.getByLabelText(/^Price \(UGX/i), '15000');
+    await user.type(screen.getByLabelText(/Product name/i), 'New Matooke');
     await user.click(screen.getByRole('button', { name: /Create product/i }));
 
     await waitFor(() => {
@@ -136,7 +136,9 @@ describe('ProductFormPage', () => {
       expect(body.slug).toBe('new-matooke');
       expect(body.categoryId).toBe(3);
       expect(body.priceUgx).toBe(15000);
-      expect(body.translations.some((t) => t.language === 'en' && t.name === 'New Matooke')).toBe(true);
+      // English only: other languages are machine-translated by the backend.
+      expect(body.name).toBe('New Matooke');
+      expect(body.translations).toBeUndefined();
     });
     // On success the form navigates back to the products list
     await waitFor(() => {

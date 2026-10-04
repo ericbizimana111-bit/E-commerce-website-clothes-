@@ -42,32 +42,61 @@ function walk(dir, exts, acc = []) {
   return acc;
 }
 
-/** Extract backend route templates: { method, template } from app.js mounts + routers. */
+/** Extract backend route templates: { method, template } from app.js mounts + routers.
+ *  Supports `const x = require('./routes/...')` and destructured requires of
+ *  modules exporting several routers (`module.exports = { a: routerA, ... }`),
+ *  with routers declared under any variable name (`const r = express.Router()`). */
 function extractBackendRoutes() {
   const appJs = fs.readFileSync(path.join(BACKEND_SRC, 'app.js'), 'utf8');
   const mounts = [...appJs.matchAll(/app\.use\('([^']+)',\s*(?:[\w$]+,\s*)?(\w+)\)/g)]
     .filter((m) => m[1].startsWith('/api'))
     .map((m) => ({ mount: m[1].replace(/\/$/, ''), routerVar: m[2] }));
 
-  const requireRe = /(?:const|let|var)\s+(\w+)\s*=\s*require\(['"]([^'"]*routes[^'"]*)['"]\)/g;
-  const routerFiles = {};
-  for (const m of appJs.matchAll(requireRe)) {
-    const varName = m[1];
-    const resolved = m[2].startsWith('.') ? path.join(BACKEND_SRC, m[2]) : m[2];
-    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) routerFiles[varName] = resolved;
-    else if (fs.existsSync(resolved + '.js')) routerFiles[varName] = resolved + '.js';
+  const resolveFile = (spec) => {
+    const resolved = spec.startsWith('.') ? path.join(BACKEND_SRC, spec) : spec;
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) return resolved;
+    if (fs.existsSync(resolved + '.js')) return resolved + '.js';
+    return null;
+  };
+
+  // varName (in app.js) -> { file, exportName | null }
+  const bindings = {};
+  for (const m of appJs.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*require\(['"]([^'"]*routes[^'"]*)['"]\)/g)) {
+    const file = resolveFile(m[2]);
+    if (file) bindings[m[1]] = { file, exportName: null };
+  }
+  for (const m of appJs.matchAll(/(?:const|let|var)\s+\{([^}]+)\}\s*=\s*require\(['"]([^'"]*routes[^'"]*)['"]\)/g)) {
+    const file = resolveFile(m[2]);
+    if (!file) continue;
+    for (const name of m[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+      const [exported, local] = name.split(':').map((s) => s.trim());
+      bindings[local || exported] = { file, exportName: exported };
+    }
   }
 
   const routes = [];
   for (const { mount, routerVar } of mounts) {
-    const file = routerFiles[routerVar];
-    if (!file) continue;
-    const src = fs.readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/router\.(get|post|put|patch|delete)\(\s*'([^']+)'/g)) {
-      routes.push({
-        method: m[1].toUpperCase(),
-        template: (mount + (m[2] === '/' ? '' : m[2])).replace(/\/+$/, '') || mount,
-      });
+    const binding = bindings[routerVar];
+    if (!binding) continue;
+    const src = fs.readFileSync(binding.file, 'utf8');
+    const routerNames = [...src.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*express\.Router\(\)/g)].map((m) => m[1]);
+    let locals = routerNames;
+    if (binding.exportName) {
+      const exportsBlock = src.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+      const pair = exportsBlock && exportsBlock[1]
+        .split(',')
+        .map((s) => s.trim().split(':').map((x) => x.trim()))
+        .find(([key]) => key === binding.exportName);
+      locals = pair ? [pair[1] || pair[0]] : [];
+    }
+    for (const local of locals) {
+      const re = new RegExp(`\\b${local}\\.(get|post|put|patch|delete)\\(\\s*'([^']+)'`, 'g');
+      for (const m of src.matchAll(re)) {
+        routes.push({
+          method: m[1].toUpperCase(),
+          template: (mount + (m[2] === '/' ? '' : m[2])).replace(/\/+$/, '') || mount,
+        });
+      }
     }
   }
   return routes;
@@ -105,6 +134,10 @@ describe('admin ↔ backend route contract', () => {
     expect(templates).toContain('PATCH /api/admin/catalog/products/:id/active');
     expect(templates).toContain('POST /api/admin/catalog/products/:id/inventory/restock');
     expect(templates).toContain('PATCH /api/admin/deliveries/:id/assign');
+    // Multi-router modules (destructured exports) are understood too.
+    expect(templates).toContain('POST /api/admin/chat/conversations/:id/messages');
+    expect(templates).toContain('PATCH /api/admin/services/requests/:id');
+    expect(templates).toContain('GET /api/admin/orders/:id/route');
   });
 
   test('backend route extraction is non-trivial', () => {

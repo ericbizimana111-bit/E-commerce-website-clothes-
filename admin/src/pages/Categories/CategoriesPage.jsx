@@ -10,6 +10,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { TableSkeleton } from '../../components/ui/loaders';
 import { EmptyState, ErrorState } from '../../components/ui/states';
 import CategoryFormModal from './CategoryFormModal';
+import { iconFor } from '../../utils/categoryIcons';
 import './CategoriesPage.css';
 
 /**
@@ -74,21 +75,33 @@ export default function CategoriesPage() {
 
   const columns = [
     {
-      key: 'slug',
+      key: 'name',
       header: 'Category',
-      render: (row) => <span className="categories-page__slug">{row.slug}</span>,
+      render: (row) => {
+        const Icon = iconFor(row.icon);
+        const en = row.translations?.find((t) => t.language === 'EN')?.name || row.nameEn;
+        return (
+          <span className="categories-page__name">
+            <span className="categories-page__icon">
+              <Icon size={16} aria-hidden="true" />
+            </span>
+            <span>
+              <strong>{en || row.slug}</strong>
+              <span className="categories-page__slug">{row.slug}</span>
+            </span>
+          </span>
+        );
+      },
     },
     {
-      key: 'names',
-      header: 'Names (en / lg)',
+      key: 'translations',
+      header: 'Translations',
       render: (row) => {
-        const en = row.translations?.find((t) => t.language === 'EN')?.name;
-        const lg = row.translations?.find((t) => t.language === 'LG')?.name;
-        return (
-          <span>
-            {en || '—'}
-            <span className="categories-page__alt">{lg || '—'}</span>
-          </span>
+        const others = ['LG', 'SW', 'FR'].filter((l) => row.translations?.some((t) => t.language === l));
+        return others.length === 3 ? (
+          <span className="badge badge--success">LG · SW · FR</span>
+        ) : (
+          <span className="badge badge--neutral">{others.length}/3 ready</span>
         );
       },
     },

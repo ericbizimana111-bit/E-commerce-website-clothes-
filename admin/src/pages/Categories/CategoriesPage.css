@@ -1,6 +1,8 @@
 .categories-page__slug {
-  font-weight: 600;
-  color: var(--text-strong);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .categories-page__alt {
@@ -17,4 +19,26 @@
 .categories-page__row-actions {
   display: inline-flex;
   gap: 6px;
+}
+
+.categories-page__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.categories-page__name strong {
+  display: block;
+  color: var(--text-strong);
+}
+
+.categories-page__icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  border-radius: 9px;
 }

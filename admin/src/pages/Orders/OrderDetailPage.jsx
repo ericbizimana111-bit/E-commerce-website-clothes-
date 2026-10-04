@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, History, MapPin, RefreshCw, Wallet } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, ExternalLink, History, Landmark, MapPin, MessageCircle, Phone, RefreshCw, Route, Timer, TriangleAlert, Wallet } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
-import { formatUGX, formatDateTime } from '../../utils/format';
+import AdminMap from '../../components/map/AdminMap';
+import { useRealtimeEvent } from '../../context/RealtimeContext';
+import { directionsUrl, formatUGX, formatDateTime, formatKm, formatMinutes } from '../../utils/format';
 import StatusBadge from '../../components/ui/StatusBadge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { DetailSkeleton } from '../../components/ui/loaders';
@@ -58,6 +60,8 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState(null);
   const [payment, setPayment] = useState(null);
+  const [route, setRoute] = useState(null);
+  const [routeError, setRouteError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [transition, setTransition] = useState(null); // { status }
@@ -90,6 +94,21 @@ export default function OrderDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Road route from the dispatch point (distance, ETA, polyline, tariff check).
+  useEffect(() => {
+    setRoute(null);
+    setRouteError(null);
+    api
+      .get(`/admin/orders/${id}/route`)
+      .then((res) => setRoute(res?.data?.route || null))
+      .catch((err) => setRouteError(err.message || 'Route unavailable.'));
+  }, [id]);
+
+  // Payments/cancellations for this order arrive live.
+  useRealtimeEvent('notification', (n) => {
+    if (n.orderId === id) load();
+  });
 
   const confirmTransition = async () => {
     if (!transition) return;
@@ -135,7 +154,9 @@ export default function OrderDetailPage() {
 
   const pricing = order.pricing || {};
   const isHome = order.fulfillment?.method === 'HOME_DELIVERY';
-  const suggestions = SUGGESTED_NEXT[order.status] || [];
+  // Delivery orders never offer the legacy pickup branch.
+  const suggestions = (SUGGESTED_NEXT[order.status] || []).filter((s) => (isHome ? s !== 'READY_FOR_PICKUP' : s !== 'READY_FOR_DELIVERY'));
+  const addr = order.fulfillment?.address || {};
   const terminal = suggestions.length === 0;
 
   const paymentPricing = payment?.pricing || {};
@@ -236,23 +257,96 @@ export default function OrderDetailPage() {
           </section>
 
           <section className="panel panel-pad detail-block" aria-label="Fulfillment">
-            <h3>Fulfillment</h3>
+            <h3>{isHome ? 'Delivery location' : 'Pickup station (legacy order)'}</h3>
             {isHome ? (
-              <div className="fulfillment-box">
-                <MapPin size={15} aria-hidden="true" />
-                <div>
-                  <strong>{order.fulfillment?.address?.title || 'Delivery address'}</strong>
-                  <p>
-                    {order.fulfillment?.address?.streetAddress}
-                    {order.fulfillment?.address?.division
-                      ? `, ${order.fulfillment.address.division}`
-                      : ''}
-                    {order.fulfillment?.address?.district
-                      ? `, ${order.fulfillment.address.district}`
-                      : ''}
-                  </p>
+              <>
+                <div className="deliver-to">
+                  <div className="deliver-to__main">
+                    <strong>
+                      <MapPin size={15} aria-hidden="true" /> {[addr.division, addr.district].filter(Boolean).join(', ') || addr.district}
+                      {addr.region && <span className="text-muted"> · {addr.region.toLowerCase()} region</span>}
+                    </strong>
+                    <p>{addr.streetAddress}</p>
+                    {addr.landmark && (
+                      <p className="deliver-to__line">
+                        <Landmark size={14} aria-hidden="true" /> {addr.landmark}
+                      </p>
+                    )}
+                    {addr.formattedAddress && <p className="text-muted deliver-to__formatted">{addr.formattedAddress}</p>}
+                    <div className="deliver-to__badges">
+                      {addr.isVerified ? (
+                        <span className="badge badge--success">
+                          <BadgeCheck size={12} aria-hidden="true" /> Location verified on map
+                        </span>
+                      ) : addr.latitude != null ? (
+                        <span className="badge badge--warning">Pin validated offline — call to confirm</span>
+                      ) : (
+                        <span className="badge badge--danger">
+                          <TriangleAlert size={12} aria-hidden="true" /> No map pin (legacy address)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="deliver-to__contact">
+                    <span className="text-muted">Deliver to</span>
+                    <strong>{addr.recipientName || order.customer?.fullName}</strong>
+                    {(addr.contactPhone || order.customer?.phone) && (
+                      <a href={`tel:${addr.contactPhone || order.customer?.phone}`} className="btn btn--secondary btn--sm">
+                        <Phone size={13} aria-hidden="true" /> {addr.contactPhone || order.customer?.phone}
+                      </a>
+                    )}
+                    {addr.latitude != null && (
+                      <a href={directionsUrl(addr.latitude, addr.longitude)} target="_blank" rel="noopener noreferrer" className="btn btn--primary btn--sm">
+                        <ExternalLink size={13} aria-hidden="true" /> Open directions
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                {route ? (
+                  <>
+                    <AdminMap origin={route.origin} destination={route.destination} geometry={route.geometry} height={320} />
+                    <div className="route-summary">
+                      <div>
+                        <Route size={16} aria-hidden="true" />
+                        <span>
+                          <small>Road distance</small>
+                          <strong>{formatKm(route.distanceKm)}</strong>
+                        </span>
+                      </div>
+                      <div>
+                        <Timer size={16} aria-hidden="true" />
+                        <span>
+                          <small>Travel time</small>
+                          <strong>{formatMinutes(route.etaMinutes)}</strong>
+                        </span>
+                      </div>
+                      <div>
+                        <MapPin size={16} aria-hidden="true" />
+                        <span>
+                          <small>Straight line</small>
+                          <strong>{formatKm(route.straightLineKm)}</strong>
+                        </span>
+                      </div>
+                      <div>
+                        <Wallet size={16} aria-hidden="true" />
+                        <span>
+                          <small>Fee charged</small>
+                          <strong>{formatUGX(route.chargedFeeUgx)}</strong>
+                        </span>
+                      </div>
+                    </div>
+                    <p className="subtle-note">
+                      From {route.origin?.name || 'dispatch point'} ·{' '}
+                      {route.distanceSource === 'ROUTED' ? 'road route' : 'estimated from straight-line distance'}. Current tariff for this distance:{' '}
+                      <strong>{formatUGX(route.currentTariffFeeUgx)}</strong>
+                      {route.currentTariffFeeUgx !== route.chargedFeeUgx && ' (tariff or route changed since the order was placed)'}.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted">{routeError || 'Calculating route…'}</p>
+                )}
+              </>
             ) : (
               <div className="fulfillment-box">
                 <MapPin size={15} aria-hidden="true" />
@@ -260,13 +354,8 @@ export default function OrderDetailPage() {
                   <strong>{order.fulfillment?.station?.name || 'Pickup station'}</strong>
                   <p>
                     {order.fulfillment?.station?.addressText}
-                    {order.fulfillment?.station?.district
-                      ? `, ${order.fulfillment.station.district}`
-                      : ''}
+                    {order.fulfillment?.station?.district ? `, ${order.fulfillment.station.district}` : ''}
                   </p>
-                  {order.fulfillment?.station?.operatingHours && (
-                    <p className="order-items-table__unit">{order.fulfillment.station.operatingHours}</p>
-                  )}
                 </div>
               </div>
             )}
@@ -318,8 +407,48 @@ export default function OrderDetailPage() {
                   <dd>{order.customer.email}</dd>
                 </div>
               )}
+              <div className="kv-list__row">
+                <dt>Previous orders</dt>
+                <dd>{order.customer?.previousOrders ?? '—'}</dd>
+              </div>
             </dl>
+            {order.notes && (
+              <div className="order-note">
+                <strong>Customer note</strong>
+                <p>{order.notes}</p>
+              </div>
+            )}
+            <Link to={`/messages?customer=${order.customer?.id}`} className="btn btn--secondary btn--sm btn--block" style={{ marginTop: 10 }}>
+              <MessageCircle size={14} aria-hidden="true" /> Message customer
+            </Link>
           </section>
+
+          {order.delivery && (
+            <section className="panel panel-pad detail-block" aria-label="Dispatch">
+              <h3>Dispatch</h3>
+              <dl className="kv-list">
+                <div className="kv-list__row">
+                  <dt>Delivery status</dt>
+                  <dd>
+                    <StatusBadge status={order.delivery.status} kind="delivery" />
+                  </dd>
+                </div>
+                <div className="kv-list__row">
+                  <dt>Assigned to</dt>
+                  <dd>{order.delivery.assignedAdmin?.fullName || 'Unassigned'}</dd>
+                </div>
+                {order.delivery.startedAt && (
+                  <div className="kv-list__row">
+                    <dt>Dispatched</dt>
+                    <dd>{formatDateTime(order.delivery.startedAt)}</dd>
+                  </div>
+                )}
+              </dl>
+              <Link to="/deliveries" className="btn btn--ghost btn--sm" style={{ marginTop: 8 }}>
+                Manage in Deliveries
+              </Link>
+            </section>
+          )}
 
           <section className="panel panel-pad detail-block" aria-label="Pricing">
             <h3>Pricing (server-authoritative)</h3>

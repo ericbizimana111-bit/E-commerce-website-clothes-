@@ -102,3 +102,46 @@ export function formatRole(role) {
       return role || '—';
   }
 }
+
+/** "just now", "5 min ago", "3 h ago", then a date. */
+export function formatRelative(value) {
+  if (!value) return '—';
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return '—';
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  return formatDateTime(value);
+}
+
+const BOOKING_STATUS_META = {
+  PENDING: { label: 'New request', tone: 'warning' },
+  CONFIRMED: { label: 'Confirmed', tone: 'info' },
+  ASSIGNED: { label: 'Technician assigned', tone: 'info' },
+  IN_PROGRESS: { label: 'In progress', tone: 'warning' },
+  COMPLETED: { label: 'Completed', tone: 'success' },
+  CANCELLED: { label: 'Cancelled', tone: 'danger' },
+};
+
+export function getBookingStatusMeta(status) {
+  return BOOKING_STATUS_META[status] || { label: status || 'Unknown', tone: 'neutral' };
+}
+
+export const BOOKING_STATUSES = Object.keys(BOOKING_STATUS_META);
+
+/** Google Maps directions link to a point (opens the app on phones). */
+export function directionsUrl(lat, lng) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+}
+
+export function formatKm(km) {
+  return km == null ? '—' : `${Number(km).toFixed(1)} km`;
+}
+
+export function formatMinutes(min) {
+  if (min == null) return '—';
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${min % 60} min`;
+}

@@ -2,8 +2,8 @@
  * Phase 13 — Customer mobile money network selection.
  *
  * Verifies that OrderDetail shows the MTN / Airtel selector when a payment
- * action is available and that the selected method is forwarded in the
- * POST /orders/:id/payment call.
+ * action is available (mobile money only — no cards) and that the selected
+ * method is forwarded in the POST /orders/:id/payment call.
  *
  * No real payment logic is exercised — payment.service and apiClient are both
  * mocked at the module level.
@@ -17,7 +17,14 @@ import OrderDetail from './OrderDetail';
 
 jest.mock('../../api/client', () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() },
+}));
+
+// Signed-in customer; mobile money needs an email on the account.
+let mockUser = { id: 'user-1', fullName: 'Test Customer', phone: '+256772000111', email: 'test@example.ug' };
+const mockRefreshUser = jest.fn();
+jest.mock('../../Context/AuthContext', () => ({
+  useAuth: () => ({ user: mockUser, refreshUser: mockRefreshUser }),
 }));
 
 // Real English dictionary, so the assertions below test the actual UI copy.
@@ -96,17 +103,18 @@ describe('OrderDetail — payment method selection', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUser = { id: 'user-1', fullName: 'Test Customer', phone: '+256772000111', email: 'test@example.ug' };
     apiClient = require('../../api/client').default;
     setupGetMocks(apiClient);
   });
 
-  test('shows MTN, Airtel, and Card buttons when commitment payment is required', async () => {
+  test('shows only MTN and Airtel (no card option) when commitment payment is required', async () => {
     renderOrderDetail();
     await screen.findByText(/Action Required: Pay Commitment Deposit/i);
 
     expect(screen.getByText('MTN Mobile Money')).toBeInTheDocument();
     expect(screen.getByText('Airtel Money')).toBeInTheDocument();
-    expect(screen.getByText('Card / Visa / MasterCard')).toBeInTheDocument();
+    expect(screen.queryByText(/Visa|MasterCard|Card/)).not.toBeInTheDocument();
   });
 
   test('pay deposit button is disabled until a network is selected', async () => {
@@ -184,44 +192,23 @@ describe('OrderDetail — payment method selection', () => {
     );
   });
 
-  test('pay deposit button becomes enabled after selecting Card / Visa / MasterCard', async () => {
-    renderOrderDetail();
-    await screen.findByText(/Action Required: Pay Commitment Deposit/i);
-
-    fireEvent.click(screen.getByText('Card / Visa / MasterCard'));
-
-    const payBtns = screen.getAllByRole('button', { name: /Pay Deposit/i });
-    expect(payBtns.some((btn) => !btn.disabled)).toBe(true);
-  });
-
-  test('sends method: CARD when Card / Visa / MasterCard is selected and pay is clicked', async () => {
-    apiClient.post.mockResolvedValue({
-      success: true,
-      message: 'Card payment initiated.',
-      data: {
-        payment: { id: 'pay-card', transactionRef: 'PAY-card', status: 'PENDING', purpose: 'COMMITMENT', amountUgx: 6900 },
-        checkoutUrl: 'https://checkout.flutterwave.com/v3/hosted/pay/abc',
-      },
-    });
-
-    // Prevent actual navigation (jsdom doesn't support window.location.href assignment as navigation)
-    delete window.location;
-    window.location = { href: '' };
+  test('asks for an email before mobile money when the account has none', async () => {
+    mockUser = { ...mockUser, email: null };
+    apiClient.patch.mockResolvedValue({ success: true });
 
     renderOrderDetail();
     await screen.findByText(/Action Required: Pay Commitment Deposit/i);
+    expect(screen.getByText(/need an email address/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Card / Visa / MasterCard'));
+    fireEvent.click(screen.getByText('MTN Mobile Money'));
+    screen.getAllByRole('button', { name: /Pay Deposit/i }).forEach((btn) => expect(btn).toBeDisabled());
 
-    const payBtn = screen.getAllByRole('button', { name: /Pay Deposit/i }).find((b) => !b.disabled);
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'buyer@example.ug' } });
     await act(async () => {
-      fireEvent.click(payBtn);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     });
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      '/orders/order-1/payment',
-      expect.objectContaining({ purpose: 'COMMITMENT', method: 'CARD' }),
-    );
+    expect(apiClient.patch).toHaveBeenCalledWith('/auth/me', { email: 'buyer@example.ug' });
+    expect(mockRefreshUser).toHaveBeenCalled();
   });
 
   test('network selection resets after a payment attempt completes', async () => {

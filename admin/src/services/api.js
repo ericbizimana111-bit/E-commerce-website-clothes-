@@ -7,7 +7,7 @@
  * from any customer token (backend uses distinct secrets/contexts).
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const TOKEN_STORAGE_KEY = 'ugamarket_admin_token';
 

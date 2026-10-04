@@ -8,6 +8,18 @@ import react from '@vitejs/plugin-react';
 // the client falls back to same-origin '/api' behind the reverse proxy.
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Long-lived vendor chunks: app releases don't bust the map/React cache.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          leaflet: ['leaflet'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
   server: {
     port: 5174,
     proxy: {

@@ -12,7 +12,13 @@ import InventoryPage from './pages/Inventory/InventoryPage';
 import DeliveriesPage from './pages/Deliveries/DeliveriesPage';
 import PaymentsPage from './pages/Payments/PaymentsPage';
 import CustomersPage from './pages/Customers/CustomersPage';
-import StationsPage from './pages/Stations/StationsPage';
+import NotificationsPage from './pages/Notifications/NotificationsPage';
+import MessagesPage from './pages/Messages/MessagesPage';
+import ServiceRequestsPage from './pages/Services/ServiceRequestsPage';
+import ServiceRequestDetailPage from './pages/Services/ServiceRequestDetailPage';
+import ServicesCatalogPage from './pages/Services/ServicesCatalogPage';
+import TechniciansPage from './pages/Services/TechniciansPage';
+import SettingsPage from './pages/Settings/SettingsPage';
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
@@ -21,9 +27,14 @@ const PAGE_TITLES = {
   '/categories': 'Categories',
   '/inventory': 'Inventory',
   '/deliveries': 'Deliveries',
-  '/stations': 'Pickup Stations',
   '/payments': 'Payments',
   '/customers': 'Customers',
+  '/notifications': 'Notifications',
+  '/messages': 'Customer Messages',
+  '/service-requests': 'Service Bookings',
+  '/services': 'Service Catalogue',
+  '/technicians': 'Technicians',
+  '/settings': 'Store Settings',
 };
 
 /** Blocked route while the session is being restored (prevents login flash). */
@@ -49,7 +60,9 @@ export default function App() {
   const base = location.pathname.split('/')[1];
   const pageTitle = location.pathname.startsWith('/orders/')
     ? 'Order Detail'
-    : PAGE_TITLES[location.pathname] ||
+    : location.pathname.startsWith('/service-requests/')
+      ? 'Service Booking'
+      : PAGE_TITLES[location.pathname] ||
       (base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Operations Console');
 
   return (
@@ -72,7 +85,13 @@ export default function App() {
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="deliveries" element={<DeliveriesPage />} />
-        <Route path="stations" element={<StationsPage />} />
+        <Route path="service-requests" element={<ServiceRequestsPage />} />
+        <Route path="service-requests/:id" element={<ServiceRequestDetailPage />} />
+        <Route path="services" element={<ServicesCatalogPage />} />
+        <Route path="technicians" element={<TechniciansPage />} />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="customers" element={<CustomersPage />} />
       </Route>

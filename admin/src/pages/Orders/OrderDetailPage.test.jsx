@@ -123,8 +123,9 @@ describe('OrderDetailPage (real backend contract)', () => {
     expect(screen.getAllByText('UGX 32,200').length).toBeGreaterThan(0); // remaining balance
 
     // Customer block (never password material)
-    expect(screen.getByText('Sarah Namubiru')).toBeInTheDocument();
-    expect(screen.getByText('+256770000000')).toBeInTheDocument();
+    // Customer panel + "Deliver to" recipient
+    expect(screen.getAllByText('Sarah Namubiru').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('+256770000000').length).toBeGreaterThanOrEqual(1);
 
     // Payment attempt rendered from payment.payments ("Commitment Paid"
     // appears both as the order status badge and the history entry)

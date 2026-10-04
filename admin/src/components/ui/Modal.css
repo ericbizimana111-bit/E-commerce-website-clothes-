@@ -1,0 +1,79 @@
+.modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.modal {
+  width: 100%;
+  padding: 24px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.modal__header h2 {
+  font-size: 18px;
+}
+
+.modal__close {
+  display: flex;
+  padding: 4px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.modal__close:hover {
+  color: var(--text-strong);
+  background: var(--surface-sunken);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.icon-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 6px;
+}
+
+.icon-picker button {
+  display: grid;
+  place-items: center;
+  height: 40px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.icon-picker button:hover {
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.icon-picker button[aria-pressed='true'] {
+  color: #fff;
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}

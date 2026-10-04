@@ -154,6 +154,16 @@ function validateProductionConfig(config, rawEnv = {}) {
     }
   }
 
+  // Automatic catalogue translation: a selected provider must be usable,
+  // otherwise every non-English shopper silently sees English.
+  const translation = String(rawEnv.TRANSLATION_PROVIDER || config.TRANSLATION_PROVIDER || '').toUpperCase();
+  if (translation === 'GOOGLE' && !String(config.GOOGLE_TRANSLATE_API_KEY || '').trim()) {
+    problems.push('TRANSLATION_PROVIDER=GOOGLE requires GOOGLE_TRANSLATE_API_KEY.');
+  }
+  if (translation === 'LIBRETRANSLATE' && !String(config.LIBRETRANSLATE_URL || '').trim()) {
+    problems.push('TRANSLATION_PROVIDER=LIBRETRANSLATE requires LIBRETRANSLATE_URL.');
+  }
+
   return problems;
 }
 
