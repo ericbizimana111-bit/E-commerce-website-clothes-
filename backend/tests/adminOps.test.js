@@ -150,6 +150,13 @@ describe('Admin operations', () => {
       const detail = await request(app).get(`/api/admin/orders/${order.id}`).set('Authorization', `Bearer ${dispatcherToken}`);
       expect(detail.body.data.order.fulfillment.distanceKm).toBeGreaterThan(0);
       expect(detail.body.data.order.customer.previousOrders).toBe(0);
+
+      // Staff can filter the order list by delivery district.
+      const inKampala = await request(app).get('/api/admin/orders?district=Kampala&limit=50').set('Authorization', `Bearer ${dispatcherToken}`);
+      expect(inKampala.body.items.some((o) => o.id === order.id)).toBe(true);
+      expect(inKampala.body.items.every((o) => o.fulfillment.address?.district === 'Kampala')).toBe(true);
+      const inGulu = await request(app).get('/api/admin/orders?district=Gulu&limit=50').set('Authorization', `Bearer ${dispatcherToken}`);
+      expect(inGulu.body.items.some((o) => o.id === order.id)).toBe(false);
     });
   });
 

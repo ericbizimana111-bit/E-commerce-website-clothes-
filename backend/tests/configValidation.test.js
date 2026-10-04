@@ -261,4 +261,20 @@ describe('validateProductionConfig (production environment validation)', () => {
       }
     });
   });
+  describe('automatic translation provider', () => {
+    test('GOOGLE without an API key is rejected', () => {
+      const config = validProductionConfig({ TRANSLATION_PROVIDER: 'GOOGLE', GOOGLE_TRANSLATE_API_KEY: '' });
+      expect(validateProductionConfig(config, config)).toContain('TRANSLATION_PROVIDER=GOOGLE requires GOOGLE_TRANSLATE_API_KEY.');
+    });
+
+    test('LIBRETRANSLATE without a URL is rejected', () => {
+      const config = validProductionConfig({ TRANSLATION_PROVIDER: 'LIBRETRANSLATE', LIBRETRANSLATE_URL: '' });
+      expect(validateProductionConfig(config, config)).toContain('TRANSLATION_PROVIDER=LIBRETRANSLATE requires LIBRETRANSLATE_URL.');
+    });
+
+    test('a configured provider passes', () => {
+      const config = validProductionConfig({ TRANSLATION_PROVIDER: 'GOOGLE', GOOGLE_TRANSLATE_API_KEY: 'AIza-test-key-value' });
+      expect(validateProductionConfig(config, config)).toEqual([]);
+    });
+  });
 });
