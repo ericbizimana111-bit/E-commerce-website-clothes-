@@ -35,6 +35,9 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY prisma ./prisma
 COPY src ./src
 COPY server.js ./
+# Seed script (admins from env, categories, home-services catalogue) for the
+# explicit `node seeds/seed.js` deployment step.
+COPY seeds ./seeds
 
 # Uploaded product images are persistent data: the image ships an EMPTY,
 # node-owned directory and production mounts a volume over /app/uploads.

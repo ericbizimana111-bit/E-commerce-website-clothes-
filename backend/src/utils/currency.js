@@ -1,5 +1,5 @@
 /**
- * Uganda Food Marketplace - Currency & Financial Arithmetic Helpers
+ * UgaMarket - Currency & Financial Arithmetic Helpers
  * All monetary amounts are handled strictly as integer values in Ugandan Shillings (UGX)
  */
 

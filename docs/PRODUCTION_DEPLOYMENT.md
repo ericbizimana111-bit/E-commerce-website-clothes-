@@ -54,7 +54,8 @@ Required in production (startup **fails fast** otherwise —
 | `ADMIN_1_PASSWORD`, `ADMIN_2_PASSWORD` | explicit; placeholder/default values rejected |
 | `PAYMENT_WEBHOOK_SECRET` | explicit; ≥32 chars; mock default rejected |
 | `CORS_ORIGIN` | explicit origins; wildcard `*` rejected |
-| `PAYMENT_PROVIDER` | `MOCK` rejected (`FLUTTERWAVE`/`MTN_MOMO`/`AIRTEL_MONEY` allowed values; real adapters arrive in a later phase) |
+| `PAYMENT_PROVIDER` | `MOCK` rejected; use `FLUTTERWAVE` (MTN MoMo + Airtel Money only — cards are not accepted) |
+| `TRANSLATION_PROVIDER` | `GOOGLE` requires `GOOGLE_TRANSLATE_API_KEY`; `LIBRETRANSLATE` requires `LIBRETRANSLATE_URL` |
 | `POSTGRES_USER/PASSWORD/DB` | postgres container bootstrap |
 
 `REACT_APP_API_URL` / `VITE_API_URL` are **public, build-time** values only
@@ -171,3 +172,66 @@ database volume with test credentials from `.env.production`. To verify
 end-to-end (proxy → backend → postgres → uploads persistence), fill
 `.env.production` with disposable test values and follow §6–§7. Destroy the
 disposable stack with `docker compose ... down -v`.
+
+## 16. Marketplace services (locations, routing, translation, live updates)
+
+UgaMarket sells general merchandise and home services, delivers every order to
+a **validated Uganda address**, and pushes live updates to staff and customers.
+
+### Address validation & maps
+- Customers pin their exact location on a map (search, GPS or tap). The API
+  checks: known district (all Ugandan districts, `backend/src/data/uganda.js`),
+  pin inside Uganda, pin consistent with the district, valid Ugandan phone.
+- When `GEOCODER_PROVIDER=NOMINATIM`, the pin is also reverse-geocoded and the
+  address is stored as `isVerified`. If the geocoder is down, addresses are
+  validated offline and flagged unverified for staff.
+- The public OpenStreetMap Nominatim allows ~1 request/second and requires an
+  identifying `GEO_CONTACT_EMAIL`; the API throttles and caches. For high
+  traffic, self-host Nominatim and set `NOMINATIM_URL`.
+- Map tiles default to `tile.openstreetmap.org`. For heavy production traffic
+  set `REACT_APP_MAP_TILE_URL` / `VITE_MAP_TILE_URL` (build time) to a tile
+  provider you have an agreement with.
+
+### Delivery distance & fee
+- `ROUTING_PROVIDER=OSRM` computes the **road** distance, travel time and route
+  line from the dispatch point (set in *Admin → Store settings*). The public
+  OSRM demo server is for light use; self-host OSRM (Uganda extract) and set
+  `OSRM_URL` for production volume. Without routing, distance is estimated as
+  straight line × `ROAD_DISTANCE_FACTOR`.
+- Fee = base fee + (road km − free radius) × rate per km, never below the
+  minimum; optional maximum delivery distance. All configurable in the console.
+
+### Automatic translation
+- Admins write product/category/service names in **English only**. The API
+  translates to Luganda, Kiswahili and French in the background and refreshes
+  translations whenever the English text changes; shoppers see English until a
+  translation exists.
+- `TRANSLATION_PROVIDER=GOOGLE` (recommended: best Luganda quality),
+  `LIBRETRANSLATE` (self-hosted) or `MYMEMORY` (free, weak Luganda).
+
+### Live notifications & chat (Server-Sent Events)
+- `GET /api/realtime/stream?ticket=…` (ticket from `POST /api/realtime/ticket`,
+  valid 60 s). nginx must not buffer this route — `deploy/nginx.conf` already
+  sets `proxy_buffering off` and a 1 h read timeout for it.
+- Staff get new orders, payments, cancellations, bookings and customer messages
+  instantly (toast, sound, desktop alert, badges); customers get order, payment,
+  booking and chat updates.
+- Subscribers are held in the API process. **Run a single backend replica**, or
+  add a shared pub/sub (e.g. Redis) behind `realtime.service.publish()` before
+  scaling horizontally. Notifications are always persisted first, so a missed
+  push is recovered on the next page load.
+
+### After deploying this release
+```bash
+# 1. apply the new additive migrations
+docker compose --env-file .env.production -f docker-compose.production.yml --profile tools run --rm migrate
+# 2. (optional) seed categories, sample products and the home-services catalogue
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend node seeds/seed.js
+```
+Then in the console: set the dispatch point and tariff (*Store settings*), add
+technicians (*Home services → Technicians*) and enable desktop alerts.
+
+### End-to-end check
+With the API running, `node backend/scripts/marketplace-e2e.js` exercises the
+whole flow (address validation → order → live staff alert → mobile-money
+webhook → chat → service booking lifecycle) and cleans up after itself.

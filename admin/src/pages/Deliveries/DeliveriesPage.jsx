@@ -157,7 +157,7 @@ export default function DeliveriesPage() {
     <div>
       <PageHeader
         title="Deliveries"
-        description="Fulfillment operations across home delivery and pickup station orders."
+        description="Home delivery operations: assign riders, dispatch and confirm delivery. Open an order to see its map route and customer contact."
         actions={
           <button type="button" className="btn btn--secondary btn--sm" onClick={load} disabled={loading}>
             <RefreshCw size={13} aria-hidden="true" />
@@ -201,7 +201,7 @@ export default function DeliveriesPage() {
         >
           <option value="">All types</option>
           <option value="HOME_DELIVERY">Home delivery</option>
-          <option value="PICKUP_STATION">Pickup station</option>
+          <option value="PICKUP_STATION">Pickup station (legacy orders)</option>
         </select>
       </div>
 

@@ -1,5 +1,5 @@
 /**
- * Supported Languages for Uganda Food Marketplace:
+ * Supported Languages for UgaMarket:
  * - EN: English (Default)
  * - LG: Luganda
  * - FR: French
