@@ -11,6 +11,28 @@ const ugandaPhoneSchema = z.string().refine((val) => {
   return result.normalized;
 });
 
+// PATCH /api/auth/me — profile fields a customer may change themselves.
+// Phone is the login identity and is intentionally not editable here.
+const updateProfileSchema = {
+  body: z
+    .object({
+      fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(150).optional(),
+      email: z
+        .string()
+        .trim()
+        .email('Invalid email address')
+        .max(255)
+        .optional()
+        .or(z.literal(''))
+        .or(z.null())
+        .transform((val) => (val === undefined ? undefined : val ? val.toLowerCase() : null)),
+      phone: z.unknown().optional(),
+      isActive: z.unknown().optional(),
+      passwordHash: z.unknown().optional(),
+    })
+    .transform(({ fullName, email }) => ({ fullName, email })),
+};
+
 const customerRegisterSchema = {
   body: z.object({
     fullName: z
@@ -71,6 +93,7 @@ const otpVerifySchema = {
 };
 
 module.exports = {
+  updateProfileSchema,
   customerRegisterSchema,
   customerLoginSchema,
   adminLoginSchema,

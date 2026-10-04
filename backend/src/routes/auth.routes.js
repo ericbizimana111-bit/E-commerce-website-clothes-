@@ -9,6 +9,7 @@ const {
   customerLoginSchema,
   otpRequestSchema,
   otpVerifySchema,
+  updateProfileSchema,
 } = require('../validators/auth.validator');
 
 // Customer registration
@@ -23,5 +24,6 @@ router.post('/otp/verify', validateRequest(otpVerifySchema), authController.veri
 
 // Authenticated customer profile
 router.get('/me', authenticateCustomer, authController.getMe);
+router.patch('/me', authenticateCustomer, validateRequest(updateProfileSchema), authController.updateMe);
 
 module.exports = router;
