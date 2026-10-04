@@ -202,6 +202,7 @@ describe('Notifications, real-time & chat', () => {
       const port = server.address().port;
       try {
         const received = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('no event received')), 5000);
           const req = http.get(`http://127.0.0.1:${port}/api/realtime/stream?ticket=${encodeURIComponent(t.body.data.ticket)}`, (res) => {
             expect(res.headers['content-type']).toMatch(/text\/event-stream/);
             let buf = '';
@@ -209,13 +210,13 @@ describe('Notifications, real-time & chat', () => {
               buf += chunk.toString();
               if (buf.includes('event: ready')) realtime.publish(`user:${customer.id}`, 'notification', { hello: 'world' });
               if (buf.includes('"hello":"world"')) {
+                clearTimeout(timer);
                 req.destroy();
                 resolve(buf);
               }
             });
           });
           req.on('error', (e) => (e.code === 'ECONNRESET' ? null : reject(e)));
-          setTimeout(() => reject(new Error('no event received')), 5000);
         });
         expect(received).toMatch(/event: notification/);
       } finally {
