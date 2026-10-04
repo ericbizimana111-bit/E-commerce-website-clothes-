@@ -6,19 +6,24 @@ import Footer from './Components/Footer/Footer';
 import MobileNav from './Components/MobileNav/MobileNav';
 import ScrollToTop from './Components/ui/ScrollToTop';
 import { ToastProvider } from './Components/Toast/Toast';
+import { RealtimeProvider } from './Context/RealtimeContext';
 import Shop from './Pages/Shop';
 import ProductCatalog from './Pages/ProductCatalog';
 import Product from './Pages/Product';
 import Cart from './Pages/Cart';
 import Checkout from './Pages/Checkout';
 import LoginSignup from './Pages/LoginSignup';
-import PickupStations from './Pages/PickupStations';
 import HowItWorks from './Pages/HowItWorks';
 import AccountLayout from './Pages/Account/AccountLayout';
 import Orders from './Pages/Account/Orders';
 import OrderDetail from './Pages/Account/OrderDetail';
 import Addresses from './Pages/Account/Addresses';
 import Notifications from './Pages/Account/Notifications';
+import Messages from './Pages/Account/Messages';
+import Services from './Pages/Services/Services';
+import ServiceBooking from './Pages/Services/ServiceBooking';
+import MyServiceRequests from './Pages/Services/MyServiceRequests';
+import ServiceRequestDetail from './Pages/Services/ServiceRequestDetail';
 import { useAuth } from './Context/AuthContext';
 import { useLanguage } from './Context/LanguageContext';
 
@@ -61,7 +66,10 @@ function AppRoutes() {
             <Route path="/catalog" element={<ProductCatalog />} />
             <Route path="/product/:productId" element={<Product />} />
             <Route path="/cart" element={<Cart />} />
-            <Route path="/pickup-stations" element={<PickupStations />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/services/:slug" element={<ServiceBooking />} />
+            {/* Pickup stations were retired: UgaMarket delivers every order. */}
+            <Route path="/pickup-stations" element={<Navigate to="/how-it-works" replace />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/login" element={<LoginSignup />} />
 
@@ -89,6 +97,9 @@ function AppRoutes() {
               <Route path="orders/:id" element={<OrderDetail />} />
               <Route path="addresses" element={<Addresses />} />
               <Route path="notifications" element={<Notifications />} />
+              <Route path="messages" element={<Messages />} />
+              <Route path="services" element={<MyServiceRequests />} />
+              <Route path="services/:id" element={<ServiceRequestDetail />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -105,7 +116,9 @@ function App() {
   return (
     <Router>
       <ToastProvider>
-        <AppRoutes />
+        <RealtimeProvider>
+          <AppRoutes />
+        </RealtimeProvider>
       </ToastProvider>
     </Router>
   );

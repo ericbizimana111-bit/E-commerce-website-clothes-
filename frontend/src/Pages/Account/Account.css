@@ -177,3 +177,15 @@
     margin-top: 0;
   }
 }
+
+.account__count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 999px;
+}

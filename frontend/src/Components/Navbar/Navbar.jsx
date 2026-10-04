@@ -8,16 +8,19 @@ import {
   LogOut,
   MapPin,
   Menu,
+  MessageCircle,
   Package,
   ShoppingCart,
-  Store,
   User,
+  Wrench,
   X
 } from 'lucide-react';
 import { useAuth } from '../../Context/AuthContext';
 import { useCart } from '../../Context/CartContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { useRealtime } from '../../Context/RealtimeContext';
 import useCategories from '../../utils/useCategories';
+import { iconFor } from '../../utils/categoryIcons';
 import SearchBox from '../SearchBox/SearchBox';
 import LanguageSwitcher from '../LanguageSwitcher/LanguageSwitcher';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -30,6 +33,7 @@ const Navbar = () => {
   const { itemCount } = useCart();
   const { t, getLocalizedField } = useLanguage();
   const { categories } = useCategories();
+  const { unreadNotifications, unreadMessages } = useRealtime();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -100,10 +104,12 @@ const Navbar = () => {
 
   const navLinks = [
     { to: '/', label: t('home'), end: true },
-    { to: '/catalog', label: t('catalog') },
-    { to: '/pickup-stations', label: t('pickupStations') },
+    { to: '/catalog', label: t('shopAll') },
+    { to: '/services', label: t('homeServices') },
     { to: '/how-it-works', label: t('howItWorksShort') }
   ];
+
+  const badge = (n) => (n > 0 ? <span className="um-icon-badge">{n > 99 ? '99+' : n}</span> : null);
 
   return (
     <>
@@ -119,8 +125,8 @@ const Navbar = () => {
             <Link to="/how-it-works" className="um-topbar__link">
               <HelpCircle size={14} aria-hidden="true" /> {t('howItWorksShort')}
             </Link>
-            <Link to="/pickup-stations" className="um-topbar__link">
-              <MapPin size={14} aria-hidden="true" /> {t('pickupStations')}
+            <Link to="/services" className="um-topbar__link">
+              <Wrench size={14} aria-hidden="true" /> {t('homeServices')}
             </Link>
             <LanguageSwitcher tone="light" />
           </div>
@@ -148,6 +154,18 @@ const Navbar = () => {
           </div>
 
           <div className="um-header__actions">
+            {isAuthenticated && (
+              <>
+                <Link to="/account/messages" className="um-icon-link" aria-label={t('messagesWithCount', { count: unreadMessages })}>
+                  <MessageCircle size={21} aria-hidden="true" />
+                  {badge(unreadMessages)}
+                </Link>
+                <Link to="/account/notifications" className="um-icon-link" aria-label={t('notificationsWithCount', { count: unreadNotifications })}>
+                  <Bell size={21} aria-hidden="true" />
+                  {badge(unreadNotifications)}
+                </Link>
+              </>
+            )}
             {isAuthenticated ? (
               <div className="um-menu-wrap um-account-desktop" ref={userMenuRef}>
                 <button
@@ -178,8 +196,16 @@ const Navbar = () => {
                     <Link to="/account/addresses" role="menuitem" className="um-dropdown__item">
                       <MapPin size={16} aria-hidden="true" /> {t('addresses')}
                     </Link>
+                    <Link to="/account/services" role="menuitem" className="um-dropdown__item">
+                      <Wrench size={16} aria-hidden="true" /> {t('myServices')}
+                    </Link>
+                    <Link to="/account/messages" role="menuitem" className="um-dropdown__item">
+                      <MessageCircle size={16} aria-hidden="true" /> {t('messages')}
+                      {unreadMessages > 0 && <span className="um-dropdown__count">{unreadMessages}</span>}
+                    </Link>
                     <Link to="/account/notifications" role="menuitem" className="um-dropdown__item">
                       <Bell size={16} aria-hidden="true" /> {t('notifications')}
+                      {unreadNotifications > 0 && <span className="um-dropdown__count">{unreadNotifications}</span>}
                     </Link>
                     <button
                       type="button"
@@ -247,19 +273,32 @@ const Navbar = () => {
                     <p className="um-mega__empty">{t('catsEmpty')}</p>
                   ) : (
                     <ul className="um-mega__grid">
-                      {categories.map((cat) => (
-                        <li key={cat.id}>
-                          <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-mega__item">
-                            <span>{getLocalizedField(cat, 'name') || cat.name}</span>
-                            <small>{t('productsCount', { count: cat.productCount ?? 0 })}</small>
-                          </Link>
-                        </li>
-                      ))}
+                      {categories.map((cat) => {
+                        const Icon = iconFor(cat.icon);
+                        return (
+                          <li key={cat.id}>
+                            <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-mega__item">
+                              <span className="um-mega__icon">
+                                <Icon size={17} aria-hidden="true" />
+                              </span>
+                              <span className="um-mega__text">
+                                <span>{getLocalizedField(cat, 'name') || cat.name}</span>
+                                <small>{t('productsCount', { count: cat.productCount ?? 0 })}</small>
+                              </span>
+                            </Link>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
-                  <Link to="/catalog" className="um-mega__all">
-                    {t('viewAllProducts')} →
-                  </Link>
+                  <div className="um-mega__foot">
+                    <Link to="/catalog" className="um-mega__all">
+                      {t('viewAllProducts')} →
+                    </Link>
+                    <Link to="/services" className="um-mega__all">
+                      <Wrench size={14} aria-hidden="true" /> {t('bookHomeService')} →
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
@@ -278,11 +317,14 @@ const Navbar = () => {
             </nav>
 
             <div className="um-subnav__cats" aria-label={t('categories')}>
-              {categories.slice(0, 4).map((cat) => (
-                <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-subnav__cat">
-                  {getLocalizedField(cat, 'name') || cat.name}
-                </Link>
-              ))}
+              {categories.slice(0, 4).map((cat) => {
+                const Icon = iconFor(cat.icon);
+                return (
+                  <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-subnav__cat">
+                    <Icon size={14} aria-hidden="true" /> {getLocalizedField(cat, 'name') || cat.name}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -346,11 +388,14 @@ const Navbar = () => {
           {categories.length > 0 && (
             <div className="um-drawer__section">
               <span className="um-drawer__label">{t('categories')}</span>
-              {categories.map((cat) => (
-                <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-drawer__link">
-                  <Store size={16} aria-hidden="true" /> {getLocalizedField(cat, 'name') || cat.name}
-                </Link>
-              ))}
+              {categories.map((cat) => {
+                const Icon = iconFor(cat.icon);
+                return (
+                  <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="um-drawer__link">
+                    <Icon size={16} aria-hidden="true" /> {getLocalizedField(cat, 'name') || cat.name}
+                  </Link>
+                );
+              })}
             </div>
           )}
 
@@ -363,8 +408,16 @@ const Navbar = () => {
               <Link to="/account/addresses" className="um-drawer__link">
                 <MapPin size={16} aria-hidden="true" /> {t('addresses')}
               </Link>
+              <Link to="/account/services" className="um-drawer__link">
+                <Wrench size={16} aria-hidden="true" /> {t('myServices')}
+              </Link>
+              <Link to="/account/messages" className="um-drawer__link">
+                <MessageCircle size={16} aria-hidden="true" /> {t('messages')}
+                {unreadMessages > 0 && <span className="um-dropdown__count">{unreadMessages}</span>}
+              </Link>
               <Link to="/account/notifications" className="um-drawer__link">
                 <Bell size={16} aria-hidden="true" /> {t('notifications')}
+                {unreadNotifications > 0 && <span className="um-dropdown__count">{unreadNotifications}</span>}
               </Link>
             </div>
           )}

@@ -1,9 +1,10 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, LayoutGrid, MapPin, ShoppingCart, User } from 'lucide-react';
+import { Home, LayoutGrid, ShoppingCart, User, Wrench } from 'lucide-react';
 import { useCart } from '../../Context/CartContext';
 import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { useRealtime } from '../../Context/RealtimeContext';
 import './MobileNav.css';
 
 /**
@@ -14,17 +15,19 @@ const MobileNav = () => {
   const { itemCount } = useCart();
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
+  const { unreadNotifications, unreadMessages } = useRealtime();
   const { pathname } = useLocation();
 
   const items = [
     { to: '/', label: t('home'), Icon: Home, match: (p) => p === '/' },
     { to: '/catalog', label: t('categories'), Icon: LayoutGrid, match: (p) => p.startsWith('/catalog') || p.startsWith('/product') },
-    { to: '/pickup-stations', label: t('pickupStations'), Icon: MapPin, match: (p) => p.startsWith('/pickup') },
+    { to: '/services', label: t('servicesShort'), Icon: Wrench, match: (p) => p.startsWith('/services') },
     { to: '/cart', label: t('cart'), Icon: ShoppingCart, badge: itemCount, match: (p) => p.startsWith('/cart') || p.startsWith('/checkout') },
     {
       to: isAuthenticated ? '/account/orders' : '/login',
       label: isAuthenticated ? t('account') : t('signIn'),
       Icon: User,
+      badge: isAuthenticated ? unreadNotifications + unreadMessages : 0,
       match: (p) => p.startsWith('/account') || p.startsWith('/login')
     }
   ];

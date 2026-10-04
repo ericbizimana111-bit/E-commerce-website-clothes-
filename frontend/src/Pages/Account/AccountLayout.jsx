@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, MapPin, Package, ShoppingCart } from 'lucide-react';
+import { Bell, LogOut, MapPin, MessageCircle, Package, ShoppingCart, Wrench } from 'lucide-react';
 import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { useRealtime } from '../../Context/RealtimeContext';
 import ConfirmDialog from '../../Components/ui/ConfirmDialog';
 import './Account.css';
 
 const AccountLayout = () => {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
+  const { unreadNotifications, unreadMessages } = useRealtime();
   const navigate = useNavigate();
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   const links = [
     { to: '/account/orders', label: t('orders'), Icon: Package },
-    { to: '/account/addresses', label: t('addresses'), Icon: MapPin },
-    { to: '/account/notifications', label: t('notifications'), Icon: Bell }
+    { to: '/account/services', label: t('myServices'), Icon: Wrench },
+    { to: '/account/messages', label: t('messages'), Icon: MessageCircle, count: unreadMessages },
+    { to: '/account/notifications', label: t('notifications'), Icon: Bell, count: unreadNotifications },
+    { to: '/account/addresses', label: t('addresses'), Icon: MapPin }
   ];
 
   const doLogout = () => {
@@ -43,16 +47,17 @@ const AccountLayout = () => {
           </div>
 
           <nav className="account__nav" aria-label={t('account')}>
-            {links.map(({ to, label, Icon }) => (
+            {links.map(({ to, label, Icon, count }) => (
               <NavLink key={to} to={to} className={({ isActive }) => `account__link ${isActive ? 'account__link--active' : ''}`}>
                 <Icon size={17} aria-hidden="true" /> {label}
+                {count > 0 && <span className="account__count">{count > 99 ? '99+' : count}</span>}
               </NavLink>
             ))}
             <Link to="/catalog" className="account__link account__link--extra">
-              <ShoppingCart size={17} aria-hidden="true" /> {t('foodCatalog')}
+              <ShoppingCart size={17} aria-hidden="true" /> {t('shopAll')}
             </Link>
-            <Link to="/pickup-stations" className="account__link account__link--extra">
-              <MapPin size={17} aria-hidden="true" /> {t('pickupStations')}
+            <Link to="/services" className="account__link account__link--extra">
+              <Wrench size={17} aria-hidden="true" /> {t('homeServices')}
             </Link>
             <button type="button" onClick={() => setConfirmLogout(true)} className="account__link account__link--danger">
               <LogOut size={17} aria-hidden="true" /> {t('logout')}

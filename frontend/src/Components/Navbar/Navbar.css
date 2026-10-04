@@ -226,6 +226,54 @@
   }
 }
 
+/* Messages / notifications icon links */
+.um-icon-link {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--text);
+  border-radius: 50%;
+  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.um-icon-link:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.um-icon-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: #fff;
+  background: var(--danger);
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  box-sizing: content-box;
+  animation: badge-bump 0.4s var(--ease);
+}
+
+.um-dropdown__count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 999px;
+}
+
 /* Dropdown menus */
 .um-menu-wrap {
   position: relative;
@@ -366,6 +414,9 @@
 }
 
 .um-subnav__cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   font-size: 0.84rem;
   color: var(--muted);
@@ -385,7 +436,9 @@
   top: calc(100% + 10px);
   left: 0;
   z-index: 1600;
-  width: min(640px, 90vw);
+  width: min(760px, 92vw);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
   padding: 14px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -401,12 +454,30 @@
 
 .um-mega__item {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   font-weight: 600;
   color: var(--ink);
   transition: background-color var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+
+.um-mega__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 10px;
+}
+
+.um-mega__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .um-mega__item small {
@@ -420,14 +491,23 @@
   transform: translateX(3px);
 }
 
-.um-mega__all {
-  display: block;
+.um-mega__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px;
   margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.um-mega__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 12px;
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--primary);
-  border-top: 1px solid var(--line);
 }
 
 .um-mega__empty {
@@ -622,5 +702,11 @@
   .um-cart-badge {
     left: auto;
     right: -4px;
+  }
+}
+
+@media (max-width: 400px) {
+  .um-icon-link[href='/account/messages'] {
+    display: none;
   }
 }
