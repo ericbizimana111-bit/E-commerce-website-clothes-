@@ -40,14 +40,43 @@
   border-radius: 50%;
 }
 
+.addr--default {
+  border-color: var(--primary-line);
+  border-top: 3px solid var(--primary);
+}
+
 .addr p {
-  flex: 1;
   color: var(--muted);
   line-height: 1.5;
 }
 
+.addr__line {
+  flex: 1;
+  color: var(--text) !important;
+}
+
+.addr__meta,
+.addr__warn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+}
+
+.addr__warn {
+  color: var(--warning) !important;
+  font-weight: 600;
+}
+
+.addr__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .addr__delete {
-  align-self: flex-start;
+  margin-left: auto;
   color: var(--danger);
 }
 

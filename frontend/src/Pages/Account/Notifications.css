@@ -19,17 +19,31 @@
   border-color: var(--primary-line);
 }
 
-.note__dot {
+.notes__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note__icon {
   flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  margin-top: 7px;
-  background: var(--line-strong);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--muted);
+  background: var(--surface-alt);
   border-radius: 50%;
 }
 
-.note--unread .note__dot {
-  background: var(--accent);
+.note--unread .note__icon {
+  color: #fff;
+  background: var(--primary);
+}
+
+.note__body--link:hover strong {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 .note__body {
@@ -58,6 +72,6 @@
     flex-wrap: wrap;
   }
   .note > .btn {
-    margin-left: 24px;
+    margin-left: 48px;
   }
 }

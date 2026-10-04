@@ -1,24 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Check, Clock, Lock, MapPin, Plus, ShieldCheck, Truck, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, Clock, Lock, MapPin, Phone, Plus, Route, ShieldCheck, Smartphone, Truck, X } from 'lucide-react';
 import apiClient from '../api/client';
 import { useAuth } from '../Context/AuthContext';
 import { useCart } from '../Context/CartContext';
 import { useLanguage } from '../Context/LanguageContext';
-import SlidingTabs from '../Components/ui/SlidingTabs';
 import AddressForm, { EMPTY_ADDRESS } from '../Components/AddressForm/AddressForm';
 import { formatUGX } from '../utils/currency';
 import { friendlyError } from '../utils/errors';
 import { LIMITS, sanitizeMultiline } from '../utils/inputGuards';
+import { addressLabelKey, formatAddressLine } from '../utils/useLocations';
 import './Checkout.css';
 
 /**
- * Checkout — server-authoritative rules:
- *  - Totals / commitment / balance come ONLY from POST /api/checkout/preview.
- *  - Addresses come from GET/POST /api/addresses (ownership enforced server-side).
- *  - Pickup stations come from GET /api/pickup-stations (never hardcoded).
- *  - Orders are created via POST /api/orders, which revalidates stock, prices,
- *    fulfillment and computes the authoritative amounts in one transaction.
+ * Checkout — UgaMarket delivers every order to a validated address.
+ *  - Addresses: GET/POST /api/addresses (district + map pin validated server-side)
+ *  - Totals:    POST /api/checkout/preview { addressId } (road-distance fee, ETA)
+ *  - Order:     POST /api/orders { addressId, notes } — the server recomputes
+ *               stock, prices, distance and fee in one transaction.
  */
 const Checkout = () => {
   const { isAuthenticated, user } = useAuth();
@@ -26,11 +25,8 @@ const Checkout = () => {
   const { currentLang, t, getLocalizedField } = useLanguage();
   const navigate = useNavigate();
 
-  const [fulfillmentMethod, setFulfillmentMethod] = useState('HOME_DELIVERY');
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [pickupStations, setPickupStations] = useState([]);
-  const [selectedStationId, setSelectedStationId] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [showNewAddress, setShowNewAddress] = useState(false);
   const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
@@ -46,50 +42,35 @@ const Checkout = () => {
     if (!isAuthenticated) navigate('/login?redirect=/checkout');
   }, [isAuthenticated, navigate]);
 
-  // Saved addresses + pickup stations
   useEffect(() => {
     if (!isAuthenticated) return undefined;
     let mounted = true;
     setDataLoading(true);
-
-    (async () => {
-      const [addrRes, stationRes] = await Promise.allSettled([apiClient.get('/addresses'), apiClient.get('/pickup-stations')]);
-      if (!mounted) return;
-
-      if (addrRes.status === 'fulfilled' && Array.isArray(addrRes.value?.data?.addresses)) {
-        const list = addrRes.value.data.addresses;
+    apiClient
+      .get('/addresses')
+      .then((res) => {
+        if (!mounted) return;
+        const list = Array.isArray(res?.data?.addresses) ? res.data.addresses : [];
         setAddresses(list);
-        if (list.length > 0) setSelectedAddressId((list.find((a) => a.isDefault) || list[0]).id);
+        const usable = list.filter((a) => Number.isFinite(a.latitude));
+        if (usable.length > 0) setSelectedAddressId((usable.find((a) => a.isDefault) || usable[0]).id);
         else setShowNewAddress(true);
-      }
-      if (stationRes.status === 'fulfilled' && Array.isArray(stationRes.value?.data?.stations)) {
-        const stations = stationRes.value.data.stations;
-        setPickupStations(stations);
-        if (stations.length > 0) setSelectedStationId(String(stations[0].id));
-      }
-      setDataLoading(false);
-    })();
-
+      })
+      .catch((err) => mounted && setErrorMessage(friendlyError(err, t, 'addressesLoadError')))
+      .finally(() => mounted && setDataLoading(false));
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  // Authoritative pricing from the server
   const fetchPreview = useCallback(async () => {
     if (items.length === 0) return;
-    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) return setPreview(null);
-    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) return setPreview(null);
-
+    if (!selectedAddressId) return setPreview(null);
     setPreviewLoading(true);
     setErrorMessage(null);
     try {
-      const res = await apiClient.post('/checkout/preview', {
-        fulfillmentMethod,
-        ...(fulfillmentMethod === 'HOME_DELIVERY'
-          ? { addressId: selectedAddressId }
-          : { pickupStationId: Number(selectedStationId) })
-      });
+      const res = await apiClient.post('/checkout/preview', { addressId: selectedAddressId });
       if (res?.data?.checkout) setPreview(res.data.checkout);
     } catch (err) {
       setPreview(null);
@@ -97,9 +78,8 @@ const Checkout = () => {
     } finally {
       setPreviewLoading(false);
     }
-    // `t` only changes with the language; the preview does not depend on it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length, fulfillmentMethod, selectedAddressId, selectedStationId]);
+  }, [items.length, selectedAddressId]);
 
   useEffect(() => {
     fetchPreview();
@@ -112,7 +92,7 @@ const Checkout = () => {
       const res = await apiClient.post('/addresses', address);
       const created = res?.data?.address;
       if (created) {
-        setAddresses((prev) => [created, ...prev]);
+        setAddresses((prev) => [created, ...prev.map((a) => (created.isDefault ? { ...a, isDefault: false } : a))]);
         setSelectedAddressId(created.id);
         setShowNewAddress(false);
         setNewAddress(EMPTY_ADDRESS);
@@ -127,38 +107,26 @@ const Checkout = () => {
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (submitting) return;
-    if (fulfillmentMethod === 'HOME_DELIVERY' && !selectedAddressId) return setErrorMessage(t('pleaseSelectAddress'));
-    if (fulfillmentMethod === 'PICKUP_STATION' && !selectedStationId) return setErrorMessage(t('pleaseSelectStation'));
+    if (!selectedAddressId) return setErrorMessage(t('pleaseSelectAddress'));
 
     setSubmitting(true);
     setErrorMessage(null);
     try {
       const res = await apiClient.post('/orders', {
-        fulfillmentMethod,
-        ...(fulfillmentMethod === 'HOME_DELIVERY'
-          ? { addressId: selectedAddressId }
-          : { pickupStationId: Number(selectedStationId) }),
+        addressId: selectedAddressId,
         ...(orderNotes.trim() ? { notes: orderNotes.trim() } : {}),
         language: currentLang || 'en'
       });
       const createdOrder = res?.data?.order || res?.data;
       if (!createdOrder?.id) throw new Error(t('noOrderId'));
       await refreshCart();
-      navigate(`/account/orders/${createdOrder.id}`);
+      navigate(`/account/orders/${createdOrder.id}?placed=1`);
     } catch (err) {
       setErrorMessage(friendlyError(err, t, 'placeOrderFailed'));
     } finally {
       setSubmitting(false);
     }
   };
-
-  const methodTabs = useMemo(
-    () => [
-      { value: 'HOME_DELIVERY', label: t('homeDelivery'), id: 'co-tab-home', controls: 'co-panel' },
-      { value: 'PICKUP_STATION', label: t('pickupStation'), id: 'co-tab-pickup', controls: 'co-panel' }
-    ],
-    [t]
-  );
 
   if (items.length === 0) {
     return (
@@ -181,10 +149,10 @@ const Checkout = () => {
   const total = pricing?.totalUgx ?? null;
   const commitment = pricing?.commitmentUgx ?? null;
   const balance = pricing?.remainingBalanceUgx ?? null;
-  const commitmentNote = pricing?.commitmentNote || null;
   const cartIssues = preview?.issues || [];
   const hasAll = total !== null && commitment !== null && deliveryFee !== null;
   const money = (value) => (value === null ? '…' : formatUGX(value));
+  const selected = addresses.find((a) => a.id === selectedAddressId) || null;
 
   const steps = [
     { label: t('stepCart'), to: '/cart', done: true },
@@ -208,7 +176,7 @@ const Checkout = () => {
 
       <header className="checkout__head">
         <h1 className="page-title">{t('checkoutTitle')}</h1>
-        <p className="section-desc">{t('checkoutSubtitle')}</p>
+        <p className="section-desc">{t('checkoutSubtitleDelivery')}</p>
       </header>
 
       {errorMessage && (
@@ -239,106 +207,115 @@ const Checkout = () => {
           <section className="card checkout__step">
             <h2 className="checkout__step-title">
               <span className="checkout__num">1</span>
-              {t('fulfillmentMethod')}
+              {t('deliveryAddress')}
             </h2>
+            <p className="checkout__method-desc">
+              <Truck size={16} aria-hidden="true" /> {t('deliveryOnlyDesc')}
+            </p>
 
-            <SlidingTabs options={methodTabs} value={fulfillmentMethod} onChange={setFulfillmentMethod} ariaLabel={t('fulfillmentMethod')} full />
-
-            <div id="co-panel" role="tabpanel" aria-labelledby={fulfillmentMethod === 'HOME_DELIVERY' ? 'co-tab-home' : 'co-tab-pickup'} className="checkout__panel" key={fulfillmentMethod}>
-              {fulfillmentMethod === 'HOME_DELIVERY' ? (
-                <>
-                  <p className="checkout__method-desc">
-                    <Truck size={16} aria-hidden="true" /> {t('homeDeliveryDesc')}
-                  </p>
-
-                  <div className="checkout__row">
-                    <h3>{t('deliveryAddress')}</h3>
-                    {addresses.length > 0 && (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNewAddress((s) => !s)}>
-                        {showNewAddress ? (
-                          <>
-                            <X size={14} aria-hidden="true" /> {t('cancel')}
-                          </>
-                        ) : (
-                          <>
-                            <Plus size={14} aria-hidden="true" /> {t('addNewAddressBtn')}
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {!showNewAddress && addresses.length > 0 && (
-                    <div className="options" role="radiogroup" aria-label={t('deliveryAddress')}>
-                      {addresses.map((addr) => (
-                        <label key={addr.id} className={`option ${selectedAddressId === addr.id ? 'option--selected' : ''}`}>
-                          <input type="radio" name="addressSelect" value={addr.id} checked={selectedAddressId === addr.id} onChange={() => setSelectedAddressId(addr.id)} />
-                          <span className="option__body">
-                            <strong>
-                              {addr.title || t('addressFallback')}
-                              {addr.isDefault && <span className="badge badge-success">{t('defaultBadge')}</span>}
-                            </strong>
-                            <span>
-                              {addr.streetAddress}
-                              {addr.division ? `, ${addr.division}` : ''}, {addr.district}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+            <div className="checkout__row">
+              <h3>{t('chooseAddress')}</h3>
+              {addresses.length > 0 && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowNewAddress((s) => !s)}>
+                  {showNewAddress ? (
+                    <>
+                      <X size={14} aria-hidden="true" /> {t('cancel')}
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} aria-hidden="true" /> {t('addNewAddressBtn')}
+                    </>
                   )}
-
-                  {!showNewAddress && dataLoading && (
-                    <div className="um-subview-loading" role="status">
-                      <div className="um-spinner" />
-                      <p>{t('loadingAddresses')}</p>
-                    </div>
-                  )}
-
-                  {showNewAddress && (
-                    <AddressForm
-                      idPrefix="co-addr"
-                      heading={t('enterLocation')}
-                      value={newAddress}
-                      onChange={setNewAddress}
-                      onSubmit={handleSaveAddress}
-                      submitting={savingAddress}
-                      submitLabel={t('saveUseAddress')}
-                      footnote={t('deliveringAs', { name: user?.fullName || '', phone: user?.phone || '' })}
-                    />
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="checkout__method-desc">
-                    <MapPin size={16} aria-hidden="true" /> {t('pickupStationDesc')}
-                  </p>
-                  <h3>{t('selectStation')}</h3>
-                  {dataLoading && (
-                    <div className="um-subview-loading" role="status">
-                      <div className="um-spinner" />
-                      <p>{t('loadingStations')}</p>
-                    </div>
-                  )}
-                  <div className="options" role="radiogroup" aria-label={t('selectStation')}>
-                    {pickupStations.map((station) => (
-                      <label key={station.id} className={`option ${selectedStationId === String(station.id) ? 'option--selected' : ''}`}>
-                        <input type="radio" name="stationSelect" value={station.id} checked={selectedStationId === String(station.id)} onChange={() => setSelectedStationId(String(station.id))} />
-                        <span className="option__body">
-                          <strong>{station.name}</strong>
-                          <span>
-                            {station.addressText}, {station.district}
-                          </span>
-                          <span className="option__hours">
-                            <Clock size={13} aria-hidden="true" /> {station.operatingHours || t('contactForHours')}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </>
+                </button>
               )}
             </div>
+
+            {dataLoading && (
+              <div className="um-subview-loading" role="status">
+                <div className="um-spinner" />
+                <p>{t('loadingAddresses')}</p>
+              </div>
+            )}
+
+            {!showNewAddress && addresses.length > 0 && (
+              <div className="options" role="radiogroup" aria-label={t('deliveryAddress')}>
+                {addresses.map((addr) => {
+                  const usable = Number.isFinite(addr.latitude);
+                  return (
+                    <label key={addr.id} className={`option ${selectedAddressId === addr.id ? 'option--selected' : ''} ${usable ? '' : 'option--disabled'}`}>
+                      <input
+                        type="radio"
+                        name="addressSelect"
+                        value={addr.id}
+                        checked={selectedAddressId === addr.id}
+                        onChange={() => usable && setSelectedAddressId(addr.id)}
+                        disabled={!usable}
+                      />
+                      <span className="option__body">
+                        <strong>
+                          {addressLabelKey(addr.title) ? t(addressLabelKey(addr.title)) : addr.title || t('addressFallback')}
+                          {addr.isDefault && <span className="badge badge-success">{t('defaultBadge')}</span>}
+                          {addr.isVerified && (
+                            <span className="badge badge-info">
+                              <BadgeCheck size={12} aria-hidden="true" /> {t('verified')}
+                            </span>
+                          )}
+                        </strong>
+                        <span>{formatAddressLine(addr)}</span>
+                        {addr.landmark && <span className="option__hours">{addr.landmark}</span>}
+                        {!usable && (
+                          <span className="option__warn">
+                            <AlertTriangle size={13} aria-hidden="true" /> {t('addressNeedsPin')}{' '}
+                            <Link to="/account/addresses">{t('fixAddress')}</Link>
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {showNewAddress && (
+              <AddressForm
+                idPrefix="co-addr"
+                heading={t('enterLocation')}
+                value={newAddress}
+                onChange={setNewAddress}
+                onSubmit={handleSaveAddress}
+                onCancel={addresses.length > 0 ? () => setShowNewAddress(false) : undefined}
+                submitting={savingAddress}
+                submitLabel={t('saveUseAddress')}
+                defaultPhone={user?.phone || ''}
+                footnote={t('deliveringAs', { name: user?.fullName || '', phone: user?.phone || '' })}
+              />
+            )}
+
+            {selected && !showNewAddress && fulfillment && (
+              <div className="co-route" aria-live="polite">
+                <div>
+                  <Route size={18} aria-hidden="true" />
+                  <span>
+                    <small>{t('distanceLabel')}</small>
+                    <strong>{t('kmValue', { km: Number(fulfillment.distanceKm).toFixed(1) })}</strong>
+                  </span>
+                </div>
+                <div>
+                  <Clock size={18} aria-hidden="true" />
+                  <span>
+                    <small>{t('etaLabel')}</small>
+                    <strong>{t('minutesValue', { min: fulfillment.etaMinutes })}</strong>
+                  </span>
+                </div>
+                <div>
+                  <Phone size={18} aria-hidden="true" />
+                  <span>
+                    <small>{t('riderCalls')}</small>
+                    <strong>{selected.contactPhone || user?.phone}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="card checkout__step">
@@ -354,7 +331,7 @@ const Checkout = () => {
                 id="co-notes"
                 className="form-textarea"
                 rows="3"
-                placeholder={t('notesPlaceholder')}
+                placeholder={t('notesPlaceholderDelivery')}
                 value={orderNotes}
                 onChange={(e) => setOrderNotes(sanitizeMultiline(e.target.value, LIMITS.notes))}
                 maxLength={LIMITS.notes}
@@ -363,6 +340,22 @@ const Checkout = () => {
                 {t('notesCounter', { used: orderNotes.length, max: LIMITS.notes })}
               </span>
             </div>
+          </section>
+
+          <section className="card checkout__step">
+            <h2 className="checkout__step-title">
+              <span className="checkout__num">3</span>
+              {t('paymentMethodsTitle')}
+            </h2>
+            <div className="co-methods">
+              <span className="co-method co-method--mtn">
+                <Smartphone size={18} aria-hidden="true" /> MTN MoMo
+              </span>
+              <span className="co-method co-method--airtel">
+                <Smartphone size={18} aria-hidden="true" /> Airtel Money
+              </span>
+            </div>
+            <p className="input-hint">{t('paymentMethodsDesc')}</p>
           </section>
         </div>
 
@@ -391,8 +384,11 @@ const Checkout = () => {
               <dd>{money(subtotal)}</dd>
             </div>
             <div>
-              <dt>{t('deliveryFee')}</dt>
-              <dd>{deliveryFee === null ? '…' : deliveryFee === 0 ? t('freePickup') : formatUGX(deliveryFee)}</dd>
+              <dt>
+                {t('deliveryFee')}
+                {fulfillment?.distanceKm != null && <small className="checkout__km"> · {t('kmValue', { km: Number(fulfillment.distanceKm).toFixed(1) })}</small>}
+              </dt>
+              <dd>{money(deliveryFee)}</dd>
             </div>
             <div className="checkout__grand">
               <dt>{t('totalOrderValue')}</dt>
@@ -418,17 +414,16 @@ const Checkout = () => {
             <div>
               <div>
                 <strong>
-                  {t('balancePayable')} — {t('payAtFulfillmentSuffix')}
+                  {t('balancePayable')} — {t('onDeliverySuffix')}
                 </strong>
                 <span>{t('afterInspection')}</span>
               </div>
               <strong>{money(balance)}</strong>
             </div>
-            {commitmentNote && <p className="checkout__note">{commitmentNote}</p>}
           </div>
 
-          <button type="button" onClick={handlePlaceOrder} disabled={submitting || previewLoading || !hasAll} className="btn btn-primary btn-lg btn-block">
-            {submitting ? t('placingOrder') : previewLoading || !hasAll ? t('confirmingTotals') : t('placeOrderPay', { amount: formatUGX(commitment) })}
+          <button type="button" onClick={handlePlaceOrder} disabled={submitting || previewLoading || !hasAll || cartIssues.length > 0} className="btn btn-primary btn-lg btn-block">
+            {submitting ? t('placingOrder') : previewLoading || (!hasAll && selectedAddressId) ? t('confirmingTotals') : !selectedAddressId ? t('pleaseSelectAddress') : t('placeOrderPay', { amount: formatUGX(commitment) })}
           </button>
 
           <ul className="checkout__secure">
@@ -437,6 +432,9 @@ const Checkout = () => {
             </li>
             <li>
               <ShieldCheck size={14} aria-hidden="true" /> {t('inspectBeforeBalance')}
+            </li>
+            <li>
+              <MapPin size={14} aria-hidden="true" /> {t('deliveryEverywhere')}
             </li>
           </ul>
         </aside>

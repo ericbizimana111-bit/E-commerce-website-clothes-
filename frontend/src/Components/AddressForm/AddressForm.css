@@ -1,0 +1,220 @@
+.address-form {
+  margin-top: 12px;
+  background: var(--bg);
+}
+
+.address-form__title {
+  margin: 0 0 14px !important;
+}
+
+.af-step {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px dashed var(--line-strong);
+}
+
+.af-step:last-of-type {
+  border-bottom: none;
+  margin-bottom: 8px;
+}
+
+.af-step__head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.af-step__head strong {
+  display: block;
+  color: var(--ink);
+}
+
+.af-step__head p {
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.af-step__num {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.af-locate {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.af-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.af-search .form-input {
+  padding-left: 38px;
+}
+
+.af-search__icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.af-search > .af-search__spin {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  margin-top: -8px;
+}
+
+.af-search__spin {
+  animation: af-spin 0.9s linear infinite;
+}
+
+@keyframes af-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.af-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.af-results button {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--primary);
+}
+
+.af-results button:hover,
+.af-results button:focus-visible {
+  background: var(--primary-soft);
+}
+
+.af-results span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.af-results strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.af-results small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.af-gps {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.af-pin-status {
+  min-height: 24px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.af-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.af-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.af-pin-status .field-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.af-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: var(--control-h);
+  align-items: center;
+}
+
+.af-chip {
+  padding: 8px 16px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  transition: all var(--fast) var(--ease);
+}
+
+.af-chip:hover {
+  border-color: var(--primary);
+}
+
+.af-chip--on {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.af-footnote {
+  margin: 4px 0 14px;
+}
+
+.af-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 560px) {
+  .af-locate {
+    flex-direction: column;
+  }
+
+  .af-actions .btn {
+    flex: 1;
+  }
+}

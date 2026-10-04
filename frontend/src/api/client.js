@@ -10,7 +10,7 @@
 // origins (PUBLIC configuration only — never secrets). Unset builds fall back
 // to same-origin '/api', which works behind the production reverse proxy and
 // in local development via the CRA dev proxy.
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
+export const API_BASE = process.env.REACT_APP_API_URL || '/api';
 
 const TOKEN_STORAGE_KEY = 'ugamarket_token';
 

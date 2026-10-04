@@ -15,7 +15,7 @@ describe('API Foundation & Health Check', () => {
     expect(response.body.status).toBe('UP');
     expect(response.body.database).toBe('connected');
     expect(response.body.currency).toBe('UGX');
-    expect(response.body.service).toBe('Uganda Food Marketplace API');
+    expect(response.body.service).toBe('UgaMarket API');
   });
 
   test('GET /api/non-existent-endpoint returns 404 with structured error', async () => {

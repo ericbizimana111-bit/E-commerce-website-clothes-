@@ -5,7 +5,7 @@ const env = require('../src/config/env');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting Uganda Food Marketplace database seed...');
+  console.log('🌱 Starting UgaMarket database seed...');
 
   // 1. Seed Administrators from environment variables (Never hardcoded)
   console.log('👤 Seeding administrators from environment variables...');
@@ -53,6 +53,7 @@ async function main() {
   const categoriesData = [
     {
       slug: 'matooke-tubers',
+      icon: 'carrot',
       nameEn: 'Matooke & Tubers',
       nameLg: "Amatooke n'Ebinnya",
       nameFr: 'Matooke et Tubercules',
@@ -62,6 +63,7 @@ async function main() {
     },
     {
       slug: 'fresh-vegetables',
+      icon: 'leafy-green',
       nameEn: 'Fresh Vegetables',
       nameLg: "Enva Endiirwa Ez'obutonde",
       nameFr: 'Légumes Frais',
@@ -71,6 +73,7 @@ async function main() {
     },
     {
       slug: 'fresh-fruits',
+      icon: 'apple',
       nameEn: 'Fresh Fruits',
       nameLg: 'Ebibala Ebibisi',
       nameFr: 'Fruits Frais',
@@ -80,6 +83,7 @@ async function main() {
     },
     {
       slug: 'meat-poultry-fish',
+      icon: 'beef',
       nameEn: 'Meat, Poultry & Fish',
       nameLg: "Ennyama, Enkoko n'Ebyennyanja",
       nameFr: 'Viande, Volaille et Poisson',
@@ -89,6 +93,7 @@ async function main() {
     },
     {
       slug: 'grains-cereals',
+      icon: 'wheat',
       nameEn: 'Grains & Cereals',
       nameLg: "Empeke n'Eŋŋaano",
       nameFr: 'Grains et Céréales',
@@ -98,6 +103,7 @@ async function main() {
     },
     {
       slug: 'dairy-eggs',
+      icon: 'milk',
       nameEn: 'Dairy & Farm Eggs',
       nameLg: "Amata n'Amagi g'okufamu",
       nameFr: 'Produits Laitiers et Œufs',
@@ -107,6 +113,7 @@ async function main() {
     },
     {
       slug: 'spices-seasonings',
+      icon: 'flame',
       nameEn: 'Spices & Herbs',
       nameLg: "Ebinzaali n'Ebirungo",
       nameFr: 'Épices et Aromates',
@@ -114,6 +121,20 @@ async function main() {
       imageUrl: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&auto=format&fit=crop&q=80',
       displayOrder: 7,
     },
+    // ---- General merchandise (UgaMarket is not food-only) ----
+    { slug: 'phones-tablets', icon: 'smartphone', displayOrder: 10, nameEn: 'Phones & Tablets', nameLg: "Essimu ne Tablet", nameFr: 'Téléphones et tablettes', nameSw: 'Simu na Tableti' },
+    { slug: 'electronics', icon: 'tv', displayOrder: 11, nameEn: 'TV, Audio & Electronics', nameLg: "TV, Leediyo n'Ebyuma by'amasannyalaze", nameFr: 'TV, audio et électronique', nameSw: 'TV, Sauti na Elektroniki' },
+    { slug: 'computers-accessories', icon: 'laptop', displayOrder: 12, nameEn: 'Computers & Accessories', nameLg: "Kompyuta n'Ebizikozesebwa", nameFr: 'Ordinateurs et accessoires', nameSw: 'Kompyuta na Vifaa' },
+    { slug: 'fashion', icon: 'shirt', displayOrder: 13, nameEn: 'Fashion & Clothing', nameLg: "Engoye n'Emisono", nameFr: 'Mode et vêtements', nameSw: 'Mitindo na Mavazi' },
+    { slug: 'home-kitchen', icon: 'cooking-pot', displayOrder: 14, nameEn: 'Home & Kitchen', nameLg: "Eby'awaka n'Effumbiro", nameFr: 'Maison et cuisine', nameSw: 'Nyumba na Jikoni' },
+    { slug: 'beauty-health', icon: 'sparkles', displayOrder: 15, nameEn: 'Beauty & Personal Care', nameLg: "Okwewunda n'Obuyonjo", nameFr: 'Beauté et soins', nameSw: 'Urembo na Utunzaji' },
+    { slug: 'household-supplies', icon: 'spray-can', displayOrder: 16, nameEn: 'Household Supplies', nameLg: "Ebikozesebwa mu Maka", nameFr: 'Produits ménagers', nameSw: 'Mahitaji ya Nyumbani' },
+    { slug: 'baby-kids', icon: 'baby', displayOrder: 17, nameEn: 'Baby & Kids', nameLg: "Abaana n'Abawere", nameFr: 'Bébés et enfants', nameSw: 'Watoto na Wachanga' },
+    { slug: 'beverages-snacks', icon: 'cup-soda', displayOrder: 18, nameEn: 'Beverages & Snacks', nameLg: "Ebyokunywa n'Obumpwankimpwanki", nameFr: 'Boissons et snacks', nameSw: 'Vinywaji na Vitafunio' },
+    { slug: 'stationery-office', icon: 'pencil', displayOrder: 19, nameEn: 'Stationery & Office', nameLg: "Ebyokuwandiisa n'Ebya Ofiisi", nameFr: 'Papeterie et bureau', nameSw: 'Vifaa vya Ofisi na Shule' },
+    { slug: 'hardware-tools', icon: 'hammer', displayOrder: 20, nameEn: 'Hardware & Tools', nameLg: "Ebyuma n'Ebikozesebwa mu Kuzimba", nameFr: 'Quincaillerie et outils', nameSw: 'Vifaa vya Ujenzi na Zana' },
+    { slug: 'farm-supplies', icon: 'tractor', displayOrder: 21, nameEn: 'Agriculture & Farm Supplies', nameLg: "Eby'Okulima n'Obulunzi", nameFr: 'Agriculture et fournitures agricoles', nameSw: 'Kilimo na Pembejeo' },
+    { slug: 'sports-outdoors', icon: 'dumbbell', displayOrder: 22, nameEn: 'Sports & Outdoors', nameLg: "Emizannyo n'Ebweru", nameFr: 'Sports et plein air', nameSw: 'Michezo na Nje' },
   ];
 
   const categoryMap = {};
@@ -156,6 +177,7 @@ async function main() {
   await prisma.deliveryPricingConfig.upsert({
     where: { id: 1 },
     update: {
+      warehouseName: 'Nakasero, Kampala',
       warehouseLat: env.WAREHOUSE_LATITUDE,
       warehouseLng: env.WAREHOUSE_LONGITUDE,
       baseFeeUgx: env.DELIVERY_BASE_FEE,
@@ -166,6 +188,7 @@ async function main() {
     },
     create: {
       id: 1,
+      warehouseName: 'Nakasero, Kampala',
       warehouseLat: env.WAREHOUSE_LATITUDE,
       warehouseLng: env.WAREHOUSE_LONGITUDE,
       baseFeeUgx: env.DELIVERY_BASE_FEE,
@@ -198,65 +221,6 @@ async function main() {
     },
   });
   console.log('✅ Commitment rule configuration seeded.');
-
-  // 5. Seed Pickup Stations
-  console.log('📍 Seeding sample Kampala pickup stations...');
-  const pickupStationsData = [
-    {
-      name: 'Nakasero Market Hub',
-      district: 'Kampala',
-      addressText: 'Market Street, Central Division, Kampala',
-      contactPhone: '+256772123456',
-      operatingHours: 'Mon - Sat: 7:00 AM - 7:00 PM',
-      pickupFeeUgx: 1000,
-      latitude: 0.3136,
-      longitude: 32.5811,
-      isActive: true,
-    },
-    {
-      name: 'Wandegeya Community Station',
-      district: 'Kampala',
-      addressText: 'Wandegeya Market Complex, Block B Ground Floor',
-      contactPhone: '+256701234567',
-      operatingHours: 'Mon - Sun: 7:30 AM - 8:00 PM',
-      pickupFeeUgx: 1500,
-      latitude: 0.3341,
-      longitude: 32.5694,
-      isActive: true,
-    },
-    {
-      name: 'Ntinda Shopping Hub',
-      district: 'Kampala',
-      addressText: 'Ntinda Complex, Ministers Village Road',
-      contactPhone: '+256782345678',
-      operatingHours: 'Mon - Sat: 8:00 AM - 8:30 PM',
-      pickupFeeUgx: 2000,
-      latitude: 0.3547,
-      longitude: 32.6105,
-      isActive: true,
-    },
-    {
-      name: 'Mukono Central Depot',
-      district: 'Mukono',
-      addressText: 'Kampala-Jinja Highway opposite TotalEnergies',
-      contactPhone: '+256752456789',
-      operatingHours: 'Mon - Sat: 8:00 AM - 6:30 PM',
-      pickupFeeUgx: 2500,
-      latitude: 0.3533,
-      longitude: 32.7553,
-      isActive: true,
-    },
-  ];
-
-  for (const station of pickupStationsData) {
-    const existing = await prisma.pickupStation.findFirst({
-      where: { name: station.name },
-    });
-    if (!existing) {
-      await prisma.pickupStation.create({ data: station });
-    }
-  }
-  console.log(`✅ ${pickupStationsData.length} pickup stations verified.`);
 
   // 6. Seed Food Products
   console.log('🥬 Seeding sample Ugandan food products with multilingual translations...');
@@ -493,7 +457,111 @@ async function main() {
   }
   console.log(`✅ ${foodProducts.length} food products and translations verified.`);
 
-  console.log('🎉 Uganda Food Marketplace database seed completed successfully!');
+  // 7. General merchandise samples (English only: other languages are
+  //    machine-translated by the running API on first view).
+  console.log('📦 Seeding general merchandise samples...');
+  const merchProducts = [
+    { cat: 'phones-tablets', slug: 'tecno-spark-20-128gb', name: 'Tecno Spark 20 (128 GB, 8 GB RAM)', brand: 'Tecno', price: 549000, was: 620000, stock: 15, unit: 'piece', featured: true,
+      description: 'Dual-SIM smartphone with a 6.6" display, 50 MP camera and 5000 mAh battery. 12-month warranty.',
+      specs: [['Storage', '128 GB'], ['RAM', '8 GB'], ['Battery', '5000 mAh'], ['Warranty', '12 months']] },
+    { cat: 'phones-tablets', slug: 'samsung-galaxy-a15-128gb', name: 'Samsung Galaxy A15 (128 GB)', brand: 'Samsung', price: 760000, stock: 10, unit: 'piece',
+      description: 'Super AMOLED display, 50 MP triple camera and long-lasting 5000 mAh battery.',
+      specs: [['Storage', '128 GB'], ['RAM', '4 GB'], ['Display', '6.5" Super AMOLED'], ['Warranty', '12 months']] },
+    { cat: 'phones-tablets', slug: 'itel-a70-64gb', name: 'itel A70 (64 GB)', brand: 'itel', price: 289000, was: 320000, stock: 25, unit: 'piece',
+      description: 'Affordable dual-SIM smartphone with a big 6.6" screen and fast charging.',
+      specs: [['Storage', '64 GB'], ['RAM', '3 GB'], ['Battery', '5000 mAh']] },
+    { cat: 'electronics', slug: 'hisense-32-inch-smart-tv', name: 'Hisense 32" HD Smart TV', brand: 'Hisense', price: 690000, was: 799000, stock: 6, unit: 'piece', featured: true,
+      description: 'HD smart TV with YouTube and Netflix, two HDMI ports and a built-in digital decoder.',
+      specs: [['Screen', '32 inches'], ['Resolution', 'HD 1366×768'], ['Ports', '2× HDMI, 2× USB'], ['Warranty', '24 months']] },
+    { cat: 'electronics', slug: 'solar-home-lighting-kit', name: 'Solar Home Lighting Kit (3 bulbs + phone charging)', brand: 'SunKing', price: 185000, stock: 12, unit: 'kit',
+      description: 'Solar panel, battery, three LED bulbs and USB phone charging — light without power bills.',
+      specs: [['Bulbs', '3 LED'], ['Charging', 'USB phone charging'], ['Warranty', '24 months']] },
+    { cat: 'computers-accessories', slug: 'hp-15-laptop-core-i5', name: 'HP 15 Laptop (Core i5, 8 GB, 512 GB SSD)', brand: 'HP', price: 2450000, stock: 4, unit: 'piece',
+      description: 'Everyday laptop for work and study with a fast SSD and full HD display.',
+      specs: [['Processor', 'Intel Core i5'], ['RAM', '8 GB'], ['Storage', '512 GB SSD'], ['Display', '15.6" FHD']] },
+    { cat: 'fashion', slug: 'kitenge-ladies-dress', name: 'Ladies Kitenge Dress', brand: 'Kampala Tailors', price: 85000, stock: 20, unit: 'piece',
+      description: 'Locally tailored African print dress, 100% cotton. Sizes S to XXL.',
+      specs: [['Material', '100% cotton'], ['Sizes', 'S, M, L, XL, XXL']] },
+    { cat: 'fashion', slug: 'mens-leather-office-shoes', name: "Men's Leather Office Shoes", brand: 'Bata', price: 145000, stock: 14, unit: 'pair',
+      description: 'Genuine leather lace-up shoes for office and occasions. Sizes 39–46.',
+      specs: [['Material', 'Genuine leather'], ['Sizes', '39–46']] },
+    { cat: 'home-kitchen', slug: 'energy-saving-charcoal-stove', name: 'Energy-Saving Charcoal Stove (Sigiri)', brand: 'Ugastove', price: 45000, stock: 30, unit: 'piece',
+      description: 'Ceramic-lined improved cookstove that uses up to 50% less charcoal.',
+      specs: [['Fuel', 'Charcoal'], ['Saving', 'Up to 50% less charcoal']] },
+    { cat: 'home-kitchen', slug: 'non-stick-saucepan-set-5', name: 'Non-Stick Saucepan Set (5 pieces)', brand: 'Nunix', price: 135000, was: 160000, stock: 9, unit: 'set',
+      description: 'Five non-stick saucepans with glass lids, suitable for gas and electric cookers.',
+      specs: [['Pieces', '5 with lids'], ['Coating', 'Non-stick']] },
+    { cat: 'beauty-health', slug: 'pure-shea-butter-500g', name: 'Pure Ugandan Shea Butter (500 g)', brand: 'Nilotica', price: 25000, stock: 40, unit: 'jar',
+      description: 'Unrefined Nilotica shea butter from northern Uganda for skin and hair.',
+      specs: [['Weight', '500 g'], ['Origin', 'Northern Uganda']] },
+    { cat: 'household-supplies', slug: 'omo-washing-powder-3kg', name: 'OMO Washing Powder (3 kg)', brand: 'OMO', price: 32000, stock: 50, unit: 'bag',
+      description: 'Multi-active washing powder for hand and machine wash.', specs: [['Weight', '3 kg']] },
+    { cat: 'household-supplies', slug: 'jerrycan-20-litres', name: 'Jerrycan (20 litres)', brand: 'Nice House of Plastics', price: 12000, stock: 60, unit: 'piece',
+      description: 'Strong food-grade plastic jerrycan with screw cap.', specs: [['Capacity', '20 litres']] },
+    { cat: 'stationery-office', slug: 'exercise-books-96-pages-12', name: 'Exercise Books 96 Pages (pack of 12)', brand: 'Picfare', price: 18000, stock: 80, unit: 'pack',
+      description: 'Ruled school exercise books, 96 pages each.', specs: [['Pages', '96'], ['Quantity', '12 books']] },
+    { cat: 'hardware-tools', slug: 'cement-50kg-bag', name: 'Portland Cement (50 kg bag)', brand: 'Hima', price: 36000, stock: 100, unit: 'bag',
+      description: 'General purpose cement for building and plastering.', specs: [['Weight', '50 kg'], ['Grade', '32.5N']] },
+    { cat: 'farm-supplies', slug: 'knapsack-sprayer-16l', name: 'Knapsack Sprayer (16 litres)', brand: 'Bata Agro', price: 95000, stock: 12, unit: 'piece',
+      description: 'Manual knapsack sprayer for crops, with adjustable nozzle.', specs: [['Capacity', '16 litres']] },
+    { cat: 'beverages-snacks', slug: 'rwenzori-mineral-water-500ml-24', name: 'Rwenzori Mineral Water 500 ml (24 bottles)', brand: 'Rwenzori', price: 24000, stock: 45, unit: 'crate',
+      description: 'Natural mineral water from the Rwenzori mountains.', specs: [['Volume', '24 × 500 ml']] },
+  ];
+  for (const m of merchProducts) {
+    const record = await prisma.product.upsert({
+      where: { slug: m.slug },
+      update: { priceUgx: m.price, compareAtPriceUgx: m.was || null, brand: m.brand, unit: m.unit },
+      create: {
+        categoryId: categoryMap[m.cat],
+        slug: m.slug,
+        nameEn: m.name,
+        descriptionEn: m.description,
+        brand: m.brand,
+        priceUgx: m.price,
+        compareAtPriceUgx: m.was || null,
+        stockQuantity: m.stock,
+        unit: m.unit,
+        isFeatured: Boolean(m.featured),
+        specifications: m.specs.map(([label, value]) => ({ label, value })),
+      },
+    });
+    await prisma.productTranslation.upsert({
+      where: { productId_language: { productId: record.id, language: 'EN' } },
+      update: { name: m.name, description: m.description },
+      create: { productId: record.id, language: 'EN', name: m.name, description: m.description },
+    });
+  }
+  console.log(`✅ ${merchProducts.length} general merchandise products verified.`);
+
+  // 8. Home services catalogue (technicians are added by staff in the console)
+  console.log('🛠️  Seeding home services catalogue...');
+  const services = [
+    ['plumbing', 'Plumbing', 'wrench', 'INSPECTION', 20000, '1–3 hours', 'Leaking pipes and taps, blocked sinks and toilets, water tank and heater installation.'],
+    ['electrical', 'Electrical Repairs', 'zap', 'INSPECTION', 25000, '1–3 hours', 'Faulty sockets and switches, wiring, lighting installation, power faults and UMEME meter issues.'],
+    ['house-cleaning', 'House Cleaning', 'sparkles', 'FIXED', 60000, '3–5 hours', 'Full home cleaning: floors, kitchen, bathrooms, windows and dusting by a trained team.'],
+    ['laundry-ironing', 'Laundry & Ironing', 'shirt', 'FIXED', 35000, 'Same day', 'Washing, drying and ironing of clothes and bedding at your home.'],
+    ['appliance-repair', 'Appliance Repair', 'refrigerator', 'INSPECTION', 30000, '1–2 hours', 'Fridges, cookers, washing machines, TVs and microwaves diagnosed and repaired.'],
+    ['phone-computer-repair', 'Phone & Computer Repair', 'smartphone', 'INSPECTION', 15000, '1–2 hours', 'Screen replacement, charging problems, software issues and data recovery.'],
+    ['painting', 'Painting & Decoration', 'paintbrush', 'INSPECTION', 40000, '1–3 days', 'Interior and exterior painting, wall preparation and finishing.'],
+    ['carpentry', 'Carpentry & Furniture Repair', 'hammer', 'INSPECTION', 25000, '2–6 hours', 'Door and window repairs, furniture assembly and repair, shelves and cabinets.'],
+    ['pest-control', 'Pest Control & Fumigation', 'bug', 'FIXED', 120000, '2–4 hours', 'Cockroaches, bedbugs, termites, rats and mosquitoes — safe, licensed treatment.'],
+    ['gardening', 'Gardening & Compound Care', 'sprout', 'HOURLY', 15000, 'Per hour', 'Grass cutting, hedge trimming, planting and compound cleaning.'],
+    ['gas-installation', 'Gas Cylinder Delivery & Installation', 'flame', 'FIXED', 15000, '1 hour', 'Gas refill delivery, regulator and cooker connection with a safety check.'],
+    ['water-tank-cleaning', 'Water Tank Cleaning', 'droplets', 'FIXED', 80000, '2–4 hours', 'Draining, scrubbing and disinfecting of water tanks of any size.'],
+    ['moving-help', 'Moving & Lifting Help', 'truck', 'INSPECTION', 50000, 'Half day', 'Packing, loading and moving household items within your town.'],
+    ['salon-at-home', 'Salon & Barber at Home', 'scissors', 'FIXED', 30000, '1–2 hours', 'Haircuts, braiding, plaiting, manicure and pedicure at your home.'],
+  ];
+  for (let i = 0; i < services.length; i++) {
+    const [slug, nameEn, icon, priceType, priceFromUgx, durationText, descriptionEn] = services[i];
+    await prisma.service.upsert({
+      where: { slug },
+      update: { nameEn, icon, priceType, priceFromUgx, durationText, descriptionEn, displayOrder: i + 1 },
+      create: { slug, nameEn, icon, priceType, priceFromUgx, durationText, descriptionEn, displayOrder: i + 1, isActive: true },
+    });
+  }
+  console.log(`✅ ${services.length} home services verified.`);
+
+  console.log('🎉 UgaMarket database seed completed successfully!');
 }
 
 main()

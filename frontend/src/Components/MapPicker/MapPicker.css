@@ -1,0 +1,48 @@
+.um-map {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  z-index: 0;
+}
+
+.um-map .leaflet-control-attribution {
+  font-size: 10px;
+}
+
+/* Teardrop pin drawn in CSS (no external marker images). */
+.um-map-pin {
+  background: none;
+  border: none;
+}
+
+.um-map-pin span {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  background: var(--primary);
+  border: 3px solid #fff;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+.um-map-pin span::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.um-map-pin--accent span {
+  background: var(--accent);
+}
+
+.um-map-pin--ink span {
+  background: var(--ink);
+}

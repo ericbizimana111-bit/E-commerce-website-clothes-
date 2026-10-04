@@ -182,7 +182,10 @@
 }
 
 .method__btn {
-  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--text);
@@ -201,10 +204,53 @@
   transform: scale(0.97);
 }
 
-.method__btn--active {
+.method__btn--mtn.method__btn--active {
+  color: #3d3200;
+  background: #ffe066;
+  border-color: #e0b100;
+}
+
+.method__btn--airtel.method__btn--active {
   color: #fff;
-  background: var(--primary);
-  border-color: var(--primary);
+  background: #e2231a;
+  border-color: #c41d15;
+}
+
+.method__hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.email-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--warning-soft);
+  border: 1px solid #f3d3a6;
+  border-radius: var(--radius-sm);
+}
+
+.email-prompt p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.email-prompt__row {
+  display: flex;
+  gap: 8px;
+}
+
+.od__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* Tables (become cards on phones) */

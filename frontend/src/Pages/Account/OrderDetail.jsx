@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Check, CheckCircle, Clock, Info, Loader, MapPin, Phone, Truck, XCircle } from 'lucide-react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, Check, CheckCircle, Clock, Info, Landmark, Loader, Mail, MapPin, MessageCircle, Phone, Route, Smartphone, Truck, XCircle } from 'lucide-react';
 import apiClient from '../../api/client';
 import ConfirmDialog from '../../Components/ui/ConfirmDialog';
+import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import { useRealtimeEvent } from '../../Context/RealtimeContext';
 import { formatUGX } from '../../utils/currency';
 import { friendlyError } from '../../utils/errors';
 import { deliveryStatusLabel, lifecycleIndex, orderStatusMeta, paymentStatusMeta } from '../../utils/statuses';
@@ -23,10 +25,10 @@ import './OrderDetail.css';
 
 const LIFECYCLE_KEYS = ['stepOrderPlaced', 'stepCommitmentPaid', 'stepPreparing', 'stepInTransit', 'stepDelivered', 'stepComplete'];
 
+// UgaMarket accepts mobile money only.
 const METHODS = [
-  { value: 'MTN_MOBILE_MONEY', labelKey: 'methodMtn' },
-  { value: 'AIRTEL_MONEY', labelKey: 'methodAirtel' },
-  { value: 'CARD', labelKey: 'methodCard' }
+  { value: 'MTN_MOBILE_MONEY', labelKey: 'methodMtn', tone: 'mtn' },
+  { value: 'AIRTEL_MONEY', labelKey: 'methodAirtel', tone: 'airtel' }
 ];
 
 /** Payment-method picker shared by the deposit and balance banners. */
@@ -34,25 +36,71 @@ const MethodPicker = ({ value, onChange, disabled, t }) => (
   <div className="method">
     <p className="method__label">{t('chooseMethod')}:</p>
     <div className="method__options">
-      {METHODS.map(({ value: method, labelKey }) => (
+      {METHODS.map(({ value: method, labelKey, tone }) => (
         <button
           key={method}
           type="button"
-          className={`method__btn ${value === method ? 'method__btn--active' : ''}`}
+          className={`method__btn method__btn--${tone} ${value === method ? 'method__btn--active' : ''}`}
           onClick={() => onChange(method)}
           disabled={disabled}
           aria-pressed={value === method}
         >
-          {t(labelKey)}
+          <Smartphone size={16} aria-hidden="true" /> {t(labelKey)}
         </button>
       ))}
     </div>
+    <p className="method__hint">{t('momoPromptHint')}</p>
   </div>
 );
 
+/**
+ * Mobile-money payments need an email for the payment receipt (provider
+ * requirement). Customers who signed up without one add it here.
+ */
+const EmailPrompt = ({ t, onSaved }) => {
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const save = async (e) => {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError(t('errEmailInvalid'));
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiClient.patch('/auth/me', { email: email.trim() });
+      await onSaved();
+    } catch (err) {
+      setError(friendlyError(err, t, 'errGeneric'));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <form className="email-prompt" onSubmit={save} noValidate>
+      <p>
+        <Mail size={15} aria-hidden="true" /> {t('emailNeededForMomo')}
+      </p>
+      <div className="email-prompt__row">
+        <input type="email" className="form-input" placeholder={t('emailPlaceholder')} value={email} onChange={(e) => setEmail(e.target.value.slice(0, 254))} aria-label={t('emailLabel')} />
+        <button type="submit" className="btn btn-secondary" disabled={saving}>
+          {saving ? t('saving') : t('save')}
+        </button>
+      </div>
+      {error && <span className="field-error">{error}</span>}
+    </form>
+  );
+};
+
 const OrderDetail = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
   const { currentLang, t, formatDateTime } = useLanguage();
+  const justPlaced = searchParams.get('placed') === '1';
 
   const [order, setOrder] = useState(null);
   const [delivery, setDelivery] = useState(null);
@@ -97,6 +145,11 @@ const OrderDetail = () => {
       mounted = false;
     };
   }, [fetchOrderDetails]);
+
+  // Live: staff moved the order or a payment settled -> refresh.
+  useRealtimeEvent('notification', (n) => {
+    if (n?.linkUrl && n.linkUrl.includes(id)) fetchOrderDetails();
+  });
 
   // Poll while a provider attempt is in flight (the webhook settles it).
   const activePayment = paymentInfo?.activePayment || null;
@@ -188,6 +241,7 @@ const OrderDetail = () => {
   const statusBadge = orderStatusMeta(order.status, t);
   const isCancelled = ['CANCELLED', 'REFUNDED', 'DELIVERY_FAILED'].includes(order.status);
   const isHome = order.fulfillment?.method === 'HOME_DELIVERY';
+  const needsEmail = !user?.email;
 
   // Payment eligibility mirrors backend rules.
   const canPayCommitment = order.status === 'PENDING_PAYMENT';
@@ -236,12 +290,24 @@ const OrderDetail = () => {
           <span className="od__placed">{t('placedOn', { date: formatDateTime(order.createdAt) })}</span>
         </div>
 
-        {canCancel && (
-          <button type="button" onClick={() => setConfirmCancel(true)} disabled={actionLoading} className="btn btn-secondary btn-sm od__cancel">
-            {t('cancelOrder')}
+        <div className="od__head-actions">
+          <button type="button" onClick={() => navigate(`/account/messages?order=${order.id}`)} className="btn btn-secondary btn-sm">
+            <MessageCircle size={15} aria-hidden="true" /> {t('messageAboutOrder')}
           </button>
-        )}
+          {canCancel && (
+            <button type="button" onClick={() => setConfirmCancel(true)} disabled={actionLoading} className="btn btn-secondary btn-sm od__cancel">
+              {t('cancelOrder')}
+            </button>
+          )}
+        </div>
       </div>
+
+      {justPlaced && order.status === 'PENDING_PAYMENT' && (
+        <div className="alert alert-success" role="status">
+          <CheckCircle size={16} aria-hidden="true" />
+          <span>{t('orderPlacedBanner', { number: order.orderNumber })}</span>
+        </div>
+      )}
 
       {actionMessage && (
         <div className="alert alert-success" role="status">
@@ -297,8 +363,9 @@ const OrderDetail = () => {
             <strong>{t('actionPayDeposit')}</strong>
             <p>{t('actionPayDepositDesc', { amount: formatUGX(order.pricing?.commitmentUgx) })}</p>
             <MethodPicker value={paymentMethod} onChange={setPaymentMethod} disabled={actionLoading} t={t} />
+            {needsEmail && <EmailPrompt t={t} onSaved={refreshUser} />}
           </div>
-          <button type="button" onClick={() => handleInitiatePayment('COMMITMENT')} disabled={actionLoading || !!activePayment || !paymentMethod} className="btn btn-primary btn-lg">
+          <button type="button" onClick={() => handleInitiatePayment('COMMITMENT')} disabled={actionLoading || !!activePayment || !paymentMethod || needsEmail} className="btn btn-primary btn-lg">
             {actionLoading ? t('initiating') : t('payDeposit', { amount: formatUGX(order.pricing?.commitmentUgx) })}
           </button>
         </section>
@@ -310,8 +377,9 @@ const OrderDetail = () => {
             <strong>{t('actionPayBalance')}</strong>
             <p>{t(isHome ? 'actionPayBalanceHome' : 'actionPayBalancePickup', { amount: formatUGX(balanceDisplay) })}</p>
             <MethodPicker value={paymentMethod} onChange={setPaymentMethod} disabled={actionLoading} t={t} />
+            {needsEmail && <EmailPrompt t={t} onSaved={refreshUser} />}
           </div>
-          <button type="button" onClick={() => handleInitiatePayment('BALANCE')} disabled={actionLoading || !!activePayment || !paymentMethod} className="btn btn-accent btn-lg">
+          <button type="button" onClick={() => handleInitiatePayment('BALANCE')} disabled={actionLoading || !!activePayment || !paymentMethod || needsEmail} className="btn btn-accent btn-lg">
             {actionLoading ? t('processing') : t('payBalance', { amount: formatUGX(balanceDisplay) })}
           </button>
         </section>
@@ -380,6 +448,22 @@ const OrderDetail = () => {
                     {order.fulfillment.address.division ? `, ${order.fulfillment.address.division}` : ''}
                     {order.fulfillment.address.district ? `, ${order.fulfillment.address.district}` : ''}
                   </p>
+                  {order.fulfillment.address.landmark && (
+                    <span>
+                      <Landmark size={13} aria-hidden="true" /> {order.fulfillment.address.landmark}
+                    </span>
+                  )}
+                  {order.fulfillment.address.contactPhone && (
+                    <span>
+                      <Phone size={13} aria-hidden="true" /> {order.fulfillment.address.contactPhone}
+                    </span>
+                  )}
+                  {order.fulfillment.distanceKm != null && (
+                    <span>
+                      <Route size={13} aria-hidden="true" /> {t('kmValue', { km: Number(order.fulfillment.distanceKm).toFixed(1) })}
+                      {order.fulfillment.etaMinutes ? ` · ${t('etaShort', { min: order.fulfillment.etaMinutes })}` : ''}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <p className="od__muted">{t('addressStored')}</p>
