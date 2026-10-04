@@ -8,15 +8,15 @@ import {
   ChevronRight,
   Clock,
   CreditCard,
-  Home as HomeIcon,
-  Leaf,
-  MapPin,
-  Navigation,
+  Headset,
   ShieldCheck,
+  ShoppingBag,
   ShoppingBasket,
-  Sprout,
+  Smartphone,
+  Store,
   Truck,
-  Wallet
+  Wallet,
+  Wrench
 } from 'lucide-react';
 import apiClient, { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
@@ -26,22 +26,24 @@ import Reveal from '../Components/ui/Reveal';
 import { useAuth } from '../Context/AuthContext';
 import { useLanguage } from '../Context/LanguageContext';
 import useCategories from '../utils/useCategories';
-import { isOpenNow, mapsUrl } from '../utils/stations';
+import { iconFor } from '../utils/categoryIcons';
+import { formatUGX } from '../utils/currency';
 import './Shop.css';
 
 const CAT_PLACEHOLDER = '/img-placeholder.svg';
 const SLIDE_MS = 6500;
 
 const SLIDES = [
-  { key: 'slide1', tone: 'green', to: '/catalog', Icon: Sprout },
-  { key: 'slide2', tone: 'amber', to: '/pickup-stations', Icon: MapPin },
-  { key: 'slide3', tone: 'ink', to: '/how-it-works', Icon: ShieldCheck }
+  { key: 'mslide1', tone: 'green', to: '/catalog', Icon: ShoppingBag },
+  { key: 'mslide2', tone: 'amber', to: '/services', Icon: Wrench },
+  { key: 'mslide3', tone: 'ink', to: '/how-it-works', Icon: Smartphone }
 ];
 
 const FEATURED_QUERIES = {
+  featured: 'limit=8&featured=true',
   new: 'limit=8',
   stock: 'limit=8&inStock=true',
-  budget: 'limit=8&maxPrice=10000'
+  budget: 'limit=8&maxPrice=20000&sort=price_asc'
 };
 
 /* ── Hero ────────────────────────────────────────────────── */
@@ -74,14 +76,25 @@ const Hero = () => {
       <nav className="hero__cats panel" aria-label={t('heroCategories')}>
         <h2 className="hero__cats-title">{t('heroCategories')}</h2>
         <ul>
-          {categories.slice(0, 8).map((cat) => (
-            <li key={cat.id}>
-              <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="hero__cat">
-                <span>{getLocalizedField(cat, 'name') || cat.name}</span>
-                <ChevronRight size={15} aria-hidden="true" />
-              </Link>
-            </li>
-          ))}
+          {categories.slice(0, 10).map((cat) => {
+            const Icon = iconFor(cat.icon);
+            return (
+              <li key={cat.id}>
+                <Link to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="hero__cat">
+                  <Icon size={16} aria-hidden="true" className="hero__cat-icon" />
+                  <span>{getLocalizedField(cat, 'name') || cat.name}</span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </Link>
+              </li>
+            );
+          })}
+          <li>
+            <Link to="/services" className="hero__cat hero__cat--services">
+              <Wrench size={16} aria-hidden="true" className="hero__cat-icon" />
+              <span>{t('homeServices')}</span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </Link>
+          </li>
         </ul>
         <Link to="/catalog" className="hero__cats-all">
           {t('viewAllProducts')} <ArrowRight size={14} aria-hidden="true" />
@@ -149,7 +162,7 @@ const Hero = () => {
       <aside className="hero__side">
         <div className="panel hero__member">
           <span className="hero__member-avatar">
-            <Leaf size={22} aria-hidden="true" />
+            <Store size={22} aria-hidden="true" />
           </span>
           <h2>{isAuthenticated ? t('welcomeBack', { name: firstName }) : t('welcomeTitle')}</h2>
           <p>{isAuthenticated ? t('welcomeBackDesc') : t('welcomeDesc')}</p>
@@ -158,8 +171,8 @@ const Hero = () => {
               <Link to="/account/orders" className="btn btn-primary btn-sm">
                 {t('trackOrders')}
               </Link>
-              <Link to="/account/addresses" className="btn btn-secondary btn-sm">
-                {t('savedAddresses')}
+              <Link to="/account/messages" className="btn btn-secondary btn-sm">
+                {t('messages')}
               </Link>
             </div>
           ) : (
@@ -176,17 +189,17 @@ const Hero = () => {
 
         <div className="hero__tiles">
           <div className="panel hero__tile">
-            <CreditCard size={20} aria-hidden="true" />
+            <Smartphone size={20} aria-hidden="true" />
             <div>
-              <strong>{t('sideTilePayTitle')}</strong>
-              <span>{t('sideTilePayDesc')}</span>
+              <strong>{t('tileMomoTitle')}</strong>
+              <span>{t('tileMomoDesc')}</span>
             </div>
           </div>
           <div className="panel hero__tile">
-            <BadgeCheck size={20} aria-hidden="true" />
+            <Headset size={20} aria-hidden="true" />
             <div>
-              <strong>{t('sideTileFarmTitle')}</strong>
-              <span>{t('sideTileFarmDesc')}</span>
+              <strong>{t('tileSupportTitle')}</strong>
+              <span>{t('tileSupportDesc')}</span>
             </div>
           </div>
         </div>
@@ -199,10 +212,10 @@ const Hero = () => {
 const TrustStrip = () => {
   const { t } = useLanguage();
   const items = [
-    { Icon: Leaf, title: t('trustFarmTitle'), desc: t('trustFarmDesc') },
+    { Icon: BadgeCheck, title: t('trustQualityTitle'), desc: t('trustQualityDesc') },
     { Icon: ShieldCheck, title: t('trustInspectTitle'), desc: t('trustInspectDesc') },
-    { Icon: Wallet, title: t('trustPayTitle'), desc: t('trustPayDesc') },
-    { Icon: Truck, title: t('trustPickupTitle'), desc: t('trustPickupDesc') }
+    { Icon: Wallet, title: t('trustPayTitle'), desc: t('trustMomoDesc') },
+    { Icon: Truck, title: t('trustDeliveryTitle'), desc: t('trustDeliveryDesc') }
   ];
   return (
     <section className="container" aria-label={t('brandName')}>
@@ -228,11 +241,11 @@ const Shop = () => {
   const { t, currentLang, getLocalizedField } = useLanguage();
   const { categories, loading: catsLoading } = useCategories();
 
-  const [tab, setTab] = useState('new');
+  const [tab, setTab] = useState('featured');
   const [products, setProducts] = useState([]);
   const [featuredState, setFeaturedState] = useState('loading'); // loading | ready | error
   const [reloadKey, setReloadKey] = useState(0);
-  const [stations, setStations] = useState([]);
+  const [services, setServices] = useState([]);
   const featuredCache = useRef({});
 
   // Featured tabs: fetched on demand, cached per tab + language.
@@ -263,18 +276,19 @@ const Shop = () => {
   useEffect(() => {
     let mounted = true;
     apiClient
-      .get('/pickup-stations')
+      .get(`/services?lang=${currentLang}`)
       .then((res) => {
-        if (mounted && Array.isArray(res?.data?.stations)) setStations(res.data.stations);
+        if (mounted && Array.isArray(res?.data?.services)) setServices(res.data.services);
       })
       .catch(() => {});
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [currentLang]);
 
   const tabOptions = useMemo(
     () => [
+      { value: 'featured', label: t('tabFeatured') },
       { value: 'new', label: t('tabNew') },
       { value: 'stock', label: t('tabInStock') },
       { value: 'budget', label: t('tabBudget') }
@@ -282,8 +296,6 @@ const Shop = () => {
     [t]
   );
 
-  const openCount = stations.filter((s) => isOpenNow(s.operatingHours) === true).length;
-  const anyHours = stations.some((s) => isOpenNow(s.operatingHours) !== null);
 
   return (
     <div className="um-home">
@@ -310,19 +322,24 @@ const Shop = () => {
           <div className="cat-rail">
             {categories.map((cat) => {
               const name = getLocalizedField(cat, 'name') || cat.name;
-              const image = resolveImageUrl(cat.imageUrl) || CAT_PLACEHOLDER;
+              const image = resolveImageUrl(cat.imageUrl);
+              const Icon = iconFor(cat.icon);
               return (
                 <Link key={cat.id} to={`/catalog?category=${encodeURIComponent(cat.slug)}`} className="cat-tile">
-                  <span className="cat-tile__media">
-                    <img
-                      src={image}
-                      alt=""
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = CAT_PLACEHOLDER;
-                      }}
-                    />
+                  <span className={`cat-tile__media ${image ? '' : 'cat-tile__media--icon'}`}>
+                    {image ? (
+                      <img
+                        src={image}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = CAT_PLACEHOLDER;
+                        }}
+                      />
+                    ) : (
+                      <Icon size={40} strokeWidth={1.5} aria-hidden="true" />
+                    )}
                   </span>
                   <span className="cat-tile__name">{name}</span>
                   <span className="cat-tile__count">{t('productsCount', { count: cat.productCount ?? 0 })}</span>
@@ -354,7 +371,15 @@ const Shop = () => {
             </button>
           </div>
         ) : products.length === 0 ? (
-          <div className="um-empty-state">{t('productsEmpty')}</div>
+          <div className="um-empty-state">
+            {tab === 'featured' ? (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTab('new')}>
+                {t('tabNew')}
+              </button>
+            ) : (
+              t('productsEmpty')
+            )}
+          </div>
         ) : (
           <div className="um-products-grid featured__grid" key={`${tab}:${currentLang}`}>
             {products.map((product) => (
@@ -402,66 +427,36 @@ const Shop = () => {
         </div>
       </Reveal>
 
-      {/* Pickup stations */}
-      {stations.length > 0 && (
+      {/* Home services */}
+      {services.length > 0 && (
         <Reveal as="section" className="section container">
-          <div className="pickup">
-            <div className="pickup__intro">
-              <span className="pickup__kicker">
-                <Truck size={14} aria-hidden="true" /> {t('stationsKicker')}
+          <div className="home-svc">
+            <div className="home-svc__intro">
+              <span className="home-svc__kicker">
+                <Wrench size={14} aria-hidden="true" /> {t('servicesKicker')}
               </span>
-              <h2>{t('stationsHomeTitle')}</h2>
-              <p>{t('stationsHomeDesc')}</p>
-
-              <dl className="pickup__stats">
-                <div>
-                  <dt>{t('stationsStatCount')}</dt>
-                  <dd>{stations.length}</dd>
-                </div>
-                {anyHours && (
-                  <div>
-                    <dt>{t('stationsStatOpen')}</dt>
-                    <dd>{openCount}</dd>
-                  </div>
-                )}
-              </dl>
-
-              <Link to="/pickup-stations" className="btn btn-accent">
-                {t('stationsExplore')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
+              <h2>{t('homeServicesTitle')}</h2>
+              <p>{t('homeServicesDesc')}</p>
+              <Link to="/services" className="btn btn-accent">
+                {t('allServices')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
               </Link>
             </div>
-
-            <ul className="pickup__list">
-              {stations.slice(0, 4).map((station) => {
-                const open = isOpenNow(station.operatingHours);
+            <ul className="home-svc__list">
+              {services.slice(0, 6).map((s) => {
+                const Icon = iconFor(s.icon);
                 return (
-                  <li key={station.id} className="pickup__card">
-                    <span className="pickup__pin">
-                      <MapPin size={20} aria-hidden="true" />
-                    </span>
-                    <div className="pickup__info">
-                      <div className="pickup__title">
-                        <strong>{station.name}</strong>
-                        {open !== null && (
-                          <span className={`badge ${open ? 'badge-success' : 'badge-neutral'}`}>
-                            {open ? t('openNow') : t('closedNow')}
-                          </span>
-                        )}
-                      </div>
-                      <p>{station.addressText || station.district}</p>
-                      <span className="pickup__hours">
-                        <Clock size={13} aria-hidden="true" /> {station.operatingHours || t('contactForHours')}
+                  <li key={s.id}>
+                    <Link to={`/services/${s.slug}`} className="home-svc__card">
+                      <span className="home-svc__icon">
+                        <Icon size={22} aria-hidden="true" />
                       </span>
-                    </div>
-                    <a
-                      href={mapsUrl(station)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="pickup__go"
-                      aria-label={`${t('getDirections')}: ${station.name}`}
-                    >
-                      <Navigation size={17} aria-hidden="true" />
-                    </a>
+                      <span>
+                        <strong>{s.name}</strong>
+                        <small>
+                          <Clock size={12} aria-hidden="true" /> {t('fromPrice', { amount: formatUGX(s.priceFromUgx) })}
+                        </small>
+                      </span>
+                    </Link>
                   </li>
                 );
               })}
@@ -479,10 +474,10 @@ const Shop = () => {
           </div>
           <div className="cta__actions">
             <Link to="/catalog" className="btn btn-lg cta__primary">
-              <HomeIcon size={18} aria-hidden="true" /> {t('startShopping')}
+              <ShoppingBag size={18} aria-hidden="true" /> {t('startShopping')}
             </Link>
-            <Link to="/pickup-stations" className="btn btn-lg btn-outline-light">
-              <MapPin size={18} aria-hidden="true" /> {t('pickupStations')}
+            <Link to="/services" className="btn btn-lg btn-outline-light">
+              <Wrench size={18} aria-hidden="true" /> {t('bookHomeService')}
             </Link>
           </div>
         </div>

@@ -1,13 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Leaf, Mail, MapPin, Phone, ShieldCheck, Wallet } from 'lucide-react';
+import { Mail, MapPin, Phone, ShieldCheck, Truck, Wallet } from 'lucide-react';
 import { useLanguage } from '../../Context/LanguageContext';
 import useCategories from '../../utils/useCategories';
 import LanguageSwitcher from '../LanguageSwitcher/LanguageSwitcher';
 import './Footer.css';
 
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
-const PAYMENT_METHODS = ['MTN MoMo', 'Airtel Money', 'Visa', 'MasterCard'];
+// UgaMarket accepts mobile money only.
+const PAYMENT_METHODS = ['MTN MoMo', 'Airtel Money'];
 
 const Footer = () => {
   const { t, getLocalizedField } = useLanguage();
@@ -24,7 +25,7 @@ const Footer = () => {
             <p>{t('footerDesc')}</p>
             <ul className="um-footer__badges">
               <li>
-                <Leaf size={14} aria-hidden="true" /> {t('footerBadgeFarmers')}
+                <Truck size={14} aria-hidden="true" /> {t('footerBadgeDelivery')}
               </li>
               <li>
                 <ShieldCheck size={14} aria-hidden="true" /> {t('footerBadgeInspect')}
@@ -39,7 +40,7 @@ const Footer = () => {
             <h4>{t('footerShop')}</h4>
             <ul>
               <li>
-                <Link to="/catalog">{t('footerAllFood')}</Link>
+                <Link to="/catalog">{t('shopAll')}</Link>
               </li>
               {categories.slice(0, 5).map((cat) => (
                 <li key={cat.id}>
@@ -49,7 +50,7 @@ const Footer = () => {
                 </li>
               ))}
               <li>
-                <Link to="/pickup-stations">{t('pickupStations')}</Link>
+                <Link to="/services">{t('homeServices')}</Link>
               </li>
             </ul>
           </nav>
@@ -70,7 +71,10 @@ const Footer = () => {
                 <Link to="/account/addresses">{t('footerSavedAddresses')}</Link>
               </li>
               <li>
-                <Link to="/account/notifications">{t('notifications')}</Link>
+                <Link to="/account/services">{t('myServices')}</Link>
+              </li>
+              <li>
+                <Link to="/account/messages">{t('messages')}</Link>
               </li>
             </ul>
           </nav>
@@ -85,7 +89,10 @@ const Footer = () => {
                 <Link to="/how-it-works">{t('footerDepositExplained')}</Link>
               </li>
               <li>
-                <Link to="/pickup-stations">{t('footerFindStation')}</Link>
+                <Link to="/services">{t('bookHomeService')}</Link>
+              </li>
+              <li>
+                <Link to="/account/messages">{t('chatWithUs')}</Link>
               </li>
             </ul>
             <address className="um-footer__contact">

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Check, Leaf, MapPin, Minus, Plus, ShieldCheck, ShoppingCart, Truck, Wallet } from 'lucide-react';
+import { BadgeCheck, Check, Headset, MapPin, Minus, Plus, ShieldCheck, ShoppingCart, Smartphone, Truck } from 'lucide-react';
 import apiClient, { resolveImageUrl } from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
 import SlidingTabs from '../Components/ui/SlidingTabs';
@@ -84,9 +84,10 @@ export const Product = () => {
   const tabOptions = useMemo(
     () => [
       { value: 'description', label: t('tabDescription'), id: 'pd-tab-description', controls: 'pd-panel-description' },
+      ...(product?.specifications?.length ? [{ value: 'specs', label: t('tabSpecs'), id: 'pd-tab-specs', controls: 'pd-panel-specs' }] : []),
       { value: 'delivery', label: t('tabDelivery'), id: 'pd-tab-delivery', controls: 'pd-panel-delivery' }
     ],
-    [t]
+    [t, product?.specifications?.length]
   );
 
   if (loading) {
@@ -207,7 +208,10 @@ export const Product = () => {
 
         {/* Details */}
         <div className="pd__info">
-          {categoryName && <span className="badge badge-success">{categoryName}</span>}
+          <div className="pd__tags">
+            {categoryName && <span className="badge badge-success">{categoryName}</span>}
+            {product.brand && <span className="badge badge-neutral">{product.brand}</span>}
+          </div>
           <h1 className="pd__title">{name}</h1>
 
           <div className="pd__meta">
@@ -229,6 +233,12 @@ export const Product = () => {
           <div className="pd__price-box">
             <span className="pd__price">{formatUGX(price)}</span>
             {product.unit && <span className="pd__per">{t('perUnit', { unit: product.unit })}</span>}
+            {product.compareAtPrice > price && (
+              <>
+                <s className="pd__was">{formatUGX(product.compareAtPrice)}</s>
+                <span className="badge badge-danger">{t('saveAmount', { amount: formatUGX(product.compareAtPrice - price) })}</span>
+              </>
+            )}
           </div>
           <p className="pd__note">{t('pricesInUgx')}</p>
 
@@ -292,7 +302,27 @@ export const Product = () => {
       <section className="pd__tabs panel">
         <SlidingTabs options={tabOptions} value={tab} onChange={setTab} ariaLabel={t('produceInfo')} variant="line" />
         <div className="pd__panel" role="tabpanel" id={`pd-panel-${tab}`} aria-labelledby={`pd-tab-${tab}`} key={tab}>
-          {tab === 'description' ? (
+          {tab === 'specs' ? (
+            <>
+              <h2>{t('tabSpecs')}</h2>
+              <table className="pd__specs">
+                <tbody>
+                  {(product.specifications || []).map((s) => (
+                    <tr key={s.label}>
+                      <th scope="row">{s.label}</th>
+                      <td>{s.value}</td>
+                    </tr>
+                  ))}
+                  {product.brand && (
+                    <tr>
+                      <th scope="row">{t('brandLabel')}</th>
+                      <td>{product.brand}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </>
+          ) : tab === 'description' ? (
             <>
               <h2>{t('produceInfo')}</h2>
               <p className="pd__desc">{description || t('defaultDescription')}</p>
@@ -301,21 +331,21 @@ export const Product = () => {
                   <ShieldCheck size={20} aria-hidden="true" />
                   <span>
                     <strong>{t('featureInspect')}</strong>
-                    {t('featureInspectDesc')}
+                    {t('featureInspectDescAll')}
                   </span>
                 </li>
                 <li>
                   <MapPin size={20} aria-hidden="true" />
                   <span>
-                    <strong>{t('featureChoice')}</strong>
-                    {t('featureChoiceDesc')}
+                    <strong>{t('featureDoorstep')}</strong>
+                    {t('featureDoorstepDesc')}
                   </span>
                 </li>
                 <li>
-                  <Leaf size={20} aria-hidden="true" />
+                  <BadgeCheck size={20} aria-hidden="true" />
                   <span>
-                    <strong>{t('featureFarm')}</strong>
-                    {t('featureFarmDesc')}
+                    <strong>{t('featureQuality')}</strong>
+                    {t('featureQualityDesc')}
                   </span>
                 </li>
               </ul>
@@ -326,21 +356,21 @@ export const Product = () => {
                 <Truck size={20} aria-hidden="true" />
                 <span>
                   <strong>{t('deliveryHomeTitle')}</strong>
-                  {t('deliveryHomeDesc')}
+                  {t('deliveryHomeDescRoad')}
                 </span>
               </li>
               <li>
-                <MapPin size={20} aria-hidden="true" />
-                <span>
-                  <strong>{t('deliveryPickupTitle')}</strong>
-                  {t('deliveryPickupDesc')}
-                </span>
-              </li>
-              <li>
-                <Wallet size={20} aria-hidden="true" />
+                <Smartphone size={20} aria-hidden="true" />
                 <span>
                   <strong>{t('deliveryPayTitle')}</strong>
-                  {t('deliveryPayDesc')}
+                  {t('deliveryPayDescMomo')}
+                </span>
+              </li>
+              <li>
+                <Headset size={20} aria-hidden="true" />
+                <span>
+                  <strong>{t('supportTitle')}</strong>
+                  {t('supportDesc')}
                 </span>
               </li>
             </ul>

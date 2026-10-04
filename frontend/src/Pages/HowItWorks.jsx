@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, CreditCard, MapPin, ShieldCheck, ShoppingBasket, ShoppingCart } from 'lucide-react';
+import { ChevronDown, ShieldCheck, ShoppingBasket, ShoppingCart, Smartphone, Wrench } from 'lucide-react';
 import { useLanguage } from '../Context/LanguageContext';
 import './HowItWorks.css';
 
@@ -9,10 +9,10 @@ const HowItWorks = () => {
 
   const steps = [
     { n: 1, Icon: ShoppingBasket, title: t('howStep1Title'), text: t('howLongStep1') },
-    { n: 2, Icon: CreditCard, title: t('howStep2Title'), text: t('howLongStep2') },
+    { n: 2, Icon: Smartphone, title: t('howStep2Title'), text: t('howLongStep2') },
     { n: 3, Icon: ShieldCheck, title: t('howStep3Title'), text: t('howLongStep3') }
   ];
-  const faqs = [1, 2, 3, 4].map((n) => ({ q: t(`faq${n}Q`), a: t(`faq${n}A`) }));
+  const faqs = [1, 2, 3, 4, 5, 6].map((n) => ({ q: t(`faq${n}Q`), a: t(`faq${n}A`) }));
 
   return (
     <div className="hiw container">
@@ -63,8 +63,8 @@ const HowItWorks = () => {
           <Link to="/catalog" className="btn btn-lg cta__primary">
             <ShoppingCart size={18} aria-hidden="true" /> {t('ctaBrowse')}
           </Link>
-          <Link to="/pickup-stations" className="btn btn-lg btn-outline-light">
-            <MapPin size={18} aria-hidden="true" /> {t('ctaStations')}
+          <Link to="/services" className="btn btn-lg btn-outline-light">
+            <Wrench size={18} aria-hidden="true" /> {t('bookHomeService')}
           </Link>
         </div>
       </section>

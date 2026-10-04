@@ -21,8 +21,9 @@ const ProductCard = ({ product }) => {
 
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
-  const name = getLocalizedField(product, 'name') || product.name || t('freshProduce');
+  const name = getLocalizedField(product, 'name') || product.name || t('productFallback');
   const price = product.priceUgx ?? product.price ?? 0;
+  const wasPrice = product.compareAtPrice && product.compareAtPrice > price ? product.compareAtPrice : null;
   const stock = product.availability?.stockQuantity ?? product.stockQuantity ?? 0;
   const inStock = product.availability?.inStock ?? stock > 0;
   const isAvailable = inStock && stock > 0;
@@ -60,6 +61,7 @@ const ProductCard = ({ product }) => {
           onError={() => setImageFailed(true)}
         />
         {categoryName && <span className="pc__cat">{categoryName}</span>}
+        {wasPrice && product.discountPercent > 0 && <span className="pc__deal">-{product.discountPercent}%</span>}
         {!isAvailable && (
           <span className="pc__overlay">
             <span>{t('outOfStock')}</span>
@@ -68,13 +70,18 @@ const ProductCard = ({ product }) => {
       </Link>
 
       <div className="pc__body">
+        {product.brand && <span className="pc__brand">{product.brand}</span>}
         <Link to={`/product/${product.id}`} className="pc__title">
           {name}
         </Link>
 
         <div className="pc__price-row">
           <span className="pc__price">{formatUGX(price)}</span>
-          {product.unit && <span className="pc__unit">{t('perUnit', { unit: product.unit })}</span>}
+          {wasPrice ? (
+            <s className="pc__was">{formatUGX(wasPrice)}</s>
+          ) : (
+            product.unit && <span className="pc__unit">{t('perUnit', { unit: product.unit })}</span>
+          )}
         </div>
 
         <div className="pc__meta">

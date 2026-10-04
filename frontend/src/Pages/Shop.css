@@ -49,6 +49,33 @@
   transform: translateX(3px);
 }
 
+.hero__cat span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero__cat .hero__cat-icon,
+.hero__cat:hover .hero__cat-icon {
+  flex: 0 0 auto;
+  color: var(--primary);
+  transform: none;
+}
+
+.hero__cat--services {
+  margin-top: 4px;
+  color: var(--accent-hover);
+  border-top: 1px dashed var(--line-strong);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.hero__cat--services .hero__cat-icon,
+.hero__cat--services:hover .hero__cat-icon {
+  color: var(--accent);
+}
+
 .hero__cats-all {
   display: inline-flex;
   align-items: center;
@@ -399,6 +426,21 @@
   transform: scale(1.07);
 }
 
+.cat-tile__media--icon {
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.cat-tile__media--icon svg {
+  transition: transform 0.4s var(--ease);
+}
+
+.cat-tile:hover .cat-tile__media--icon svg {
+  transform: scale(1.12) rotate(-4deg);
+}
+
 .cat-tile__name {
   padding: 12px 14px 0;
   font-weight: 700;
@@ -482,10 +524,10 @@
   font-size: 0.9rem;
 }
 
-/* ── Pickup stations ─────────────────────────────────────── */
-.pickup {
+/* ── Home services ───────────────────────────────────────── */
+.home-svc {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: clamp(16px, 2.4vw, 28px);
   padding: clamp(18px, 3vw, 32px);
   background: #0f2a1c;
@@ -493,7 +535,7 @@
   color: rgba(255, 255, 255, 0.86);
 }
 
-.pickup__intro {
+.home-svc__intro {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -501,7 +543,7 @@
   justify-content: center;
 }
 
-.pickup__kicker {
+.home-svc__kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -515,41 +557,22 @@
   border-radius: 999px;
 }
 
-.pickup__intro h2 {
+.home-svc__intro h2 {
   font-size: clamp(1.4rem, 2.8vw, 2rem);
   color: #fff;
 }
 
-.pickup__stats {
-  display: flex;
-  gap: clamp(20px, 4vw, 40px);
-  padding: 4px 0 8px;
-}
-
-.pickup__stats dt {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.pickup__stats dd {
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1.1;
-  color: #fff;
-}
-
-.pickup__list {
-  display: flex;
-  flex-direction: column;
+.home-svc__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.pickup__card {
+.home-svc__card {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  height: 100%;
   padding: 14px 16px;
   color: var(--text);
   background: var(--surface);
@@ -557,69 +580,38 @@
   transition: transform var(--base) var(--ease);
 }
 
-.pickup__card:hover {
-  transform: translateX(6px);
+.home-svc__card:hover {
+  transform: translateY(-3px);
 }
 
-.pickup__pin {
+.home-svc__card span:last-child {
   display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border-radius: 50%;
-}
-
-.pickup__info {
-  flex: 1;
+  flex-direction: column;
   min-width: 0;
 }
 
-.pickup__title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-}
-
-.pickup__title strong {
+.home-svc__card strong {
   color: var(--ink);
+  font-size: 0.92rem;
 }
 
-.pickup__info p {
-  font-size: 0.85rem;
+.home-svc__card small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
   color: var(--muted);
 }
 
-.pickup__hours {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.pickup__go {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  color: var(--primary);
-  border: 1px solid var(--primary-line);
-  border-radius: 50%;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
-}
-
-.pickup__go:hover {
-  color: #fff;
-  background: var(--primary);
+.home-svc__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  border-radius: 12px;
 }
 
 /* ── Closing CTA ─────────────────────────────────────────── */
@@ -694,7 +686,7 @@
   .how__steps {
     grid-template-columns: 1fr;
   }
-  .pickup {
+  .home-svc {
     grid-template-columns: 1fr;
   }
 }
@@ -732,7 +724,7 @@
   .cta__actions .btn {
     width: 100%;
   }
-  .pickup__card:hover {
-    transform: none;
+  .home-svc__list {
+    grid-template-columns: 1fr;
   }
 }

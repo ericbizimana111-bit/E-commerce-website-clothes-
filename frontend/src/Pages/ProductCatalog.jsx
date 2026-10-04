@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Search, ShoppingBasket, SlidersHorizontal, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, LayoutGrid, Search, ShoppingBasket, SlidersHorizontal, Wrench, X } from 'lucide-react';
 import apiClient from '../api/client';
 import ProductCard from '../Components/ProductCard/ProductCard';
 import Pagination from '../Components/ui/Pagination';
 import { ProductGridSkeleton } from '../Components/Skeletons/Skeletons';
 import { useLanguage } from '../Context/LanguageContext';
 import useCategories from '../utils/useCategories';
+import { iconFor } from '../utils/categoryIcons';
 import useDebouncedValue from '../utils/useDebouncedValue';
 import { LIMITS, sanitizeLine } from '../utils/inputGuards';
 import { friendlyError } from '../utils/errors';
@@ -14,15 +15,17 @@ import './ProductCatalog.css';
 
 const PAGE_SIZE = 12;
 const PRICE_PRESETS = [
-  { key: 'priceUnder10', min: '', max: '10000' },
-  { key: 'price10to30', min: '10000', max: '30000' },
-  { key: 'priceOver30', min: '30000', max: '' }
+  { key: 'priceUnder20k', min: '', max: '20000' },
+  { key: 'price20to100k', min: '20000', max: '100000' },
+  { key: 'price100to500k', min: '100000', max: '500000' },
+  { key: 'priceOver500k', min: '500000', max: '' }
 ];
+const SORTS = ['newest', 'price_asc', 'price_desc', 'name'];
 
 const digitsOnly = (value) => String(value ?? '').replace(/\D/g, '').slice(0, 9);
 
 /** Filter controls, shared by the desktop sidebar and the phone bottom sheet. */
-const FilterPanel = ({ categories, categoryParam, inStock, minPrice, maxPrice, onChange, onPreset, t, getLocalizedField }) => {
+const FilterPanel = ({ categories, categoryParam, inStock, featured, brand, brands, minPrice, maxPrice, onChange, onPreset, t, getLocalizedField }) => {
   const [minInput, setMinInput] = useState(minPrice);
   const [maxInput, setMaxInput] = useState(maxPrice);
   const [prevMin, setPrevMin] = useState(minPrice);
@@ -63,24 +66,46 @@ const FilterPanel = ({ categories, categoryParam, inStock, minPrice, maxPrice, o
               aria-pressed={!categoryParam}
               onClick={() => onChange({ category: '' })}
             >
+              <LayoutGrid size={16} aria-hidden="true" className="filters__cat-icon" />
               <span>{t('allCategories')}</span>
             </button>
           </li>
-          {categories.map((cat) => (
-            <li key={cat.id}>
-              <button
-                type="button"
-                className={`filters__cat ${categoryParam === cat.slug ? 'filters__cat--active' : ''}`}
-                aria-pressed={categoryParam === cat.slug}
-                onClick={() => onChange({ category: cat.slug })}
-              >
-                <span>{getLocalizedField(cat, 'name') || cat.name}</span>
-                <small>{cat.productCount ?? 0}</small>
-              </button>
-            </li>
-          ))}
+          {categories.map((cat) => {
+            const Icon = iconFor(cat.icon);
+            return (
+              <li key={cat.id}>
+                <button
+                  type="button"
+                  className={`filters__cat ${categoryParam === cat.slug ? 'filters__cat--active' : ''}`}
+                  aria-pressed={categoryParam === cat.slug}
+                  onClick={() => onChange({ category: cat.slug, brand: '' })}
+                >
+                  <Icon size={16} aria-hidden="true" className="filters__cat-icon" />
+                  <span>{getLocalizedField(cat, 'name') || cat.name}</span>
+                  <small>{cat.productCount ?? 0}</small>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </section>
+
+      {brands.length > 0 && (
+        <section className="filters__group">
+          <h3>{t('filterBrand')}</h3>
+          <ul className="filters__brands">
+            {brands.map((b) => (
+              <li key={b.name}>
+                <label className="check-row">
+                  <input type="checkbox" checked={brand.toLowerCase() === b.name.toLowerCase()} onChange={(e) => onChange({ brand: e.target.checked ? b.name : '' })} />
+                  <span>{b.name}</span>
+                  <small>{b.count}</small>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="filters__group">
         <h3>{t('filterPrice')}</h3>
@@ -132,7 +157,21 @@ const FilterPanel = ({ categories, categoryParam, inStock, minPrice, maxPrice, o
           <span className="switch__track" aria-hidden="true" />
           <span>{t('inStockOnly')}</span>
         </label>
+        <label className="switch" style={{ marginTop: 10 }}>
+          <input type="checkbox" checked={featured} onChange={(e) => onChange({ featured: e.target.checked ? 'true' : '' })} />
+          <span className="switch__track" aria-hidden="true" />
+          <span>{t('featuredOnly')}</span>
+        </label>
       </section>
+
+      <Link to="/services" className="filters__promo">
+        <Wrench size={20} aria-hidden="true" />
+        <span>
+          <strong>{t('promoServicesTitle')}</strong>
+          <small>{t('promoServicesDesc')}</small>
+        </span>
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
     </div>
   );
 };
@@ -147,6 +186,9 @@ const ProductCatalog = () => {
   const inStockParam = searchParams.get('inStock') === 'true';
   const minPriceParam = searchParams.get('minPrice') || '';
   const maxPriceParam = searchParams.get('maxPrice') || '';
+  const brandParam = searchParams.get('brand') || '';
+  const featuredParam = searchParams.get('featured') === 'true';
+  const sortParam = SORTS.includes(searchParams.get('sort')) ? searchParams.get('sort') : 'newest';
   const pageParam = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
 
   const [products, setProducts] = useState([]);
@@ -155,6 +197,19 @@ const ProductCatalog = () => {
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [brands, setBrands] = useState([]);
+
+  // Brand facets for the current category.
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .get(`/products/facets${categoryParam ? `?categorySlug=${encodeURIComponent(categoryParam)}` : ''}`)
+      .then((res) => alive && setBrands(res?.data?.brands || []))
+      .catch(() => alive && setBrands([]));
+    return () => {
+      alive = false;
+    };
+  }, [categoryParam]);
 
   const [searchInput, setSearchInput] = useState(search);
   const [prevSearch, setPrevSearch] = useState(search);
@@ -200,6 +255,9 @@ const ProductCatalog = () => {
     if (inStockParam) params.set('inStock', 'true');
     if (minPriceParam) params.set('minPrice', minPriceParam);
     if (maxPriceParam) params.set('maxPrice', maxPriceParam);
+    if (brandParam) params.set('brand', brandParam);
+    if (featuredParam) params.set('featured', 'true');
+    if (sortParam !== 'newest') params.set('sort', sortParam);
 
     apiClient
       .get(`/products?${params.toString()}`, { signal: controller.signal })
@@ -217,7 +275,7 @@ const ProductCatalog = () => {
     return () => controller.abort();
     // `t` is stable per language; including currentLang covers it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLang, search, categoryParam, inStockParam, minPriceParam, maxPriceParam, pageParam, reloadKey]);
+  }, [currentLang, search, categoryParam, inStockParam, minPriceParam, maxPriceParam, brandParam, featuredParam, sortParam, pageParam, reloadKey]);
 
   // Lock scroll behind the phone filter sheet.
   useEffect(() => {
@@ -239,7 +297,9 @@ const ProductCatalog = () => {
         clear: { category: '' }
       });
     }
+    if (brandParam) chips.push({ key: 'brand', label: brandParam, clear: { brand: '' } });
     if (inStockParam) chips.push({ key: 'inStock', label: t('inStockOnly'), clear: { inStock: '' } });
+    if (featuredParam) chips.push({ key: 'featured', label: t('featuredOnly'), clear: { featured: '' } });
     if (minPriceParam || maxPriceParam) {
       const label = `UGX ${minPriceParam ? Number(minPriceParam).toLocaleString('en-UG') : '0'} – ${
         maxPriceParam ? Number(maxPriceParam).toLocaleString('en-UG') : '∞'
@@ -247,7 +307,7 @@ const ProductCatalog = () => {
       chips.push({ key: 'price', label, clear: { minPrice: '', maxPrice: '' } });
     }
     return chips;
-  }, [search, categoryParam, activeCategory, inStockParam, minPriceParam, maxPriceParam, t, getLocalizedField]);
+  }, [search, categoryParam, activeCategory, brandParam, inStockParam, featuredParam, minPriceParam, maxPriceParam, t, getLocalizedField]);
 
   const resetAll = () => {
     setSearchInput('');
@@ -264,6 +324,9 @@ const ProductCatalog = () => {
       categories={categories}
       categoryParam={categoryParam}
       inStock={inStockParam}
+      featured={featuredParam}
+      brand={brandParam}
+      brands={brands}
       minPrice={minPriceParam}
       maxPrice={maxPriceParam}
       onChange={updateFilter}
@@ -283,8 +346,22 @@ const ProductCatalog = () => {
 
       <header className="catalog__head">
         <div>
-          <h1 className="page-title">{search.trim() ? t('resultsFor', { q: search.trim() }) : t('catalogTitle')}</h1>
-          <p className="section-desc">{t('catalogSubtitle')}</p>
+          <h1 className="page-title catalog__title">
+            {activeCategory && !search.trim() && (() => {
+              const Icon = iconFor(activeCategory.icon);
+              return (
+                <span className="catalog__title-icon">
+                  <Icon size={22} aria-hidden="true" />
+                </span>
+              );
+            })()}
+            {search.trim()
+              ? t('resultsFor', { q: search.trim() })
+              : activeCategory
+              ? getLocalizedField(activeCategory, 'name') || activeCategory.name
+              : t('catalogTitle')}
+          </h1>
+          <p className="section-desc">{t('catalogSubtitleAll')}</p>
         </div>
         <p className="catalog__count" role="status" aria-live="polite">
           {!loading && !error ? t('resultsCount', { count: pagination.total }) : ' '}
@@ -318,6 +395,16 @@ const ProductCatalog = () => {
                 </button>
               )}
             </div>
+            <label className="catalog__sort">
+              <span className="um-visually-hidden">{t('sortBy')}</span>
+              <select className="form-select" value={sortParam} onChange={(e) => updateFilter({ sort: e.target.value === 'newest' ? '' : e.target.value })} aria-label={t('sortBy')}>
+                {SORTS.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`sort_${s}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="button" className="btn btn-secondary catalog__filter-btn" onClick={() => setSheetOpen(true)}>
               <SlidersHorizontal size={16} aria-hidden="true" />
               {t('filters')}

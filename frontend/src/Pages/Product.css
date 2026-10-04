@@ -408,3 +408,35 @@
     display: none;
   }
 }
+
+/* General merchandise */
+.pd__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pd__was {
+  font-size: 1rem;
+  color: var(--faint);
+}
+
+.pd__specs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.pd__specs th,
+.pd__specs td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.pd__specs th {
+  width: 38%;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+}
